@@ -169,3 +169,37 @@ the SHORTEST slot's bucket emptying first (length-3 hits zero between bar 90 and
 proven engine and Lexicon machinery; change only what the geometry forces.
 Reversal: none for the model; the tight scope items (pattern generation, longer
 lists, themes) are follow-on spikes, see open-questions.
+
+## D13. Black cells become a PARAMETER: generate the layout from a count
+
+Context: D12's spike left the block PATTERN as input — you hand `blocked.py` the
+exact `.`/`#` template. The open question ("Block-pattern generation") framed the
+missing piece as its own CSP: rotational symmetry, full connectivity of the white
+cells, minimum word length / no unchecked cells, and a black-cell target. Decision:
+add `patterns.py` — given a shape and a *number* of black cells, generate the legal
+layouts and let the search place the blacks, rather than committing a template. A
+layout is legal iff it has exactly `num_black` blacks, is 180°-rotationally
+symmetric (default; the American convention, toggleable), is *fully checked* (every
+white cell lies in an across and a down run >= min_len — i.e. no white run has
+length 1..min_len-1, which subsumes blocked.py's no-orphan condition), and its
+white cells are 4-connected. Generation is complete backtracking over the cells,
+grouped into 180°-rotation ORBITS when symmetric so the orbit is the unit of choice
+(this is also why an odd black count needs a centre cell — even-celled grids reject
+odd counts, and a black centre in an odd square like 5x5 is itself illegal because
+it splits the middle row/column into sub-min_len runs). Randomised orbit order gives
+per-seed diversity without changing the reachable set (verified: the enumerated set
+is seed-invariant). `fill_by_count` composes the layout search with `fill.solve`:
+first layout that admits a distinct fill wins. Rationale: this is the same thesis
+as everywhere else — complete search on a bar-filtered list — extended one level up
+from "fill this grid" to "find a grid and fill it", so a `None` result is a genuine
+UNSAT proof (no legal K-black layout of this shape fills from these lists), not a
+timeout. Kept the square/blocked split intact: `patterns.py` only produces
+`BlockedGrid`s and reuses `fill.py` unchanged. Small-first preserved:
+`scripts/generate.py` enumerates every legal layout on a tiny case and asserts the
+invariants (symmetry, count, fully-checked, connected, duplicate-free) before the
+demo, the layout analogue of D12's `enumerate_fills` ground truth. Alternatives
+considered: a stochastic layout sampler (rejected for the same reason as D7 — small
+hard search wants completeness); making symmetry mandatory (rejected — kept it a
+default-on toggle so non-symmetric experiments stay possible). Reversal: none for
+the model; a smarter layout enumeration (dedup by symmetry class, prune connectivity
+incrementally) is a performance follow-up, not a design change.

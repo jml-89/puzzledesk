@@ -63,9 +63,15 @@ that slot/crossing graph; `fill.py` fills it as a CSP over slots with the same
 complete backtracking (now with MRV ordering and per-slot *pattern* queries into
 a length-bucketed `MultiLexicon`), still distinct, still every entry ≥ the bar by
 construction. Same small-first discipline: a tiny blocked grid is enumerated as
-ground truth. What's done is the **fill**; generating legal block patterns
-(symmetry, connectivity, min-length) and word lists longer than 5 are the next
-steps — see `docs/open-questions.md`.
+ground truth.
+
+The block pattern itself is now a **parameter, not a fixed template**: you give a
+shape and a *number* of black cells and `patterns.py` searches the legal layouts
+— 180°-symmetric, fully checked (no unchecked cells, no sub-`min_len` runs), white
+cells connected — with the same complete backtracking, then fills each until one
+solves. Because the layout search and the fill are both complete, "no grid" is a
+proof, not a timeout. Word lists longer than 5 (for full-size 15×15 grids) are the
+remaining step — see `docs/open-questions.md`.
 
 ## Layout
 
@@ -79,6 +85,7 @@ steps — see `docs/open-questions.md`.
 | `src/puzzledesk/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
 | `src/puzzledesk/blocked.py`    | **blocked grids** — parse a black-cell pattern into the across/down slot + crossing graph |
 | `src/puzzledesk/fill.py`       | **complete** MRV backtracking fill over slots — the blocked-grid engine (+ `enumerate_fills` ground truth) |
+| `src/puzzledesk/patterns.py`   | **block-pattern generation** — from a black-cell *count* to legal symmetric/checked/connected layouts; `fill_by_count` ties layout search to fill |
 | `scripts/demo.py`              | validation across N=2..4 |
 | `scripts/frontier.py`          | sweep the acceptance bar; where does packing stay feasible |
 | `scripts/compare.py`           | sampler vs backtracking head-to-head (same distinct problem) |
@@ -86,6 +93,7 @@ steps — see `docs/open-questions.md`.
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
 | `scripts/mini.py`              | **the generator** — print distinct minis above a quality bar |
 | `scripts/blackcells.py`        | **blocked-grid fill** — ground-truth check, filled grids, quality ceiling |
+| `scripts/generate.py`          | **blocked minis from a black-cell count** — layout search + fill (`generate.py 5 5 4 60 3`) |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
 | `data/scored_N.txt`            | the above with wordfreq Zipf scores (weak baseline list) |
 | `data/cw_N.txt`                | curated crossword list, scored 0–100 (the real list) |
@@ -99,6 +107,7 @@ python3 scripts/demo.py             # correctness across N=2..4
 python3 scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
 python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
 python3 scripts/blackcells.py       # blocked-grid fill: ground truth + filled grids
+python3 scripts/generate.py 5 5 4 60 3   # 5x5 minis with 4 black cells, layout found by search
 ```
 
 ## Deeper docs (agent-facing, in `docs/`)
@@ -124,7 +133,9 @@ python3 scripts/blackcells.py       # blocked-grid fill: ground truth + filled g
 - [x] **Black cells** — slot/crossing model + complete MRV backtracking fill;
       varying-length slots, distinct entries, every entry ≥ bar; tiny grid vs
       brute-force ground truth. `scripts/blackcells.py`. (Fill only.)
-- [ ] Block-pattern generation — legal symmetric layouts (connectivity, min-length)
+- [x] **Block-pattern generation** — black cells are a *count*, not a template;
+      `patterns.py` searches legal symmetric/checked/connected layouts and fills
+      them, complete both ways (`scripts/generate.py`)
 - [ ] Word lists longer than 5 — needed for full-size (15×15) blocked grids
 - [ ] Clue generation (separate downstream stage)
 - [ ] Grid variety controls — seed words, themes, avoid overused entries
