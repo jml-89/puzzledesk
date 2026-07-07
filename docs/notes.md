@@ -13,16 +13,37 @@ Packing is easy while the list is large:
 - 5x5 on the weak list at Zipf>=2.5 (~4550 words), NON-distinct: ~82 ms/run,
   40/40 solved, median 0 restarts. Interlock does not bite when the list is big.
 
-Sampler vs backtracking, 5x5, weak list, filtered, distinctness OFF (early
-comparison), same acceptance bar:
+Sampler vs backtracking, 5x5, weak list, filtered, distinctness OFF (the ORIGINAL
+early comparison, before the sampler enforced distinctness), same acceptance bar:
 - T(Zipf)=3.0 (3130 words): sampler 2090 ms vs backtrack 33 ms  (64x)
 - T=3.5 (1972 words):        sampler 3003 ms vs backtrack 17 ms  (174x)
 - T=4.0 (1113 words):        sampler 5808 ms vs backtrack 13 ms  (450x)
 Speedup GROWS as the list shrinks: stochastic local search degrades exactly where
 systematic search improves. This is the empirical basis for D7.
 
-Distinctness cost (5x5, weak list, backtracking): removing the symmetric basin
-took ~17 ms -> ~420 ms at Zipf>=3.5. The easy speed was partly degenerate grids.
+Sampler vs backtracking on the DISTINCT problem (5x5, weak list, distinct=True,
+sampler = penalty strategy, 10 seeds; re-measured this container). Both solve the
+same problem now, so the comparison is apples-to-apples:
+- T(Zipf)=3.0 (3130 words): sampler ~9.0 s (10/10) vs backtrack 0.12 s (10/10)  (~77x)
+- T=3.5 (1972 words):        sampler ~22 s (3/10)  vs backtrack 0.27 s (10/10)
+At T=3.5 the sampler's SOLVE RATE collapses (3/10) while backtracking stays 10/10
+and complete; a raw ms ratio there is misleading because most sampler runs burn
+their whole restart budget without solving. This is D7 confirmed on the distinct
+problem: backtracking is the right engine for small/hard/filtered lists.
+
+Sampler strategy study (scripts/samplers.py, 5x5, distinct=True, 10 seeds):
+- gate (restart on a degenerate valid grid) vs penalty (duplicate-pair penalty in
+  the move). On these lists the two are COMPARABLE: penalty is never worse on
+  solve rate (10/10 vs 10/10 at T=3.0; 3/10 vs 2/10 at T=3.5) but adds per-step
+  overhead (it rebuilds N*26 column strings when near feasibility). Finding: at
+  N=5 distinctness is NOT the sampler's bottleneck -- reaching feasibility is --
+  so the guided penalty buys only a marginal robustness edge. penalty is the
+  default (guided=True) as the principled "actively enforce" behaviour; gate is
+  the honest baseline it is measured against. Neither rivals backtracking.
+
+Distinctness cost (5x5, backtracking, this container): removing the symmetric
+basin took ~13 ms -> ~380 ms at Zipf>=3.5 (weak list) and ~19 ms -> ~620 ms at
+score>=90 (curated). The easy speed was partly degenerate grids.
 
 Honest ceilings (distinct=True):
 - Weak list (Zipf): 5x5 tops out ~Zipf>=3.5 (e.g. mates/irene/linda/asset/needs);
@@ -87,7 +108,9 @@ Curated real list — `data/cw_N.txt`:
 - CRLF in the dwyl list (above).
 - Score scales differ per list; a threshold only means something against its own
   list. `ceiling.py` chooses default thresholds by list name for this reason.
-- The sampler does not enforce distinctness; validate output if you use it.
+- The sampler enforces distinctness only with `distinct=True` (default off, so the
+  raw-packing scripts bench.py/quality.py are unchanged). With it off it can emit
+  a degenerate square; validate output if you use that path.
 - Empty-repo default-branch behaviour (above).
 - Brute-force enumeration is only viable at N=2; at N=3+ on a permissive list the
   count is huge — do not enumerate the full list.
@@ -96,6 +119,7 @@ Curated real list — `data/cw_N.txt`:
 
 - On `origin/main` at the spike HEAD (8 commits). Working tree clean.
 - Engine: complete backtracking primary, sampler secondary. Distinctness enforced
-  in backtrack + validate. Curated list wired via `from_scored_file`.
+  in backtrack + validate + sampler (distinct=True). Curated list wired via
+  `from_scored_file`.
 - Deliverable: `scripts/mini.py` generates distinct minis above a quality bar.
 - Not started: clue generation, cross-batch variety, JAX, black-cell grids.

@@ -118,3 +118,28 @@ existed to merge into anyway). Rationale: minimal ceremony; establishes a
 baseline. Follow-up not done: GitHub's *default branch* setting may still point at
 `claude/empty-repo-review-0vagwh`; flipping it to `main` is a one-click settings
 change. Reversal: n/a.
+
+## D11. Refine the sampler to enforce distinctness; pick its strategy by measurement
+
+Context: after D8, `validate` and `backtrack` enforced distinctness but the
+sampler (D3) did not. That left it emitting degenerate squares, and the two
+scripts that validated sampler output (`compare.py`, `frontier.py`) asserted
+`validate(...).ok` on non-distinct grids and crashed. The stated 64-450x
+sampler-vs-backtrack figure was also measured distinctness-OFF, so it no longer
+described the problem the system actually solves. Decision: make the sampler
+enforce distinctness (`distinct=True`) via a vectorised duplicate-pair penalty in
+the move (`_distinct_penalty`), weighted below one valid column so feasibility
+still dominates; fix the two scripts to solve the distinct problem; and settle HOW
+the sampler should enforce distinctness by measuring two strategies
+(`scripts/samplers.py`): `gate` (restart on a degenerate valid grid) vs `penalty`
+(guide off the basin). Result: on N=5 filtered lists the two are comparable —
+penalty is never worse on solve rate but adds per-step overhead — because
+distinctness is not the sampler's bottleneck (reaching feasibility is). Kept
+penalty as the default (the principled "actively enforce" behaviour), gate as the
+baseline. Re-measured on the distinct problem, backtracking is ~50-80x faster and
+its solve-rate stays 10/10 where the sampler collapses to 2-3/10 — D7 reconfirmed.
+Rationale: the sampler must produce the object we claim (a genuine double word
+square) for the comparison and the scripts to be honest; the strategy choice is
+made by data, not assertion. Reversal: if soft preferences return and the sampler
+becomes primary, revisit whether the penalty overhead is worth vectorising
+further (or move the whole thing to JAX parallel chains).
