@@ -181,7 +181,11 @@ from a shape and a *number* of black cells, generate the legal layouts (D13).
   shuffles orbit order per seed for diversity without changing the reachable set.
   An empty generator is a PROOF no legal layout exists (e.g. a symmetric even-celled
   grid cannot take an odd black count — no centre cell; and a black centre in a 5x5
-  is illegal, it makes length-2 runs).
+  is illegal, it makes length-2 runs). With `symmetric=False` each cell is its own
+  unit (no orbits): the reachable set is every legal placement, which is how you get
+  an odd count like 3 blacks on a 5x5 that no symmetric layout admits. Everything
+  else (fully-checked, connected, completeness) is unchanged; `generate.py` exposes
+  it as `--nonsymmetric`.
 - `fill_by_count(rows, cols, num_black, mlex, ...)` composes the layout search with
   `fill.solve`: returns `(grid, assign)` for the first legal layout that admits a
   distinct fill, or None. Both stages complete, so None is a real UNSAT proof for

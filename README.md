@@ -67,11 +67,21 @@ ground truth.
 
 The block pattern itself is now a **parameter, not a fixed template**: you give a
 shape and a *number* of black cells and `patterns.py` searches the legal layouts
-— 180°-symmetric, fully checked (no unchecked cells, no sub-`min_len` runs), white
-cells connected — with the same complete backtracking, then fills each until one
-solves. Because the layout search and the fill are both complete, "no grid" is a
-proof, not a timeout. Word lists longer than 5 (for full-size 15×15 grids) are the
-remaining step — see `docs/open-questions.md`.
+— fully checked (no unchecked cells, no sub-`min_len` runs), white cells connected
+— with the same complete backtracking, then fills each until one solves. Because
+the layout search and the fill are both complete, "no grid" is a proof, not a
+timeout. Word lists longer than 5 (for full-size 15×15 grids) are the remaining
+step — see `docs/open-questions.md`.
+
+**Symmetry is optional.** By default the layout search is restricted to
+180°-symmetric grids (the crossword convention), where a black cell is chosen as
+a *rotation orbit* — so a symmetric grid can only carry an odd black count when a
+centre cell absorbs it, and often not even then (a centre black on a 5×5 splits
+the middle row/column into length-2 runs, so *no* symmetric 3-black 5×5 exists).
+Pass `symmetric=False` (`--nonsymmetric` on `generate.py`) and each cell is its
+own unit: any legal placement is allowed, which is the only way to get e.g. 3
+black cells across a 5×5. The completeness guarantee is unchanged — the search
+just enumerates a larger legal set.
 
 ## Layout
 
@@ -108,6 +118,7 @@ python3 scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
 python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
 python3 scripts/blackcells.py       # blocked-grid fill: ground truth + filled grids
 python3 scripts/generate.py 5 5 4 60 3   # 5x5 minis with 4 black cells, layout found by search
+python3 scripts/generate.py 5 5 3 60 3 --nonsymmetric  # 3 black cells, no 180° symmetry
 ```
 
 ## Deeper docs (agent-facing, in `docs/`)
@@ -136,6 +147,9 @@ python3 scripts/generate.py 5 5 4 60 3   # 5x5 minis with 4 black cells, layout 
 - [x] **Block-pattern generation** — black cells are a *count*, not a template;
       `patterns.py` searches legal symmetric/checked/connected layouts and fills
       them, complete both ways (`scripts/generate.py`)
+- [x] **Non-symmetric black cells** — `symmetric=False` drops the 180° constraint
+      so any legal placement is allowed (e.g. 3 blacks across a full 5×5, which no
+      symmetric layout admits); `generate.py --nonsymmetric`
 - [ ] Word lists longer than 5 — needed for full-size (15×15) blocked grids
 - [ ] Clue generation (separate downstream stage)
 - [ ] Grid variety controls — seed words, themes, avoid overused entries
