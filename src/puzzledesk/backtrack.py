@@ -1,0 +1,70 @@
+"""Propagation-backtracking solver for double word squares.
+
+Once the acceptance test collapsed 'quality' into feasibility on a filtered
+list, min-conflicts became the wrong tool: on a small, hard list it wanders and
+restarts. A complete search with strong pruning is the right engine here.
+
+We fill rows top to bottom. Before placing row r, every partial column must stay
+a live prefix of some column word. For each column we know exactly which letters
+keep that prefix alive; intersecting those per-position constraints against the
+row lexicon (via Lexicon.words_matching) yields the legal row words directly --
+no scan-and-reject. Randomising the candidate order gives distinct grids per
+seed, recovering the diversity we liked about sampling.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from .lexicon import Lexicon
+from .square import DoubleSquare
+
+
+class _PrefixIndex:
+    """For each prefix of a column word, which letters may follow (26-bool)."""
+
+    def __init__(self, lex: Lexicon):
+        self.nxt: dict[str, np.ndarray] = {}
+        for w in lex.words:
+            for k in range(lex.n):
+                m = self.nxt.get(w[:k])
+                if m is None:
+                    m = np.zeros(26, dtype=bool)
+                    self.nxt[w[:k]] = m
+                m[ord(w[k]) - 97] = True
+        self._empty = np.zeros(26, dtype=bool)
+
+    def allowed(self, prefix: str) -> np.ndarray:
+        return self.nxt.get(prefix, self._empty)
+
+
+def solve(sq: DoubleSquare, *, seed: int = 0, randomize: bool = True):
+    """Return a solved state (array of N row-word indices) or None if the grid
+    admits no double word square from these lexicons (a real proof of UNSAT)."""
+    rng = np.random.default_rng(seed)
+    n = sq.n
+    pidx = _PrefixIndex(sq.cols)
+    state = np.full(n, -1, dtype=np.int64)
+    cols = [""] * n
+
+    def rec(r: int):
+        if r == n:
+            return state.copy()
+        allowed = [pidx.allowed(cols[j]) for j in range(n)]
+        cands = sq.rows.words_matching(allowed)  # rows legal at every column
+        if randomize:
+            rng.shuffle(cands)
+        for idx in cands:
+            w = sq.rows.words[idx]
+            state[r] = idx
+            for j in range(n):
+                cols[j] += w[j]
+            res = rec(r + 1)
+            if res is not None:
+                return res
+            for j in range(n):
+                cols[j] = cols[j][:-1]
+        state[r] = -1
+        return None
+
+    return rec(0)

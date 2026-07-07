@@ -54,4 +54,6 @@ def frontier(n, thresholds, tries=40):
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 4
-    frontier(n, [2.5, 3.0, 3.5, 4.0, 4.5, 5.0])
+    tries = int(sys.argv[2]) if len(sys.argv) > 2 else 40
+    ts = [float(x) for x in sys.argv[3:]] if len(sys.argv) > 3 else [2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    frontier(n, ts, tries=tries)
