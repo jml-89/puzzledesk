@@ -141,3 +141,70 @@ class Lexicon:
         for pos, allow in enumerate(allowed):
             mask &= allow[self.letters[:, pos]]
         return np.nonzero(mask)[0]
+
+    def matching(self, pattern: list[int | None]) -> np.ndarray:
+        """Return indices of words matching a fixed-letter pattern.
+
+        ``pattern`` has length N; each entry is a 0..25 letter index (that
+        position is pinned) or ``None`` (free). This is the core query for
+        blocked-grid fill: a slot's pattern is the letters its crossing entries
+        have already fixed, and the candidates are the words that fit. Unlike
+        :meth:`allowed_at` it allows *any* number of blanks, not exactly one.
+        """
+        mask = np.ones(len(self.words), dtype=bool)
+        for pos, val in enumerate(pattern):
+            if val is not None:
+                mask &= self.letters[:, pos] == val
+        return np.nonzero(mask)[0]
+
+
+class _EmptyLexicon:
+    """A length bucket with no qualifying words (e.g. no 2-letter word clears the
+    bar). Not an error -- it just means any slot of this length is unfillable, so
+    the fill solver sees zero candidates and treats the grid as UNSAT there."""
+
+    def __init__(self, n: int):
+        self.n = n
+        self.words: list[str] = []
+
+    def __len__(self) -> int:
+        return 0
+
+    def matching(self, pattern) -> np.ndarray:
+        return np.empty(0, dtype=np.intp)
+
+
+class MultiLexicon:
+    """Words bucketed by length -- what a blocked grid needs, since its slots no
+    longer share one length. Holds a :class:`Lexicon` per length and routes
+    pattern queries to the right bucket.
+
+    A single-length ``Lexicon`` was enough while every row and column was one
+    full-length word (the fully-checked square). Black cells cut the grid into
+    slots of mixed length, so fill needs 2s, 3s, 4s, ... at once.
+    """
+
+    def __init__(self, by_length: dict):
+        self.by_length = by_length
+
+    def __contains__(self, length: int) -> bool:
+        return length in self.by_length
+
+    def get(self, length: int):
+        if length not in self.by_length:
+            return _EmptyLexicon(length)  # no list loaded => unfillable, not a crash
+        return self.by_length[length]
+
+    @classmethod
+    def from_scored_files(cls, path_for, lengths, min_score: float = 0.0) -> "MultiLexicon":
+        """Load one scored file per length. ``path_for(n)`` returns the path for
+        length n (e.g. ``lambda n: DATA / f'cw_{n}.txt'``). ``min_score`` applies
+        the same acceptance-bar filter the rest of the system uses, so every
+        entry a fill can use already clears the bar. A length that ends up empty
+        after filtering is kept as an empty bucket (its slots become unfillable)."""
+        buckets: dict = {}
+        for n in sorted(set(lengths)):
+            lex = Lexicon.from_scored_file(path_for(n), length=n)
+            kept = [(w, s) for w, s in zip(lex.words, lex.scores.tolist()) if s >= min_score]
+            buckets[n] = Lexicon([w for w, _ in kept], [s for _, s in kept]) if kept else _EmptyLexicon(n)
+        return cls(buckets)

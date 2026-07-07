@@ -61,6 +61,13 @@ Key methods:
 - `words_matching(allowed)`: allowed is a length-N list of 26-bool masks; returns
   indices of words whose letter at every position is permitted. The bitset-style
   intersection the backtracker uses to get legal row words directly.
+- `matching(pattern)`: pattern is length-N of `int|None` (fixed letters + blanks,
+  any number of blanks); returns indices of words that fit. The per-slot query for
+  blocked-grid fill.
+
+`MultiLexicon` (same file) buckets a `Lexicon` per length for blocked grids, whose
+slots differ in length; `MultiLexicon.from_scored_files(path_for, lengths, bar)`
+loads and bar-filters each length, keeping empty lengths as an unfillable bucket.
 
 encode/decode map lowercase word <-> uint8 index array. `encode` uses
 `np.frombuffer(word.encode('ascii'))` so inputs must be lowercase ascii a-z.
@@ -127,8 +134,45 @@ distribution. See open question "does the sampler earn its keep".
 the feedback signal the whole design optimises against. `score_of` falls back to
 0.0 for words not in the lexicon's score_map.
 
+## Blocked grids (src/puzzledesk/blocked.py, fill.py)
+
+The everything-above assumes a fully-checked square: every row and column is one
+full-length word, so down words are induced by reading columns. Black cells break
+that — the "load-bearing, do not generalise" note on the square representation is
+exactly what black cells force you past. Rather than warp the square model, the
+blocked case is a SEPARATE, coexisting representation:
+
+- `BlockedGrid.parse(template, min_len)` reads a `.`/`#` pattern into **slots**
+  (maximal white runs >= min_len, across and down) and records, per white cell,
+  which across and down slot pass through it (`cell_slots`). The set of
+  (across, down) pairs that share a cell is the crossing graph. `orphans` are
+  white cells in no slot (a run shorter than min_len) — a malformed grid; fill
+  refuses one. It also assigns conventional clue numbers.
+- `MultiLexicon` (lexicon.py) holds a `Lexicon` per length, since slots no longer
+  share one length; `Lexicon.matching(pattern)` answers the per-slot query "words
+  that fit these already-fixed letters" (any number of blanks, unlike
+  `allowed_at`'s exactly-one). A length with no words at the bar is an empty
+  bucket (`_EmptyLexicon`), so such a slot is simply unfillable (UNSAT), not a
+  crash.
+- `fill.solve(grid, mlex, distinct, ...)` is complete backtracking over slots with
+  **MRV** ordering (always extend the unfilled slot with the fewest candidates; a
+  0-candidate slot is an immediate dead end). Distinctness is a grid-wide `used`
+  set (crosswords never repeat an entry). Randomised candidate order gives
+  per-seed diversity. None == exhausted tree == real UNSAT, same as `backtrack`.
+  `enumerate_fills` is the tiny-grid ground truth (cf. `bruteforce.py`).
+
+This reuses the whole thesis (complete search on a bar-filtered list) and the
+Lexicon's pattern machinery; only the representation changed. `scripts/blackcells.py`
+is the demo + ground-truth check. Not yet built: generating legal block PATTERNS
+(symmetry/connectivity/min-length) — patterns are input here — and word lists
+longer than 5 (the data only covers 2..5, enough for slots up to length 5).
+
 ## Invariants — do not break
 
+0. TWO GRID MODELS COEXIST. The square (square.py: induced columns, invariants
+   1-2) and the blocked grid (blocked.py/fill.py: explicit slot graph). Invariants
+   1-2 below are about the SQUARE model; the blocked model derives nothing from
+   columns. Distinctness (3) and score-scale/lowercase (4-5) apply to both.
 1. STATE = across-word indices. Down words are always derived, never stored.
 2. ENERGY 0 == valid. Any change to what counts as "a word" must go through the
    column lexicon's wordset so energy stays meaningful.
@@ -164,6 +208,8 @@ every word >= min_score by construction of the filter.
 - compare.py: sampler vs backtrack head-to-head on the same distinct problem.
 - samplers.py: sampler strategy study — gate vs distinctness-penalty (+backtrack
   reference), same distinct problem.
+- blackcells.py: blocked-grid fill — tiny-grid ground truth, filled grids from the
+  curated list, and a quality ceiling (shortest slot's list runs dry first).
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).

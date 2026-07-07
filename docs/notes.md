@@ -61,6 +61,15 @@ existence. The 25 randomised runs measure DIVERSITY (distinct grids) and average
 TIMING; for UNSAT the ms is time-to-prove-unsat (full tree). Do not read it as a
 success rate.
 
+Black-cell fill (blocked.py/fill.py, this container): a 5x5 with corner or edge
+blocks fills from the curated list (bar>=50) in a few ms per seed; raising the bar
+on a fixed pattern the length-3 bucket empties between bar 90 (SAT, ~200 ms real
+search) and 92 (0 three-letter words -> UNSAT), the blocked echo of "the lexicon
+is the ceiling". Tiny 2x3 blocked grid: 66,201 distinct fills brute-forced as
+ground truth, solver output a strict subset over 60 seeds. Data covers lengths
+2..5, so demos use slots <= 5; the curated list has no 2-letter entry above any
+real bar (length-2 slots are UNSAT on it).
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed

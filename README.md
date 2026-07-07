@@ -54,22 +54,38 @@ grids (`rotor/atone/strep/petal/srsly` × `rasps/otter/torts/oneal/reply`) in
 Building small-first (2×2 → 3×3 → 4×4 → 5×5): at N=2 we enumerate every valid
 square by brute force as ground truth; above that, validity is by construction.
 
+**Black cells (the model generalization).** The induced-column trick above is
+load-bearing but only works while every row and column is one full-length word.
+Real crosswords have black cells, so a grid becomes a set of **slots** (maximal
+white runs, across and down) of *varying length* that **cross** at shared cells —
+there is no single column to read. `blocked.py` parses a black-cell pattern into
+that slot/crossing graph; `fill.py` fills it as a CSP over slots with the same
+complete backtracking (now with MRV ordering and per-slot *pattern* queries into
+a length-bucketed `MultiLexicon`), still distinct, still every entry ≥ the bar by
+construction. Same small-first discipline: a tiny blocked grid is enumerated as
+ground truth. What's done is the **fill**; generating legal block patterns
+(symmetry, connectivity, min-length) and word lists longer than 5 are the next
+steps — see `docs/open-questions.md`.
+
 ## Layout
 
 | Path | What |
 |------|------|
-| `src/puzzledesk/lexicon.py`    | word storage; `set` for column checks, `(M,N)` letter matrix for pattern queries, per-word scores, `filtered(bar)` |
-| `src/puzzledesk/square.py`     | double-word-square representation and energy |
-| `src/puzzledesk/backtrack.py`  | **complete** prefix-pruned search — the primary engine |
+| `src/puzzledesk/lexicon.py`    | word storage; `set` for column checks, `(M,N)` letter matrix for pattern queries, per-word scores, `filtered(bar)`, `matching(pattern)`; `MultiLexicon` buckets words by length for blocked grids |
+| `src/puzzledesk/square.py`     | double-word-square representation and energy (the fully-checked model) |
+| `src/puzzledesk/backtrack.py`  | **complete** prefix-pruned search — the primary engine for squares |
 | `src/puzzledesk/sampler.py`    | min-conflicts / annealed-Gibbs sampler; enforces distinctness (`distinct=True`) via a duplicate-pair penalty (soft-objective / diversity engine) |
 | `src/puzzledesk/validate.py`   | acceptance test — bottleneck (weakest-word) verdict |
 | `src/puzzledesk/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
+| `src/puzzledesk/blocked.py`    | **blocked grids** — parse a black-cell pattern into the across/down slot + crossing graph |
+| `src/puzzledesk/fill.py`       | **complete** MRV backtracking fill over slots — the blocked-grid engine (+ `enumerate_fills` ground truth) |
 | `scripts/demo.py`              | validation across N=2..4 |
 | `scripts/frontier.py`          | sweep the acceptance bar; where does packing stay feasible |
 | `scripts/compare.py`           | sampler vs backtracking head-to-head (same distinct problem) |
 | `scripts/samplers.py`          | sampler strategy study — gate vs distinctness-penalty |
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
 | `scripts/mini.py`              | **the generator** — print distinct minis above a quality bar |
+| `scripts/blackcells.py`        | **blocked-grid fill** — ground-truth check, filled grids, quality ceiling |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
 | `data/scored_N.txt`            | the above with wordfreq Zipf scores (weak baseline list) |
 | `data/cw_N.txt`                | curated crossword list, scored 0–100 (the real list) |
@@ -82,6 +98,7 @@ pip install numpy wordfreq          # wordfreq only needed to regenerate scores
 python3 scripts/demo.py             # correctness across N=2..4
 python3 scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
 python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
+python3 scripts/blackcells.py       # blocked-grid fill: ground truth + filled grids
 ```
 
 ## Deeper docs (agent-facing, in `docs/`)
@@ -104,6 +121,11 @@ python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
       ≥4.0 provably UNSAT on the weak list)
 - [x] **Curated lexicon** — swapped in the Crossword-Nexus list; distinct 5×5
       minis with every word ≥90, publishable fills. `scripts/mini.py` generates.
+- [x] **Black cells** — slot/crossing model + complete MRV backtracking fill;
+      varying-length slots, distinct entries, every entry ≥ bar; tiny grid vs
+      brute-force ground truth. `scripts/blackcells.py`. (Fill only.)
+- [ ] Block-pattern generation — legal symmetric layouts (connectivity, min-length)
+- [ ] Word lists longer than 5 — needed for full-size (15×15) blocked grids
 - [ ] Clue generation (separate downstream stage)
 - [ ] Grid variety controls — seed words, themes, avoid overused entries
 - [ ] JAX parallel chains — only if we reintroduce genuinely soft preferences
