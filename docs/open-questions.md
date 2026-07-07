@@ -61,10 +61,14 @@ left to a human/LLM editor pass.
 Black-cell FILL is now done (D12, blocked.py/fill.py/blackcells.py): slot +
 crossing graph, MultiLexicon, complete MRV backtracking, distinct entries, tiny
 grid vs brute-force ground truth. What that spike deliberately left open:
-- **Block-pattern generation.** Patterns are INPUT right now. Generating legal
-  ones is its own CSP: rotational symmetry, full connectivity of the white cells,
-  minimum word length (>=3, no unchecked cells for an American grid), word-count
-  targets. This is the piece a real generator needs next.
+- **Block-pattern generation — DONE (D13, patterns.py).** Black cells are now a
+  *count*, not a template: `gen_patterns` enumerates legal layouts (180° symmetry,
+  full white connectivity, fully checked at min_len) and `fill_by_count` fills the
+  first that solves, complete both ways. Follow-ups left open: the layout search
+  enumerates raw orbit subsets (no dedup by symmetry class, connectivity checked at
+  the leaf not incrementally) — fine at 5x5, wants pruning before 15x15; and there
+  is no control over WHICH legal layout beyond "first that fills" (word-count
+  target, black-cell distribution, avoiding stacked/awkward shapes are unmodelled).
 - **Word lists longer than 5.** Data is lengths 2..5, so demos use slots <= 5. A
   full 15x15 needs 6..15-length lists (same `cw`/`scored` pipeline, longer slice).
   Also: the curated list has no usable 2-letter entries, so any grid with a

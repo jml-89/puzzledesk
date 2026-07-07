@@ -163,14 +163,40 @@ blocked case is a SEPARATE, coexisting representation:
 
 This reuses the whole thesis (complete search on a bar-filtered list) and the
 Lexicon's pattern machinery; only the representation changed. `scripts/blackcells.py`
-is the demo + ground-truth check. Not yet built: generating legal block PATTERNS
-(symmetry/connectivity/min-length) — patterns are input here — and word lists
-longer than 5 (the data only covers 2..5, enough for slots up to length 5).
+is the demo + ground-truth check. Word lists longer than 5 are still not built (the
+data only covers 2..5, enough for slots up to length 5).
+
+## Block-pattern generation (src/puzzledesk/patterns.py)
+
+`blocked.py` takes the block pattern as INPUT. `patterns.py` makes it a PARAMETER:
+from a shape and a *number* of black cells, generate the legal layouts (D13).
+
+- `gen_patterns(rows, cols, num_black, min_len=3, symmetric=True, seed, randomize)`
+  yields every legal `BlockedGrid` with exactly `num_black` blacks. Legal =
+  (default) 180°-rotationally symmetric, *fully checked* (every white cell in an
+  across AND a down run >= min_len; equivalently no white run has length
+  1..min_len-1 — this subsumes `blocked.py`'s no-orphan rule), and white cells
+  4-connected. Complete backtracking over cells, grouped into 180°-rotation ORBITS
+  when symmetric (`_orbits`) so a whole orbit is blackened at once; `randomize`
+  shuffles orbit order per seed for diversity without changing the reachable set.
+  An empty generator is a PROOF no legal layout exists (e.g. a symmetric even-celled
+  grid cannot take an odd black count — no centre cell; and a black centre in a 5x5
+  is illegal, it makes length-2 runs).
+- `fill_by_count(rows, cols, num_black, mlex, ...)` composes the layout search with
+  `fill.solve`: returns `(grid, assign)` for the first legal layout that admits a
+  distinct fill, or None. Both stages complete, so None is a real UNSAT proof for
+  the shape+count+lists (unless `max_patterns`/`node_budget` bound the search).
+
+`patterns.py` produces only `BlockedGrid`s and reuses `fill.py` unchanged — the
+square/blocked split (invariant 0) is intact. `scripts/generate.py` is the demo:
+a small-grid property check (enumerate all layouts, assert the invariants) then
+minis generated from a black-cell count.
 
 ## Invariants — do not break
 
 0. TWO GRID MODELS COEXIST. The square (square.py: induced columns, invariants
-   1-2) and the blocked grid (blocked.py/fill.py: explicit slot graph). Invariants
+   1-2) and the blocked grid (blocked.py/fill.py: explicit slot graph;
+   patterns.py generates its layouts from a black-cell count). Invariants
    1-2 below are about the SQUARE model; the blocked model derives nothing from
    columns. Distinctness (3) and score-scale/lowercase (4-5) apply to both.
 1. STATE = across-word indices. Down words are always derived, never stored.
@@ -210,6 +236,9 @@ every word >= min_score by construction of the filter.
   reference), same distinct problem.
 - blackcells.py: blocked-grid fill — tiny-grid ground truth, filled grids from the
   curated list, and a quality ceiling (shortest slot's list runs dry first).
+- generate.py: blocked minis from a black-cell COUNT (not a template) — layout
+  property check on a tiny case, then `generate.py rows cols num_black min_score
+  count` searches legal layouts and fills them.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
