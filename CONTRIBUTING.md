@@ -16,9 +16,8 @@ it is two PRs. Small, reviewable, self-consistent.
 
 - Work on a topic branch named `claude/<short-slug>` (e.g.
   `claude/black-cells-parameters`). Never commit directly to `main`.
-- `main` is the mainline. Note (per D10 / `docs/notes.md`) that the GitHub
-  *default-branch setting* may still point at an old working branch from when the
-  repo was empty — a one-click settings fix, flagged here so it is not a surprise.
+- `main` is the mainline and the GitHub default branch. (It was briefly not —
+  see D10 / `docs/notes.md` for the empty-repo history.)
 - If the PR for your branch has already merged, treat follow-up work as a fresh
   change: restart the branch from the latest `main` rather than stacking new
   commits on merged history.

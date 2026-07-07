@@ -115,9 +115,9 @@ Context: repo was empty, so the working branch became the only branch and the
 GitHub default. User wanted to wrap the spike with no ceremony. Decision: push the
 spike HEAD as `main` (repo mainline) rather than opening a PR (no base branch
 existed to merge into anyway). Rationale: minimal ceremony; establishes a
-baseline. Follow-up not done: GitHub's *default branch* setting may still point at
-`claude/empty-repo-review-0vagwh`; flipping it to `main` is a one-click settings
-change. Reversal: n/a.
+baseline. Follow-up (since done): GitHub's *default branch* setting, which had
+pointed at `claude/empty-repo-review-0vagwh`, has been flipped to `main`.
+Reversal: n/a.
 
 ## D11. Refine the sampler to enforce distinctness; pick its strategy by measurement
 
