@@ -30,10 +30,19 @@ high bars produce, min-conflicts wanders. So the right engine became a
 than the sampler at 5×5, and *complete*, so it can prove when no acceptable grid
 exists at all.
 
+**Distinctness.** A genuine double word square needs all 2N words distinct.
+Otherwise the solver falls into the **symmetric basin** — a grid symmetric down
+the diagonal has across ≡ down, the down constraints collapse onto the across
+ones, and you get an easy, degenerate fill that's really only N words. Both the
+acceptance test and the solver enforce 10-distinct; killing the basin drops 5×5
+from 17 ms → ~420 ms (the real problem is harder) and lowers the honest ceiling.
+
 **Where it landed:** the solver is no longer the bottleneck — the lexicon is. On
-dwyl + wordfreq we pack every 5×5 the list admits in ~15 ms, up to a provable
-ceiling of `zipf≥4.5` (e.g. `makes/above/korea/event/seats`). Above that it's
-provably UNSAT *for this list* — a property of the words, not the search.
+dwyl + wordfreq the genuine (10-distinct) 5×5 ceiling is ~`zipf≥3.5`
+(`mates/irene/linda/asset/needs`); `zipf≥4.0` is provably UNSAT *for this list*
+— a property of the words, not the search. The surviving fills are name-heavy
+(lowercased proper nouns the list can't distinguish), so a curated scored
+crossword list is what makes good distinct minis exist at all.
 
 Building small-first (2×2 → 3×3 → 4×4 → 5×5): at N=2 we enumerate every valid
 square by brute force as ground truth; above that, validity is by construction.
@@ -69,7 +78,9 @@ python3 scripts/ceiling.py 5        # 5x5 quality ceiling with backtracking
 - [x] Validated N=2 (vs. ground truth), 3, 4, 5
 - [x] Acceptance test as the feedback signal; quality → feasibility on a filtered list
 - [x] Complete backtracking engine — 5×5 in ~15 ms, 64–450× over the sampler
-- [x] Mapped the frontier and the ceiling (dwyl+wordfreq: 5×5 tops out at zipf≥4.5)
+- [x] 10-distinct-words constraint (forbid the symmetric basin) in test + solver
+- [x] Mapped the frontier and honest ceiling (distinct 5×5 tops out ~zipf≥3.5;
+      ≥4.0 provably UNSAT on this list)
 - [ ] **Better lexicon** — the solver is done; a curated scored crossword list
       (e.g. Broda / Spread the Wordlist) is what lifts the quality ceiling
 - [ ] Clue generation (separate downstream stage)

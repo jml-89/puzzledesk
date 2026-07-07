@@ -20,11 +20,14 @@ class Verdict:
     ok: bool
     min_score: float          # score of the weakest word (the bottleneck)
     weakest: tuple[str, float]
+    distinct: bool            # all 2N words distinct (no symmetric/incidental repeat)
+    n_distinct: int
     words: list[tuple[str, float]]  # every across+down word with its score
 
     def __str__(self) -> str:
         tag = "ACCEPT" if self.ok else "REJECT"
-        return f"{tag} min={self.min_score:.2f} weakest={self.weakest[0]!r}"
+        why = "" if self.distinct else f" DUP({self.n_distinct}/{len(self.words)})"
+        return f"{tag} min={self.min_score:.2f} weakest={self.weakest[0]!r}{why}"
 
 
 def score_of(lex, word: str) -> float:
@@ -36,9 +39,13 @@ def validate(sq: DoubleSquare, state: np.ndarray, threshold: float) -> Verdict:
     down = [(w, score_of(sq.cols, w)) for w in sq.column_strings(state)]
     words = across + down
     weakest = min(words, key=lambda ws: ws[1])
+    n_distinct = len({w for w, _ in words})
+    distinct = n_distinct == len(words)
     return Verdict(
-        ok=weakest[1] >= threshold,
+        ok=weakest[1] >= threshold and distinct,
         min_score=weakest[1],
         weakest=weakest,
+        distinct=distinct,
+        n_distinct=n_distinct,
         words=words,
     )

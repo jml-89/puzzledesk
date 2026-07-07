@@ -38,17 +38,29 @@ class _PrefixIndex:
         return self.nxt.get(prefix, self._empty)
 
 
-def solve(sq: DoubleSquare, *, seed: int = 0, randomize: bool = True):
+def solve(sq: DoubleSquare, *, seed: int = 0, randomize: bool = True, distinct: bool = True):
     """Return a solved state (array of N row-word indices) or None if the grid
-    admits no double word square from these lexicons (a real proof of UNSAT)."""
+    admits no double word square from these lexicons (a real proof of UNSAT).
+
+    With ``distinct`` (default), the 2N words must all differ: no across word
+    reused, and no down word equal to another down word or to any across word.
+    This forbids the symmetric-square basin (across == down down the diagonal),
+    where the down constraints collapse onto the across constraints and the
+    solver would otherwise get an easy, degenerate fill.
+    """
     rng = np.random.default_rng(seed)
     n = sq.n
     pidx = _PrefixIndex(sq.cols)
     state = np.full(n, -1, dtype=np.int64)
     cols = [""] * n
+    used_across: set[str] = set()
 
     def rec(r: int):
         if r == n:
+            if distinct:
+                downs = [cols[j] for j in range(n)]
+                if len(set(downs)) != n or used_across & set(downs):
+                    return None  # repeated word: keep searching
             return state.copy()
         allowed = [pidx.allowed(cols[j]) for j in range(n)]
         cands = sq.rows.words_matching(allowed)  # rows legal at every column
@@ -56,12 +68,16 @@ def solve(sq: DoubleSquare, *, seed: int = 0, randomize: bool = True):
             rng.shuffle(cands)
         for idx in cands:
             w = sq.rows.words[idx]
+            if distinct and w in used_across:
+                continue  # no duplicate across word
             state[r] = idx
             for j in range(n):
                 cols[j] += w[j]
+            used_across.add(w)
             res = rec(r + 1)
             if res is not None:
                 return res
+            used_across.discard(w)
             for j in range(n):
                 cols[j] = cols[j][:-1]
         state[r] = -1
