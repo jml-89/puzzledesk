@@ -23,17 +23,23 @@ from __future__ import annotations
 
 import numpy as np
 
-from .blocked import BlockedGrid
+from .blocked import BlockedGrid, Slot
 from .lexicon import MultiLexicon
 
 
-def _pattern(cell: dict, slot) -> list[int | None]:
+def _pattern(cell: dict[tuple[int, int], int], slot: Slot) -> list[int | None]:
     return [cell.get(rc) for rc in slot.cells]
 
 
-def solve(g: BlockedGrid, mlex: MultiLexicon, *, seed: int = 0,
-          distinct: bool = True, randomize: bool = True,
-          node_budget: int | None = None) -> dict[int, str] | None:
+def solve(
+    g: BlockedGrid,
+    mlex: MultiLexicon,
+    *,
+    seed: int = 0,
+    distinct: bool = True,
+    randomize: bool = True,
+    node_budget: int | None = None,
+) -> dict[int, str] | None:
     """Return {slot_id: word} filling every slot, or None if none exists.
 
     ``distinct`` (default) forbids repeating an entry anywhere in the grid, as a
@@ -60,10 +66,12 @@ def solve(g: BlockedGrid, mlex: MultiLexicon, *, seed: int = 0,
         for s in unfilled:
             lex = mlex.get(s.length)
             idxs = lex.matching(_pattern(cell, s))
-            if best is None or len(idxs) < len(best_idxs):
+            if best_idxs is None or len(idxs) < len(best_idxs):
                 best, best_lex, best_idxs = s, lex, idxs
                 if len(idxs) == 0:
                     break
+        # `unfilled` is non-empty, so the loop always picks a best slot.
+        assert best is not None and best_lex is not None and best_idxs is not None
         if len(best_idxs) == 0:
             return None  # dead crossing: this branch cannot complete
         order = list(best_idxs)
@@ -92,8 +100,9 @@ def solve(g: BlockedGrid, mlex: MultiLexicon, *, seed: int = 0,
     return rec()
 
 
-def enumerate_fills(g: BlockedGrid, mlex: MultiLexicon, *, limit: int | None = None,
-                    distinct: bool = True) -> list[dict[int, str]]:
+def enumerate_fills(
+    g: BlockedGrid, mlex: MultiLexicon, *, limit: int | None = None, distinct: bool = True
+) -> list[dict[int, str]]:
     """Every distinct fill (up to ``limit``). Ground truth for tiny grids -- the
     blocked-grid analogue of bruteforce.enumerate_squares."""
     if g.orphans:

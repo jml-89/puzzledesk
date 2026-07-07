@@ -16,7 +16,7 @@ from .lexicon import Lexicon, decode
 
 
 class DoubleSquare:
-    def __init__(self, rows: Lexicon, cols: Lexicon | None = None):
+    def __init__(self, rows: Lexicon, cols: Lexicon | None = None) -> None:
         # Across and down may draw from different lexicons; default to the same.
         self.rows = rows
         self.cols = cols if cols is not None else rows

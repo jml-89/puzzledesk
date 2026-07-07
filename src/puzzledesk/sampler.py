@@ -64,8 +64,9 @@ def _word_ids(sq: DoubleSquare) -> dict[str, int]:
     return vocab
 
 
-def _distinct_penalty(sq: DoubleSquare, state: np.ndarray, i: int,
-                      cand_across_id: np.ndarray, vocab: dict[str, int]) -> np.ndarray:
+def _distinct_penalty(
+    sq: DoubleSquare, state: np.ndarray, i: int, cand_across_id: np.ndarray, vocab: dict[str, int]
+) -> np.ndarray:
     """For every candidate word at row ``i`` (other rows fixed), the number of
     duplicate word-pairs among the resulting 2N words (0 == all distinct).
 
@@ -117,9 +118,15 @@ def _distinct_penalty(sq: DoubleSquare, state: np.ndarray, i: int,
     return coll
 
 
-def _row_objective(sq: DoubleSquare, state: np.ndarray, i: int, quality: float,
-                   distinct: bool, cand_across_id: np.ndarray,
-                   vocab: dict[str, int]) -> np.ndarray:
+def _row_objective(
+    sq: DoubleSquare,
+    state: np.ndarray,
+    i: int,
+    quality: float,
+    distinct: bool,
+    cand_across_id: np.ndarray | None,
+    vocab: dict[str, int],
+) -> np.ndarray:
     """Objective for every candidate word in row i, holding other rows fixed:
 
         BIG * (#columns made valid)                       -- feasibility
@@ -142,6 +149,7 @@ def _row_objective(sq: DoubleSquare, state: np.ndarray, i: int, quality: float,
     if quality:
         obj += quality * (sq.rows.scores + downq)
     if distinct:
+        assert cand_across_id is not None  # the caller builds it whenever distinct
         obj -= DUP_WEIGHT * _distinct_penalty(sq, state, i, cand_across_id, vocab)
     return obj
 
@@ -175,8 +183,9 @@ def solve(
     rng = np.random.default_rng(seed)
     total_steps = 0
     vocab = _word_ids(sq) if distinct else {}
-    cand_across_id = (np.array([vocab[w] for w in sq.rows.words], dtype=np.int64)
-                      if distinct else None)
+    cand_across_id = (
+        np.array([vocab[w] for w in sq.rows.words], dtype=np.int64) if distinct else None
+    )
     for restart in range(max_restarts):
         state = rng.integers(0, len(sq.rows), size=sq.n)
         for _ in range(max_steps):
@@ -194,8 +203,7 @@ def solve(
             # (still-packing) step cheap, since the penalty rebuilds N*26 column
             # strings each time it runs.
             apply_penalty = distinct and guided and len(bad) <= 1
-            obj = _row_objective(sq, state, i, quality,
-                                 apply_penalty, cand_across_id, vocab)
+            obj = _row_objective(sq, state, i, quality, apply_penalty, cand_across_id, vocab)
             if temperature <= 0:
                 best = np.flatnonzero(obj == obj.max())
                 state[i] = int(rng.choice(best))

@@ -23,7 +23,7 @@ from .square import DoubleSquare
 class _PrefixIndex:
     """For each prefix of a column word, which letters may follow (26-bool)."""
 
-    def __init__(self, lex: Lexicon):
+    def __init__(self, lex: Lexicon) -> None:
         self.nxt: dict[str, np.ndarray] = {}
         for w in lex.words:
             for k in range(lex.n):
@@ -38,7 +38,9 @@ class _PrefixIndex:
         return self.nxt.get(prefix, self._empty)
 
 
-def solve(sq: DoubleSquare, *, seed: int = 0, randomize: bool = True, distinct: bool = True):
+def solve(
+    sq: DoubleSquare, *, seed: int = 0, randomize: bool = True, distinct: bool = True
+) -> np.ndarray | None:
     """Return a solved state (array of N row-word indices) or None if the grid
     admits no double word square from these lexicons (a real proof of UNSAT).
 
@@ -55,7 +57,7 @@ def solve(sq: DoubleSquare, *, seed: int = 0, randomize: bool = True, distinct: 
     cols = [""] * n
     used_across: set[str] = set()
 
-    def rec(r: int):
+    def rec(r: int) -> np.ndarray | None:
         if r == n:
             if distinct:
                 downs = [cols[j] for j in range(n)]

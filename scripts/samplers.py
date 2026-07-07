@@ -12,14 +12,12 @@ Two strategies for the same distinctness constraint, same acceptance bar:
              toward a genuine square without restarting.
 
 Backtracking (complete) is shown alongside as the reference the sampler is being
-measured against. Usage: python3 scripts/samplers.py [N] [thresholds...]
+measured against. Usage: uv run scripts/samplers.py [N] [thresholds...]
 """
 
 import sys
 import time
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from puzzledesk import backtrack
 from puzzledesk.lexicon import Lexicon
@@ -41,7 +39,10 @@ def _run(label, run, sq, T, tries):
             solved += 1
             found.add(tuple(sq.rows.words[i] for i in state))
     ms = sum(times) / len(times) * 1e3
-    print(f"  {label:16s}: solved {solved:2d}/{tries} | {len(found):2d} distinct grids | {ms:8.1f} ms/run")
+    print(
+        f"  {label:16s}: solved {solved:2d}/{tries} | {len(found):2d} distinct grids | "
+        f"{ms:8.1f} ms/run"
+    )
 
 
 def compare(n, T, tries=10):
@@ -51,9 +52,11 @@ def compare(n, T, tries=10):
 
     def sampler(guided):
         def run(seed):
-            r = sample_solve(sq, seed=seed, distinct=True, guided=guided,
-                             max_steps=500, max_restarts=200)
+            r = sample_solve(
+                sq, seed=seed, distinct=True, guided=guided, max_steps=500, max_restarts=200
+            )
             return r.state if r.solved else None
+
         return run
 
     _run("sampler gate", sampler(False), sq, T, tries)

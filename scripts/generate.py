@@ -12,9 +12,9 @@ count on an even-cell grid, or any count a centre-cell black would forbid (e.g.
 3 blacks across a 5x5, where a symmetric layout would split the middle
 row/column into sub-``min_len`` runs).
 
-    python3 scripts/generate.py [rows] [cols] [num_black] [min_score] [count] [--nonsymmetric]
-    python3 scripts/generate.py 5 5 4 60 3
-    python3 scripts/generate.py 5 5 3 60 3 --nonsymmetric
+    uv run scripts/generate.py [rows] [cols] [num_black] [min_score] [count] [--nonsymmetric]
+    uv run scripts/generate.py 5 5 4 60 3
+    uv run scripts/generate.py 5 5 3 60 3 --nonsymmetric
 
 A ground-truth property check on tiny grids runs first (small-first, cf.
 blackcells.py): enumerate every legal layout -- symmetric and non-symmetric --
@@ -25,8 +25,6 @@ import sys
 import time
 from itertools import combinations
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from puzzledesk import patterns
 from puzzledesk.lexicon import MultiLexicon
@@ -41,7 +39,7 @@ def _invariants_hold(g, rows, cols, num_black, min_len, symmetric):
         return False
     if g.orphans:  # any white cell in no slot => a run shorter than min_len
         return False
-    for cell, ds in g.cell_slots.items():  # fully checked: across AND down at every cell
+    for ds in g.cell_slots.values():  # fully checked: across AND down at every cell
         if "A" not in ds or "D" not in ds:
             return False
     if symmetric:
@@ -60,8 +58,9 @@ def _brute_force_layouts(rows, cols, num_black, min_len, symmetric):
     truth = set()
     for combo in combinations(cells, num_black):
         black = set(combo)
-        g = patterns._to_grid([[(r, c) in black for c in range(cols)]
-                               for r in range(rows)], rows, cols, min_len)
+        g = patterns._to_grid(
+            [[(r, c) in black for c in range(cols)] for r in range(rows)], rows, cols, min_len
+        )
         if _invariants_hold(g, rows, cols, num_black, min_len, symmetric):
             truth.add(tuple(tuple(row) for row in g.block))
     return truth
@@ -71,8 +70,11 @@ def _check_case(rows, cols, num_black, symmetric):
     """Enumerate every legal layout for one case, assert each satisfies the
     invariants and is unique, AND cross-check the whole set against brute force
     -- the layout analogue of fill.enumerate_fills. Returns the layout count."""
-    grids = list(patterns.gen_patterns(rows, cols, num_black, min_len=3,
-                                       symmetric=symmetric, randomize=False))
+    grids = list(
+        patterns.gen_patterns(
+            rows, cols, num_black, min_len=3, symmetric=symmetric, randomize=False
+        )
+    )
     seen = set()
     for g in grids:
         assert _invariants_hold(g, rows, cols, num_black, 3, symmetric), g.render()
@@ -92,22 +94,26 @@ def property_check():
     it exercises exactly what dropping symmetry buys."""
     print("=== ground truth (layout search vs brute force) ===")
     n_sym = _check_case(5, 5, 4, symmetric=True)
-    print(f"5x5, 4 blacks, symmetric:     {n_sym} legal layouts, matching brute "
-          f"force exactly")
+    print(f"5x5, 4 blacks, symmetric:     {n_sym} legal layouts, matching brute force exactly")
     # Symmetric 5x5 cannot place 3 blacks at all; non-symmetric can.
     assert _check_case(5, 5, 3, symmetric=True) == 0
     n_asym = _check_case(5, 5, 3, symmetric=False)
-    print(f"5x5, 3 blacks, non-symmetric: {n_asym} legal layouts, matching brute "
-          f"force exactly (symmetric admits 0 -- odd count needs no centre split)")
+    print(
+        f"5x5, 3 blacks, non-symmetric: {n_asym} legal layouts, matching brute "
+        f"force exactly (symmetric admits 0 -- odd count needs no centre split)"
+    )
 
 
 def render(g, mlex, assign):
     from puzzledesk import fill
+
     print(g.render(fill.letters_of(g, assign)))
-    across = sorted((s.number, mlex.get(s.length), assign[s.id])
-                    for s in g.slots if s.direction == "A")
-    down = sorted((s.number, mlex.get(s.length), assign[s.id])
-                  for s in g.slots if s.direction == "D")
+    across = sorted(
+        (s.number, mlex.get(s.length), assign[s.id]) for s in g.slots if s.direction == "A"
+    )
+    down = sorted(
+        (s.number, mlex.get(s.length), assign[s.id]) for s in g.slots if s.direction == "D"
+    )
     a = "  ".join(f"{n}A {w}({lex.score_map[w]:.0f})" for n, lex, w in across)
     d = "  ".join(f"{n}D {w}({lex.score_map[w]:.0f})" for n, lex, w in down)
     print(f"  across: {a}")
@@ -116,44 +122,53 @@ def render(g, mlex, assign):
 
 def main(rows=5, cols=5, num_black=4, min_score=60.0, count=3, symmetric=True):
     lengths = range(3, max(rows, cols) + 1)
-    mlex = MultiLexicon.from_scored_files(lambda n: DATA / f"cw_{n}.txt",
-                                          lengths, min_score=min_score)
+    mlex = MultiLexicon.from_scored_files(
+        lambda n: DATA / f"cw_{n}.txt", lengths, min_score=min_score
+    )
     kind = "symmetric" if symmetric else "non-symmetric"
-    print(f"\n{rows}x{cols} {kind} blocked minis, {num_black} black cells, every "
-          f"word score >= {min_score:.0f}\n")
+    print(
+        f"\n{rows}x{cols} {kind} blocked minis, {num_black} black cells, every "
+        f"word score >= {min_score:.0f}\n"
+    )
 
     # Structural feasibility first: does any legal layout exist at all? This is a
     # property of the shape + symmetry + min-length, independent of the word list.
-    if next(patterns.gen_patterns(rows, cols, num_black, symmetric=symmetric),
-            None) is None:
-        print(f"no legal {num_black}-black layout exists for a {kind} {rows}x{cols} "
-              f"grid (min-length"
-              f"{' or symmetry' if symmetric else ''} forbids it).")
+    if next(patterns.gen_patterns(rows, cols, num_black, symmetric=symmetric), None) is None:
+        print(
+            f"no legal {num_black}-black layout exists for a {kind} {rows}x{cols} "
+            f"grid (min-length"
+            f"{' or symmetry' if symmetric else ''} forbids it)."
+        )
         if symmetric and rows * cols % 2 == 0 and num_black % 2 == 1:
-            print("  a symmetric grid with an even cell count cannot take an odd "
-                  "black count (no centre cell to carry it) -- try --nonsymmetric.")
+            print(
+                "  a symmetric grid with an even cell count cannot take an odd "
+                "black count (no centre cell to carry it) -- try --nonsymmetric."
+            )
         elif symmetric and rows * cols % 2 == 1 and num_black % 2 == 1:
-            print("  a symmetric odd-cell grid takes an odd black count only via a "
-                  "centre black, which may split the middle row/column into "
-                  "sub-min_len runs -- try --nonsymmetric.")
+            print(
+                "  a symmetric odd-cell grid takes an odd black count only via a "
+                "centre black, which may split the middle row/column into "
+                "sub-min_len runs -- try --nonsymmetric."
+            )
         return
 
-    shown = 0
     for seed in range(count * 20):
         t0 = time.perf_counter()
-        res = patterns.fill_by_count(rows, cols, num_black, mlex, seed=seed,
-                                     symmetric=symmetric, distinct=True)
+        res = patterns.fill_by_count(
+            rows, cols, num_black, mlex, seed=seed, symmetric=symmetric, distinct=True
+        )
         dt = time.perf_counter() - t0
         if res is None:
             if seed == 0:  # complete search over layouts: one run settles it
-                print(f"legal layouts exist, but none fills at score >= {min_score:.0f} "
-                      f"(searched them in {dt*1e3:.0f} ms). Try a lower min_score.")
+                print(
+                    f"legal layouts exist, but none fills at score >= {min_score:.0f} "
+                    f"(searched them in {dt * 1e3:.0f} ms). Try a lower min_score."
+                )
             break
         g, assign = res
         render(g, mlex, assign)
-        print(f"  ({dt*1e3:.0f} ms)\n")
-        shown += 1
-        if shown >= count:
+        print(f"  ({dt * 1e3:.0f} ms)\n")
+        if seed + 1 >= count:  # shown `count` grids (a None result already broke above)
             break
 
 
