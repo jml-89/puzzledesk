@@ -79,6 +79,13 @@ python3 scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
 python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
 ```
 
+## Deeper docs (agent-facing, in `docs/`)
+
+- `docs/architecture.md` — data model, invariants, the two engines, gotchas
+- `docs/decisions.md` — decision log (why it is shaped this way)
+- `docs/open-questions.md` — unresolved questions and next-spike considerations
+- `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration
+
 ## Status / next
 
 - [x] Lexicon, energy model, sampler, brute-force ground truth
