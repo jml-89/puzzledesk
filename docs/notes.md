@@ -74,8 +74,8 @@ real bar (length-2 slots are UNSAT on it).
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed
   branch becomes the GitHub default, the working branch `claude/empty-repo-review-
-  0vagwh` became default; `main` was added later (D10) but the default-branch
-  SETTING may still point at the working branch.
+  0vagwh` became default; `main` was added later (D10). The default-branch SETTING
+  has since been flipped to `main` (the empty-repo artefact is resolved).
 - Nothing preinstalled: no NumPy, no JAX, no system word list. `pip install numpy
   wordfreq` works (installs NumPy 2.4.x, wordfreq). JAX not installed (deferred).
 - Container is EPHEMERAL and restarts lose /tmp and background tasks. Anything
