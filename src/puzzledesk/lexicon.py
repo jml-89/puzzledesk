@@ -30,7 +30,7 @@ def decode(codes: np.ndarray) -> str:
 
 
 class Lexicon:
-    def __init__(self, words: list[str]):
+    def __init__(self, words: list[str], scores: list[float] | None = None):
         if not words:
             raise ValueError("empty word list")
         self.n = len(words[0])
@@ -40,6 +40,10 @@ class Lexicon:
         self.wordset = set(words)
         # (M, N) letter-index matrix.
         self.letters = np.stack([encode(w) for w in words]).astype(np.uint8)
+        # Per-word quality score (soft term in the energy). Zero if unscored.
+        self.scores = np.asarray(scores if scores is not None else [0.0] * len(words),
+                                 dtype=np.float64)
+        self.score_map = dict(zip(self.words, self.scores.tolist()))
 
     def __len__(self) -> int:
         return len(self.words)
@@ -58,6 +62,25 @@ class Lexicon:
         seen: set[str] = set()
         uniq = [w for w in words if not (w in seen or seen.add(w))]
         return cls(uniq)
+
+    @classmethod
+    def from_scored_file(cls, path: str | Path, length: int | None = None) -> "Lexicon":
+        """Load a 'word score' per line file (see scripts/gen_scored.py)."""
+        words, scores = [], []
+        seen: set[str] = set()
+        for line in Path(path).read_text().splitlines():
+            parts = line.split()
+            if len(parts) != 2:
+                continue
+            w, s = parts[0].strip().lower(), float(parts[1])
+            if not w.isalpha() or w in seen:
+                continue
+            if length is not None and len(w) != length:
+                continue
+            seen.add(w)
+            words.append(w)
+            scores.append(s)
+        return cls(words, scores)
 
     def is_word(self, s: str) -> bool:
         return s in self.wordset
@@ -81,6 +104,25 @@ class Lexicon:
         allowed = np.zeros(26, dtype=bool)
         allowed[self.letters[mask, blank]] = True
         return allowed
+
+    def allowed_and_scores_at(self, pattern: list[int | None]):
+        """Like :meth:`allowed_at`, but also return a 26-array giving, for each
+        letter that fills the blank, the score of the resulting word (0 where the
+        letter is not allowed). Lets the sampler value the *induced* word, not
+        just check its existence."""
+        blank = pattern.index(None)
+        mask = np.ones(len(self.words), dtype=bool)
+        for pos, val in enumerate(pattern):
+            if val is None:
+                continue
+            mask &= self.letters[:, pos] == val
+        allowed = np.zeros(26, dtype=bool)
+        colscore = np.zeros(26, dtype=np.float64)
+        idx = np.nonzero(mask)[0]
+        letters = self.letters[idx, blank]
+        allowed[letters] = True
+        colscore[letters] = self.scores[idx]  # column words are unique per letter
+        return allowed, colscore
 
     def words_matching(self, allowed: list[np.ndarray]) -> np.ndarray:
         """Return indices of words whose letter at each position is permitted by
