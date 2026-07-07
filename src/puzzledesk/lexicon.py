@@ -82,6 +82,12 @@ class Lexicon:
             scores.append(s)
         return cls(words, scores)
 
+    def filtered(self, min_score: float) -> "Lexicon":
+        """Sub-lexicon of words scoring at least ``min_score``. Filtering at the
+        acceptance bar turns 'quality' into feasibility on a smaller list."""
+        kept = [(w, s) for w, s in zip(self.words, self.scores.tolist()) if s >= min_score]
+        return Lexicon([w for w, _ in kept], [s for _, s in kept])
+
     def is_word(self, s: str) -> bool:
         return s in self.wordset
 
