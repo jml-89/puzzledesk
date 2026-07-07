@@ -1,20 +1,16 @@
 """Quality experiment: does folding word-frequency into the energy produce more
-readable grids, at what cost to solve speed? Run on a sub-5x5 square so we stress
-the quality objective without the packing also getting hard.
+readable grids, at what cost to solve speed? (benchmark)
 
-Metric: mean Zipf frequency across all 2N words (N across + N induced down).
-Higher = more common / readable.
+Run on a sub-5x5 square so we stress the quality objective without the packing
+also getting hard. Metric: mean Zipf frequency across all 2N words.
 """
 
 import sys
 import time
-from pathlib import Path
 
-from puzzledesk.lexicon import Lexicon
-from puzzledesk.sampler import solve
-from puzzledesk.square import DoubleSquare
-
-DATA = Path(__file__).resolve().parent.parent / "data"
+from puzzledesk.bootstrap import build
+from puzzledesk.core.engines.sampler import solve
+from puzzledesk.core.square import DoubleSquare
 
 
 def grid_words(sq, state):
@@ -29,15 +25,18 @@ def mean_zipf(sq, state):
     return sum(vals) / len(vals)
 
 
-def run(n, quality, tries=40, temperature=0.0):
-    lex = Lexicon.from_scored_file(DATA / f"scored_{n}.txt", length=n)
-    sq = DoubleSquare(lex)
+def run(container, sq, quality, tries=40, temperature=0.0):
     solved, zipfs, times = 0, [], []
     best = None
     for seed in range(tries):
         t0 = time.perf_counter()
         r = solve(
-            sq, seed=seed, quality=quality, temperature=temperature, max_steps=800, max_restarts=200
+            sq,
+            rng=container.rng_factory.create(seed),
+            quality=quality,
+            temperature=temperature,
+            max_steps=800,
+            max_restarts=200,
         )
         times.append(time.perf_counter() - t0)
         if r.solved:
@@ -64,12 +63,14 @@ def show(label, best):
 
 
 if __name__ == "__main__":
+    container = build()
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 4
-    lex = Lexicon.from_scored_file(DATA / f"scored_{n}.txt", length=n)
+    lex = container.lexicon.load("scored", n)
+    sq = DoubleSquare(lex)
     print(f"=== N={n} quality sweep ({len(lex)} scored words) ===")
-    b0 = run(n, quality=0.0)
-    b1 = run(n, quality=1.0)
-    b2 = run(n, quality=4.0)
+    b0 = run(container, sq, quality=0.0)
+    run(container, sq, quality=1.0)
+    b2 = run(container, sq, quality=4.0)
     print()
     show("quality-blind best", b0)
     show("quality=4 best", b2)

@@ -21,10 +21,9 @@ gives distinct grids per seed, as before.
 
 from __future__ import annotations
 
-import numpy as np
-
-from .blocked import BlockedGrid, Slot
-from .lexicon import MultiLexicon
+from ..blocked import BlockedGrid, Slot
+from ..lexicon import MultiLexicon
+from ..rng import Rng
 
 
 def _pattern(cell: dict[tuple[int, int], int], slot: Slot) -> list[int | None]:
@@ -35,19 +34,20 @@ def solve(
     g: BlockedGrid,
     mlex: MultiLexicon,
     *,
-    seed: int = 0,
+    rng: Rng,
     distinct: bool = True,
     randomize: bool = True,
     node_budget: int | None = None,
 ) -> dict[int, str] | None:
     """Return {slot_id: word} filling every slot, or None if none exists.
 
-    ``distinct`` (default) forbids repeating an entry anywhere in the grid, as a
-    real crossword does. ``node_budget`` caps the search-tree nodes; None means
-    run to completion (so None is a genuine UNSAT proof)."""
+    ``rng`` (injected, fresh per seed) shuffles the MRV slot's candidate order for
+    per-seed diversity; ``randomize=False`` ignores it. ``distinct`` (default)
+    forbids repeating an entry anywhere in the grid, as a real crossword does.
+    ``node_budget`` caps the search-tree nodes; None means run to completion (so
+    None is a genuine UNSAT proof)."""
     if g.orphans:
         raise ValueError(f"grid has unchecked cells (runs < min_len): {g.orphans}")
-    rng = np.random.default_rng(seed)
     cell: dict[tuple[int, int], int] = {}
     assign: dict[int, str] = {}
     used: set[str] = set()

@@ -24,18 +24,20 @@ it is two PRs. Small, reviewable, self-consistent.
 
 ## Before you push — the gate
 
-All three must be green. Do not push red and "fix it in the next commit."
+All five must be green. Do not push red and "fix it in the next commit."
 
 ```bash
 uv run ruff check     # lint
 uv run ruff format    # format (run it; don't hand-format)
 uv run mypy           # types — strict on src/puzzledesk
+uv run lint-imports   # architecture — the hexagonal layers contract (D14)
+uv run pytest         # tests — invariants, ground truth, DI
 ```
 
-When a test suite exists (see `CLAUDE.md` → "Tests as contracts"), add
-`uv run pytest` to this gate. Until then, run the relevant script whose inline
-assertions cover your change (e.g. `uv run scripts/demo.py` after touching the
-energy model or sampler; `uv run scripts/generate.py …` after touching layout
+`lint-imports` fails on a forbidden cross-layer import (e.g. `app` reaching into
+`adapters`); `pytest` runs the invariant/ground-truth suite. For behaviour that a
+benchmark driver covers, also run it (e.g. `uv run scripts/demo.py` after touching
+the energy model or sampler; `uv run scripts/generate.py …` after touching layout
 generation).
 
 ## Commits
@@ -74,4 +76,8 @@ A reviewer will bounce a PR that breaks these, so check yourself first:
 - **`None` from a solver is a UNSAT proof**, never swallowed as a timeout.
 - **No 3.11+-only features** while the floor is `>=3.10` (raising it is a
   D-entry decision).
-- The **kernel stays pure** — no I/O pushed into `src/puzzledesk/`.
+- The **kernel stays pure** — no I/O (`print`, argv, file reads, `default_rng`)
+  pushed into `core/` or `app/`; effects live in `adapters/`. `lint-imports`
+  catches the layering half of this.
+- The **hexagonal layers contract holds** (`uv run lint-imports`) — a forbidden
+  cross-layer import is a bounce (D14).

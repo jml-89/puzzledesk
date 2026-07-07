@@ -1,28 +1,29 @@
-"""Smoke test / demo.
+"""Smoke test / demo (benchmark driver).
 
 At N=2 we enumerate every valid double word square and assert the sampler only
 ever emits real ones (energy-model ground truth). Above N=2, energy()==0 already
 guarantees validity by construction, so we report solve-rate, diversity and
-timing instead of enumerating (the valid set is enormous for this weak list).
+timing instead of enumerating.
+
+Uses the same injected adapters as everything else: the word list via the
+container's ``lexicon`` source, randomness via its ``rng_factory``. The N=2
+ground-truth contract is also encoded as a proper test (tests/test_ground_truth.py).
 """
 
 import time
-from pathlib import Path
 
-from puzzledesk.bruteforce import enumerate_squares
-from puzzledesk.lexicon import Lexicon
-from puzzledesk.sampler import solve
-from puzzledesk.square import DoubleSquare
-
-DATA = Path(__file__).resolve().parent.parent / "data"
+from puzzledesk.bootstrap import build
+from puzzledesk.core.engines.bruteforce import enumerate_squares
+from puzzledesk.core.engines.sampler import solve
+from puzzledesk.core.square import DoubleSquare
 
 
 def rows_of(sq, state):
     return tuple("".join(chr(int(c) + 97) for c in sq.rows.letters[idx]) for idx in state)
 
 
-def check(n: int, tries: int = 30, ground_truth: bool = False):
-    lex = Lexicon.from_file(DATA / f"words_{n}.txt", length=n)
+def check(container, n: int, tries: int = 30, ground_truth: bool = False):
+    lex = container.lexicon.load("words", n)
     sq = DoubleSquare(lex)
     print(f"\n=== N={n}  ({len(lex)} words) ===")
 
@@ -35,7 +36,7 @@ def check(n: int, tries: int = 30, ground_truth: bool = False):
     found: set[tuple[str, ...]] = set()
     t0 = time.perf_counter()
     for seed in range(tries):
-        r = solve(sq, seed=seed, max_restarts=100, max_steps=500)
+        r = solve(sq, rng=container.rng_factory.create(seed), max_restarts=100, max_steps=500)
         if r.solved:
             solved += 1
             assert sq.energy(r.state) == 0  # never emit an invalid square
@@ -53,7 +54,12 @@ def check(n: int, tries: int = 30, ground_truth: bool = False):
         print("  example:\n" + "\n".join("    " + " ".join(w) for w in sorted(found)[0]))
 
 
+def main():
+    container = build()
+    check(container, 2, ground_truth=True)
+    check(container, 3)
+    check(container, 4, tries=20)
+
+
 if __name__ == "__main__":
-    check(2, ground_truth=True)
-    check(3)
-    check(4, tries=20)
+    main()

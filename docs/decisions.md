@@ -203,3 +203,83 @@ hard search wants completeness); making symmetry mandatory (rejected — kept it
 default-on toggle so non-symmetric experiments stay possible). Reversal: none for
 the model; a smarter layout enumeration (dedup by symmetry class, prune connectivity
 incrementally) is a performance follow-up, not a design change.
+
+## D14. Hexagonal layering, a DI container, and an injected Prng — enforced
+
+Context: the engine and data model were clean, but the *structure around them* was
+not. CLAUDE.md described four conceptual layers (kernel / shell / tools /
+benchmarks) that existed only as convention: the "shell" was smeared into each
+script's `__main__` (a repeated `DATA = Path(...)`, hand-rolled argv parsing, a
+`render`/`show` function copied between `mini.py`, `generate.py`, `blackcells.py`);
+every engine constructed its own `np.random.default_rng(seed)`, burying an effect
+inside otherwise-pure code and making "inject a fake stream under test"
+impossible; and file I/O lived in the kernel (`Lexicon.from_scored_file` read a
+path). Nothing stopped a future change from importing stdout into `src/` or
+calling a solver from the wrong place — the boundaries were review conventions, not
+facts.
+
+Decision: adopt a **hexagonal (ports & adapters) architecture** with a single
+*linear* import stack, enforced mechanically by **import-linter**:
+
+    core  <  app  <  adapters  <  bootstrap  <  cli
+
+- **core** — the pure kernel (grid models, engines, lexicon, acceptance test).
+  Deterministic, no I/O. It defines the one port its engines need from outside,
+  `core.rng.Rng`/`RngFactory`, and takes randomness as a parameter instead of
+  opening its own Generator. Lexicon file-reading is gone from here: the kernel now
+  *parses text* (`Lexicon.from_scored_text`/`from_words_text`,
+  `MultiLexicon.from_scored_texts`) and an adapter does the read.
+- **app** — use-case services (`MiniService`, `BlockedGenerateService`) plus the
+  ports they need from infrastructure (`LexiconSource`, `Writer`). Services
+  orchestrate the core through ports and return structured results; they never
+  touch a concrete adapter, stdout, or a file.
+- **adapters** — the infrastructure that implements the ports: `NumpyRngFactory`
+  (the injected Prng — `np.random.default_rng` lives in exactly one file now),
+  `FileLexicon` (the filesystem read that used to sit in the kernel), `StreamWriter`
+  /`CapturingWriter`. Adapters sit *above* app in the stack because they *implement*
+  app's ports; that ordering is what lets one linear `layers` contract forbid
+  `app → adapters` (the DI inversion) while allowing `adapters → app`.
+- **bootstrap** — the composition root: `build()` assembles a `Container` in three
+  explicit stages (config → adapters → services). The one place that knows every
+  concrete type.
+- **cli** — thin entry points: argv → build → run service (or, for benchmarks,
+  drive the core engines directly through the container's adapters) → present.
+  `scripts/*.py` for the tools became two-line shims; benchmark/demo drivers stay
+  in `scripts/` (loose, ANN-exempt) but now build the container and use the
+  injected adapters instead of a bare `default_rng`/`DATA` path.
+
+The **Prng-as-a-service** is the load-bearing example: randomness is the kernel's
+one impure dependency, so it is injected (`RngFactory` → a fresh `Rng` per seed) at
+the composition root. Reproducibility is preserved *exactly* — `factory.create(seed)`
+returns `np.random.default_rng(seed)`, so a `(lists, seed)` pair still reproduces a
+result bit-for-bit (verified: the first `mini 5 70` grid is unchanged).
+
+Testing was promoted from ad-hoc script asserts to a real **pytest suite** (added
+to the `dev` group), and it *exploits* the DI: services are driven by an in-memory
+`LexiconSource` and a recording `RngFactory` (no files, no global RNG). The
+small-first ground-truth checks that lived inside `demo.py`/`generate.py`/
+`blackcells.py` are now tests (`tests/test_ground_truth.py`, `test_patterns.py`);
+the drivers keep runnable copies.
+
+Rationale: make the layering a *fact*. import-linter turns "the kernel stays pure"
+and "app does not depend on a concrete adapter" into a build-gate check (it fails
+on a forbidden edge — verified). The DI makes wiring legible (one staged
+composition root) and testing cheap (inject fakes). Scope held: the grid model,
+engines, invariants (0–5), and every user-visible artifact are unchanged; this is a
+structural refactor, not a behaviour change. Python floor stays `>=3.10` (no 3.11+
+features introduced).
+
+Alternatives considered: keep the path-based `from_scored_file` in the kernel as a
+grandfathered exception (rejected — a true front/back split wants the read in an
+adapter, and the kernel is more testable parsing text); a separate `ports` package
+below everything (rejected — ports that reference core types belong *with* the
+layer that owns them, which also keeps the import graph linear and the contract a
+single `layers` rule); express `app`/`adapters` independence with an extra
+`independence` contract (unnecessary once adapters sit above app — the linear
+`layers` contract already forbids `app → adapters`). Reversal: the layering is
+meant to stay; if the sampler ever becomes primary and moves to JAX parallel chains
+(see D3/D7), the `Rng` port is exactly the seam to swap the randomness adapter
+without touching the engines. The tool/benchmark *directory* split
+(`scripts/tools` vs `scripts/bench`, console entry points for every driver) remains
+a deliberate follow-up; `cli` now groups them by intent and adds `[project.scripts]`
+for the two tools.

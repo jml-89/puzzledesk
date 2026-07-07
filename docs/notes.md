@@ -124,6 +124,23 @@ Curated real list — `data/cw_N.txt`:
 - Brute-force enumeration is only viable at N=2; at N=3+ on a permissive list the
   count is huge — do not enumerate the full list.
 
+## Architecture refactor (D14) — what changed for a driver author
+
+- The package is now layered (`core < app < adapters < bootstrap < cli`) and the
+  gate grew two commands: `uv run lint-imports` (the layers contract) and
+  `uv run pytest`. Run all five before pushing (see CONTRIBUTING).
+- Engines take `rng=` (a `core.rng.Rng`), not `seed=`. A benchmark driver builds
+  the container (`from puzzledesk.bootstrap import build; c = build()`) and calls
+  `engine.solve(sq, rng=c.rng_factory.create(seed), …)`; word lists come from
+  `c.lexicon.load("cw"/"scored"/"words", n[, min_score=…])` / `load_multi(...)`.
+  No more `DATA = Path(...)` or bare `np.random.default_rng` in a script.
+- Reproducibility is unchanged: `NumpyRngFactory.create(seed)` is
+  `default_rng(seed)`, so a `(lists, seed)` pair reproduces bit-for-bit (the first
+  `mini 5 70` grid — `rotor/atone/strep/petal/srsly` — is identical pre/post).
+- Kernel lexicon loaders are now pure text parsers (`from_scored_text`,
+  `from_words_text`, `from_scored_texts`); the file read moved to the `FileLexicon`
+  adapter. If you regenerate lists, nothing about the *files* changed.
+
 ## Repo status at end of spike
 
 - On `origin/main` at the spike HEAD (8 commits). Working tree clean.

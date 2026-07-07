@@ -104,3 +104,23 @@ grid vs brute-force ground truth. What that spike deliberately left open:
 - Container is ephemeral; wordfreq / the raw dumps are NOT committed, only the
   derived lists are. Regeneration requires network + wordfreq for the weak list,
   and the upstream .dict for the curated list.
+
+## Architecture follow-ups (post-D14)
+
+The hexagonal layering + DI is in (D14). Left open:
+- **Tool vs benchmark directory split.** `cli/` holds the typed tools; the
+  benchmark/demo drivers still live in `scripts/` (loose, ANN-exempt). A
+  `scripts/tools` vs `scripts/bench` layout, or promoting each benchmark to a
+  `cli` module + `[project.scripts]` console command (only `mini`/`generate` have
+  one today), is unresolved. Question: are benchmarks worth typing, or is "loose
+  and throwaway" (CLAUDE) the right call permanently?
+- **`gen_scored.py`** stays a bare `scripts/` maintenance tool (optional `wordfreq`
+  dep, writes data files). It doesn't fit the DI model (it *produces* the lists the
+  adapter reads). Fold it behind a `cli` + an output adapter, or leave it? Undecided.
+- **Second adapters.** The ports (`LexiconSource`, `Writer`, `RngFactory`) have one
+  implementation each. A second — an in-DB/remote word source, a JSON/`.ipuz`
+  writer for export (see clue-generation), a JAX `Rng` for parallel chains (D3/D7)
+  — is where the seams earn their keep; none built yet.
+- **Wiring config.** `bootstrap` has a single `build()` with defaults and no config
+  file. If tools grow options (list choice, data dir, output format) a small typed
+  config surface (env/flags → `Config`) is the natural next step.

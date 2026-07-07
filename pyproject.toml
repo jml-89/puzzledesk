@@ -15,10 +15,18 @@ dependencies = [
 # wordfreq itself (see scripts/gen_scored.py).
 scoring = ["wordfreq>=3.0"]
 
+[project.scripts]
+# Console entry points for the tools (the front). `uv run mini 5 70 3` works
+# alongside the documented `uv run scripts/mini.py 5 70 3` shim.
+mini = "puzzledesk.cli.mini:main"
+generate = "puzzledesk.cli.generate:main"
+
 [dependency-groups]
 dev = [
     "ruff>=0.6",
     "mypy>=1.11",
+    "import-linter>=2.0",
+    "pytest>=8.0",
 ]
 
 [build-system]
@@ -54,6 +62,8 @@ ignore = [
 # Scripts are small experiment/benchmark drivers; don't require annotating the
 # throwaway `__main__` argv-parsing blocks.
 "scripts/*.py" = ["ANN"]
+# Tests: don't force annotations on every fixture/helper; they are not the API.
+"tests/*.py" = ["ANN"]
 
 [tool.mypy]
 files = ["src/puzzledesk"]
@@ -67,3 +77,26 @@ no_implicit_optional = true
 [[tool.mypy.overrides]]
 module = ["wordfreq"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+# import-linter: enforce the hexagonal layering. The stack is linear -- a layer
+# may import any layer below it, never one above -- so the whole architecture is
+# one `layers` contract. This is what makes "the kernel stays pure" and "app does
+# not depend on a concrete adapter" structural facts, not review conventions.
+[tool.importlinter]
+root_package = "puzzledesk"
+
+[[tool.importlinter.contracts]]
+name = "Hexagonal layers (core < app < adapters < bootstrap < cli)"
+type = "layers"
+containers = ["puzzledesk"]
+layers = [
+    "cli",        # thin entry points (top): may import everything below
+    "bootstrap",  # composition root: wires adapters into services
+    "adapters",   # infrastructure: implements the ports (above app on purpose)
+    "app",        # use-case services + the ports; must NOT reach into adapters
+    "core",       # the pure kernel (bottom): imports nothing above it
+]

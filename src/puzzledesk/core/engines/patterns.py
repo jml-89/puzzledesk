@@ -33,11 +33,10 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Iterator
 
-import numpy as np
-
+from ..blocked import BLOCK, WHITE, BlockedGrid
+from ..lexicon import MultiLexicon
+from ..rng import Rng, RngFactory
 from . import fill
-from .blocked import BLOCK, WHITE, BlockedGrid
-from .lexicon import MultiLexicon
 
 
 def _partner(r: int, c: int, rows: int, cols: int) -> tuple[int, int]:
@@ -125,9 +124,9 @@ def gen_patterns(
     cols: int,
     num_black: int,
     *,
+    rng: Rng,
     min_len: int = 3,
     symmetric: bool = True,
-    seed: int = 0,
     randomize: bool = True,
 ) -> Iterator[BlockedGrid]:
     """Yield every legal :class:`BlockedGrid` with exactly ``num_black`` black
@@ -135,10 +134,10 @@ def gen_patterns(
 
     Complete: iterating to exhaustion enumerates all legal layouts, so an empty
     generator is a proof none exists (e.g. a symmetric grid with no centre cell
-    cannot take an odd ``num_black``). ``randomize`` shuffles the orbit order per
-    ``seed`` for diversity without affecting which layouts are reachable.
+    cannot take an odd ``num_black``). ``rng`` (injected) shuffles the orbit order
+    for diversity without affecting which layouts are reachable; ``randomize=False``
+    leaves orbit order fixed (deterministic, for the ground-truth check).
     """
-    rng = np.random.default_rng(seed)
     total = rows * cols
     if num_black < 0 or num_black > total:
         return
@@ -191,9 +190,10 @@ def fill_by_count(
     num_black: int,
     mlex: MultiLexicon,
     *,
+    rng_factory: RngFactory,
+    seed: int = 0,
     min_len: int = 3,
     symmetric: bool = True,
-    seed: int = 0,
     distinct: bool = True,
     node_budget: int | None = None,
     max_patterns: int | None = None,
@@ -201,18 +201,25 @@ def fill_by_count(
     """Search legal ``num_black``-black layouts for one that fills.
 
     Returns ``(grid, assign)`` for the first layout that admits a distinct fill
-    from ``mlex``, or ``None``. With both the layout search (`gen_patterns`) and
-    the fill (`fill.solve`) complete and ``max_patterns``/``node_budget`` left as
-    ``None``, a ``None`` return is a genuine UNSAT proof for this shape, count,
-    and word lists. ``max_patterns`` caps how many layouts are tried (trading the
-    completeness of the proof for a time bound); it does not affect a SAT result.
+    from ``mlex``, or ``None``. This composite re-seeds internally, so it takes an
+    :class:`~puzzledesk.core.rng.RngFactory` (not a single stream) and a ``seed``:
+    the layout search and every fill attempt each get a fresh ``factory.create(seed)``
+    stream -- matching the original per-attempt seeding exactly. With both the
+    layout search (`gen_patterns`) and the fill (`fill.solve`) complete and
+    ``max_patterns``/``node_budget`` left as ``None``, a ``None`` return is a
+    genuine UNSAT proof for this shape, count, and word lists. ``max_patterns``
+    caps how many layouts are tried (trading the completeness of the proof for a
+    time bound); it does not affect a SAT result.
     """
-    for tried, g in enumerate(
-        gen_patterns(rows, cols, num_black, min_len=min_len, symmetric=symmetric, seed=seed)
-    ):
+    layouts = gen_patterns(
+        rows, cols, num_black, rng=rng_factory.create(seed), min_len=min_len, symmetric=symmetric
+    )
+    for tried, g in enumerate(layouts):
         if max_patterns is not None and tried >= max_patterns:
             return None
-        assign = fill.solve(g, mlex, seed=seed, distinct=distinct, node_budget=node_budget)
+        assign = fill.solve(
+            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=node_budget
+        )
         if assign is not None:
             return g, assign
     return None
