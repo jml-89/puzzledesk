@@ -12,6 +12,7 @@ length N. We keep:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +31,7 @@ def decode(codes: np.ndarray) -> str:
 
 
 class Lexicon:
-    def __init__(self, words: list[str], scores: list[float] | None = None):
+    def __init__(self, words: list[str], scores: list[float] | None = None) -> None:
         if not words:
             raise ValueError("empty word list")
         self.n = len(words[0])
@@ -41,15 +42,16 @@ class Lexicon:
         # (M, N) letter-index matrix.
         self.letters = np.stack([encode(w) for w in words]).astype(np.uint8)
         # Per-word quality score (soft term in the energy). Zero if unscored.
-        self.scores = np.asarray(scores if scores is not None else [0.0] * len(words),
-                                 dtype=np.float64)
-        self.score_map = dict(zip(self.words, self.scores.tolist()))
+        self.scores = np.asarray(
+            scores if scores is not None else [0.0] * len(words), dtype=np.float64
+        )
+        self.score_map = dict(zip(self.words, self.scores.tolist(), strict=True))
 
     def __len__(self) -> int:
         return len(self.words)
 
     @classmethod
-    def from_file(cls, path: str | Path, length: int | None = None) -> "Lexicon":
+    def from_file(cls, path: str | Path, length: int | None = None) -> Lexicon:
         words = []
         for line in Path(path).read_text().splitlines():
             w = line.strip().lower()
@@ -59,12 +61,11 @@ class Lexicon:
                 continue
             words.append(w)
         # Dedupe, keep order stable for reproducibility.
-        seen: set[str] = set()
-        uniq = [w for w in words if not (w in seen or seen.add(w))]
+        uniq = list(dict.fromkeys(words))
         return cls(uniq)
 
     @classmethod
-    def from_scored_file(cls, path: str | Path, length: int | None = None) -> "Lexicon":
+    def from_scored_file(cls, path: str | Path, length: int | None = None) -> Lexicon:
         """Load a 'word score' per line file (see scripts/gen_scored.py)."""
         words, scores = [], []
         seen: set[str] = set()
@@ -82,10 +83,12 @@ class Lexicon:
             scores.append(s)
         return cls(words, scores)
 
-    def filtered(self, min_score: float) -> "Lexicon":
+    def filtered(self, min_score: float) -> Lexicon:
         """Sub-lexicon of words scoring at least ``min_score``. Filtering at the
         acceptance bar turns 'quality' into feasibility on a smaller list."""
-        kept = [(w, s) for w, s in zip(self.words, self.scores.tolist()) if s >= min_score]
+        kept = [
+            (w, s) for w, s in zip(self.words, self.scores.tolist(), strict=True) if s >= min_score
+        ]
         return Lexicon([w for w, _ in kept], [s for _, s in kept])
 
     def is_word(self, s: str) -> bool:
@@ -111,7 +114,7 @@ class Lexicon:
         allowed[self.letters[mask, blank]] = True
         return allowed
 
-    def allowed_and_scores_at(self, pattern: list[int | None]):
+    def allowed_and_scores_at(self, pattern: list[int | None]) -> tuple[np.ndarray, np.ndarray]:
         """Like :meth:`allowed_at`, but also return a 26-array giving, for each
         letter that fills the blank, the score of the resulting word (0 where the
         letter is not allowed). Lets the sampler value the *induced* word, not
@@ -163,14 +166,14 @@ class _EmptyLexicon:
     bar). Not an error -- it just means any slot of this length is unfillable, so
     the fill solver sees zero candidates and treats the grid as UNSAT there."""
 
-    def __init__(self, n: int):
+    def __init__(self, n: int) -> None:
         self.n = n
         self.words: list[str] = []
 
     def __len__(self) -> int:
         return 0
 
-    def matching(self, pattern) -> np.ndarray:
+    def matching(self, pattern: list[int | None]) -> np.ndarray:
         return np.empty(0, dtype=np.intp)
 
 
@@ -184,27 +187,35 @@ class MultiLexicon:
     slots of mixed length, so fill needs 2s, 3s, 4s, ... at once.
     """
 
-    def __init__(self, by_length: dict):
+    def __init__(self, by_length: dict[int, Lexicon | _EmptyLexicon]) -> None:
         self.by_length = by_length
 
     def __contains__(self, length: int) -> bool:
         return length in self.by_length
 
-    def get(self, length: int):
+    def get(self, length: int) -> Lexicon | _EmptyLexicon:
         if length not in self.by_length:
             return _EmptyLexicon(length)  # no list loaded => unfillable, not a crash
         return self.by_length[length]
 
     @classmethod
-    def from_scored_files(cls, path_for, lengths, min_score: float = 0.0) -> "MultiLexicon":
+    def from_scored_files(
+        cls, path_for: Callable[[int], str | Path], lengths: Iterable[int], min_score: float = 0.0
+    ) -> MultiLexicon:
         """Load one scored file per length. ``path_for(n)`` returns the path for
         length n (e.g. ``lambda n: DATA / f'cw_{n}.txt'``). ``min_score`` applies
         the same acceptance-bar filter the rest of the system uses, so every
         entry a fill can use already clears the bar. A length that ends up empty
         after filtering is kept as an empty bucket (its slots become unfillable)."""
-        buckets: dict = {}
+        buckets: dict[int, Lexicon | _EmptyLexicon] = {}
         for n in sorted(set(lengths)):
             lex = Lexicon.from_scored_file(path_for(n), length=n)
-            kept = [(w, s) for w, s in zip(lex.words, lex.scores.tolist()) if s >= min_score]
-            buckets[n] = Lexicon([w for w, _ in kept], [s for _, s in kept]) if kept else _EmptyLexicon(n)
+            kept = [
+                (w, s)
+                for w, s in zip(lex.words, lex.scores.tolist(), strict=True)
+                if s >= min_score
+            ]
+            buckets[n] = (
+                Lexicon([w for w, _ in kept], [s for _, s in kept]) if kept else _EmptyLexicon(n)
+            )
         return cls(buckets)

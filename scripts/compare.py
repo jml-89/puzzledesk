@@ -14,8 +14,6 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
 from puzzledesk import backtrack
 from puzzledesk.lexicon import Lexicon
 from puzzledesk.sampler import solve as sample_solve
@@ -35,8 +33,10 @@ def compare(n, T, tries=10):
     print(f"\n=== N={n} T={T} ({len(lex)} words), distinct=True ===")
 
     for name, run in (
-        ("sampler   ", lambda s: sample_solve(sq, seed=s, distinct=True,
-                                               max_steps=500, max_restarts=200)),
+        (
+            "sampler   ",
+            lambda s: sample_solve(sq, seed=s, distinct=True, max_steps=500, max_restarts=200),
+        ),
         ("backtrack ", lambda s: backtrack.solve(sq, seed=s, distinct=True)),
     ):
         solved, times, found = 0, [], set()

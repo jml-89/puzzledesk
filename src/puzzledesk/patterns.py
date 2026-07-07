@@ -31,6 +31,7 @@ legal K-black layout of this shape fills from these lists.
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterator
 
 import numpy as np
 
@@ -100,8 +101,7 @@ def _fully_checked(block: list[list[bool]], rows: int, cols: int, min_len: int) 
 def _connected(block: list[list[bool]], rows: int, cols: int, n_white: int) -> bool:
     """True iff the white cells form one 4-connected region (BFS from any white
     cell must reach all of them). A split grid is two puzzles, not one."""
-    start = next(((r, c) for r in range(rows) for c in range(cols)
-                  if not block[r][c]), None)
+    start = next(((r, c) for r in range(rows) for c in range(cols) if not block[r][c]), None)
     if start is None:
         return n_white == 0
     seen = {start}
@@ -109,21 +109,27 @@ def _connected(block: list[list[bool]], rows: int, cols: int, n_white: int) -> b
     while dq:
         r, c = dq.popleft()
         for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
-            if 0 <= nr < rows and 0 <= nc < cols and not block[nr][nc] \
-                    and (nr, nc) not in seen:
+            if 0 <= nr < rows and 0 <= nc < cols and not block[nr][nc] and (nr, nc) not in seen:
                 seen.add((nr, nc))
                 dq.append((nr, nc))
     return len(seen) == n_white
 
 
 def _to_grid(block: list[list[bool]], rows: int, cols: int, min_len: int) -> BlockedGrid:
-    rowstrs = ["".join(BLOCK if block[r][c] else WHITE for c in range(cols))
-               for r in range(rows)]
+    rowstrs = ["".join(BLOCK if block[r][c] else WHITE for c in range(cols)) for r in range(rows)]
     return BlockedGrid.parse(rowstrs, min_len=min_len)
 
 
-def gen_patterns(rows: int, cols: int, num_black: int, *, min_len: int = 3,
-                 symmetric: bool = True, seed: int = 0, randomize: bool = True):
+def gen_patterns(
+    rows: int,
+    cols: int,
+    num_black: int,
+    *,
+    min_len: int = 3,
+    symmetric: bool = True,
+    seed: int = 0,
+    randomize: bool = True,
+) -> Iterator[BlockedGrid]:
     """Yield every legal :class:`BlockedGrid` with exactly ``num_black`` black
     cells (see module docstring for "legal").
 
@@ -136,8 +142,9 @@ def gen_patterns(rows: int, cols: int, num_black: int, *, min_len: int = 3,
     total = rows * cols
     if num_black < 0 or num_black > total:
         return
-    units = (_orbits(rows, cols) if symmetric
-             else [[(r, c)] for r in range(rows) for c in range(cols)])
+    units = (
+        _orbits(rows, cols) if symmetric else [[(r, c)] for r in range(rows) for c in range(cols)]
+    )
     order = list(range(len(units)))
     if randomize:
         rng.shuffle(order)
@@ -152,24 +159,25 @@ def gen_patterns(rows: int, cols: int, num_black: int, *, min_len: int = 3,
     n_white_target = total - num_black
     placed = 0
 
-    def rec(i: int):
+    def rec(i: int) -> Iterator[BlockedGrid]:
         nonlocal placed
         if placed == num_black:
             # Budget spent; every remaining unit stays white. Validate this layout.
-            if _fully_checked(block, rows, cols, min_len) \
-                    and _connected(block, rows, cols, n_white_target):
+            if _fully_checked(block, rows, cols, min_len) and _connected(
+                block, rows, cols, n_white_target
+            ):
                 yield _to_grid(block, rows, cols, min_len)
             return
         if i == len(units) or placed + suffix[i] < num_black:
             return
         # Branch 1: blacken unit i, if it fits the remaining budget.
         if placed + sizes[i] <= num_black:
-            for (r, c) in units[i]:
+            for r, c in units[i]:
                 block[r][c] = True
             placed += sizes[i]
             yield from rec(i + 1)
             placed -= sizes[i]
-            for (r, c) in units[i]:
+            for r, c in units[i]:
                 block[r][c] = False
         # Branch 2: leave unit i white.
         yield from rec(i + 1)
@@ -177,10 +185,19 @@ def gen_patterns(rows: int, cols: int, num_black: int, *, min_len: int = 3,
     yield from rec(0)
 
 
-def fill_by_count(rows: int, cols: int, num_black: int, mlex: MultiLexicon, *,
-                  min_len: int = 3, symmetric: bool = True, seed: int = 0,
-                  distinct: bool = True, node_budget: int | None = None,
-                  max_patterns: int | None = None):
+def fill_by_count(
+    rows: int,
+    cols: int,
+    num_black: int,
+    mlex: MultiLexicon,
+    *,
+    min_len: int = 3,
+    symmetric: bool = True,
+    seed: int = 0,
+    distinct: bool = True,
+    node_budget: int | None = None,
+    max_patterns: int | None = None,
+) -> tuple[BlockedGrid, dict[int, str]] | None:
     """Search legal ``num_black``-black layouts for one that fills.
 
     Returns ``(grid, assign)`` for the first layout that admits a distinct fill
@@ -190,14 +207,12 @@ def fill_by_count(rows: int, cols: int, num_black: int, mlex: MultiLexicon, *,
     and word lists. ``max_patterns`` caps how many layouts are tried (trading the
     completeness of the proof for a time bound); it does not affect a SAT result.
     """
-    tried = 0
-    for g in gen_patterns(rows, cols, num_black, min_len=min_len,
-                          symmetric=symmetric, seed=seed):
+    for tried, g in enumerate(
+        gen_patterns(rows, cols, num_black, min_len=min_len, symmetric=symmetric, seed=seed)
+    ):
         if max_patterns is not None and tried >= max_patterns:
             return None
-        tried += 1
-        assign = fill.solve(g, mlex, seed=seed, distinct=distinct,
-                            node_budget=node_budget)
+        assign = fill.solve(g, mlex, seed=seed, distinct=distinct, node_budget=node_budget)
         if assign is not None:
             return g, assign
     return None

@@ -27,9 +27,9 @@ WHITE = "."
 @dataclass
 class Slot:
     id: int
-    direction: str            # "A" (across) or "D" (down)
+    direction: str  # "A" (across) or "D" (down)
     cells: list[tuple[int, int]]
-    number: int = 0           # the clue number at the slot's start cell
+    number: int = 0  # the clue number at the slot's start cell
 
     @property
     def length(self) -> int:
@@ -40,14 +40,14 @@ class Slot:
 class BlockedGrid:
     rows: int
     cols: int
-    block: list[list[bool]]                        # block[r][c] == True if black
+    block: list[list[bool]]  # block[r][c] == True if black
     slots: list[Slot] = field(default_factory=list)
     # (r, c) -> {"A": slot_id, "D": slot_id} for the slots through that cell.
     cell_slots: dict[tuple[int, int], dict[str, int]] = field(default_factory=dict)
     orphans: list[tuple[int, int]] = field(default_factory=list)
 
     @classmethod
-    def parse(cls, template: str | list[str], min_len: int = 3) -> "BlockedGrid":
+    def parse(cls, template: str | list[str], min_len: int = 3) -> BlockedGrid:
         rowstrs = template.split() if isinstance(template, str) else list(template)
         rowstrs = [r.strip() for r in rowstrs if r.strip()]
         R = len(rowstrs)
@@ -61,8 +61,9 @@ class BlockedGrid:
 
     def _runs(self, cells: list[tuple[int, int]], min_len: int) -> list[list[tuple[int, int]]]:
         """Split a line of cells into maximal white runs of length >= min_len."""
-        runs, cur = [], []
-        for (r, c) in cells:
+        runs: list[list[tuple[int, int]]] = []
+        cur: list[tuple[int, int]] = []
+        for r, c in cells:
             if self.block[r][c]:
                 if len(cur) >= min_len:
                     runs.append(cur)
@@ -84,7 +85,7 @@ class BlockedGrid:
                 self.slots.append(Slot(sid, "D", run))
                 sid += 1
         for s in self.slots:
-            for (r, c) in s.cells:
+            for r, c in s.cells:
                 self.cell_slots.setdefault((r, c), {})[s.direction] = s.id
         # White cells touched by no slot (a run shorter than min_len): unchecked /
         # unfillable. A well-formed American grid has none.
@@ -118,7 +119,7 @@ class BlockedGrid:
     def crossings(self) -> list[tuple[int, int]]:
         """Unique (across_slot_id, down_slot_id) pairs that share a cell."""
         pairs = set()
-        for cell, ds in self.cell_slots.items():
+        for ds in self.cell_slots.values():
             if "A" in ds and "D" in ds:
                 pairs.add((ds["A"], ds["D"]))
         return sorted(pairs)

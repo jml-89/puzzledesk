@@ -111,15 +111,38 @@ just enumerates a larger legal set.
 
 ## Run
 
+The project uses [uv](https://docs.astral.sh/uv/). `uv run` provisions the
+virtualenv (installing `puzzledesk` and its deps) on first use, so no manual
+`pip install` step is needed.
+
 ```bash
-pip install numpy wordfreq          # wordfreq only needed to regenerate scores
-python3 scripts/demo.py             # correctness across N=2..4
-python3 scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
-python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
-python3 scripts/blackcells.py       # blocked-grid fill: ground truth + filled grids
-python3 scripts/generate.py 5 5 4 60 3   # 5x5 minis with 4 black cells, layout found by search
-python3 scripts/generate.py 5 5 3 60 3 --nonsymmetric  # 3 black cells, no 180° symmetry
+uv run scripts/demo.py             # correctness across N=2..4
+uv run scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
+uv run scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
+uv run scripts/blackcells.py       # blocked-grid fill: ground truth + filled grids
+uv run scripts/generate.py 5 5 4 60 3   # 5x5 minis with 4 black cells, layout found by search
+uv run scripts/generate.py 5 5 3 60 3 --nonsymmetric  # 3 black cells, no 180° symmetry
 ```
+
+`wordfreq` is only needed to regenerate the scored word lists; install it with
+the `scoring` extra and run the generator:
+
+```bash
+uv run --extra scoring scripts/gen_scored.py   # rebuild data/scored_N.txt
+```
+
+## Development
+
+```bash
+uv sync                # create/refresh the dev environment
+uv run ruff check      # lint
+uv run ruff format     # format
+uv run mypy            # type-check src/puzzledesk
+```
+
+Ruff (lint + format) and mypy are configured in `pyproject.toml`. The package
+ships type information (`py.typed`); `mypy` runs with `disallow_untyped_defs`, so
+new code in `src/puzzledesk` must be fully annotated.
 
 ## Deeper docs (agent-facing, in `docs/`)
 

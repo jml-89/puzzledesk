@@ -10,8 +10,6 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
 from puzzledesk.lexicon import Lexicon
 from puzzledesk.sampler import solve
 from puzzledesk.square import DoubleSquare
@@ -38,8 +36,9 @@ def run(n, quality, tries=40, temperature=0.0):
     best = None
     for seed in range(tries):
         t0 = time.perf_counter()
-        r = solve(sq, seed=seed, quality=quality, temperature=temperature,
-                  max_steps=800, max_restarts=200)
+        r = solve(
+            sq, seed=seed, quality=quality, temperature=temperature, max_steps=800, max_restarts=200
+        )
         times.append(time.perf_counter() - t0)
         if r.solved:
             solved += 1
@@ -48,8 +47,10 @@ def run(n, quality, tries=40, temperature=0.0):
             if best is None or mz > best[0]:
                 best = (mz, grid_words(sq, r.state))
     avg_z = sum(zipfs) / len(zipfs) if zipfs else 0
-    print(f"  quality={quality:<4}: solved {solved}/{tries} | mean-zipf {avg_z:.2f} "
-          f"| {sum(times)/len(times)*1e3:.0f} ms/run")
+    print(
+        f"  quality={quality:<4}: solved {solved}/{tries} | mean-zipf {avg_z:.2f} "
+        f"| {sum(times) / len(times) * 1e3:.0f} ms/run"
+    )
     return best
 
 

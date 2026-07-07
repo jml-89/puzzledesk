@@ -3,14 +3,12 @@
 Every one of the ten words (5 across + 5 down) is distinct and scores at or
 above the target quality bar. Usage:
 
-    python3 scripts/mini.py [N] [min_score] [count]
-    python3 scripts/mini.py 5 70 3
+    uv run scripts/mini.py [N] [min_score] [count]
+    uv run scripts/mini.py 5 70 3
 """
 
 import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from puzzledesk import backtrack
 from puzzledesk.lexicon import Lexicon
@@ -32,8 +30,7 @@ def render(sq, state):
 def main(n=5, min_score=70.0, count=3):
     lex = Lexicon.from_scored_file(DATA / f"cw_{n}.txt", length=n).filtered(min_score)
     sq = DoubleSquare(lex)
-    print(f"{n}x{n} minis, every word score >= {min_score:.0f} "
-          f"(from {len(lex)} eligible words)\n")
+    print(f"{n}x{n} minis, every word score >= {min_score:.0f} (from {len(lex)} eligible words)\n")
     shown = 0
     for seed in range(count * 20):
         state = backtrack.solve(sq, seed=seed, distinct=True)

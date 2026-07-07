@@ -12,15 +12,16 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .lexicon import Lexicon
 from .square import DoubleSquare
 
 
 @dataclass
 class Verdict:
     ok: bool
-    min_score: float          # score of the weakest word (the bottleneck)
+    min_score: float  # score of the weakest word (the bottleneck)
     weakest: tuple[str, float]
-    distinct: bool            # all 2N words distinct (no symmetric/incidental repeat)
+    distinct: bool  # all 2N words distinct (no symmetric/incidental repeat)
     n_distinct: int
     words: list[tuple[str, float]]  # every across+down word with its score
 
@@ -30,7 +31,7 @@ class Verdict:
         return f"{tag} min={self.min_score:.2f} weakest={self.weakest[0]!r}{why}"
 
 
-def score_of(lex, word: str) -> float:
+def score_of(lex: Lexicon, word: str) -> float:
     return lex.score_map.get(word, 0.0)
 
 

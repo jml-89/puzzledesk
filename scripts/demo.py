@@ -6,11 +6,8 @@ guarantees validity by construction, so we report solve-rate, diversity and
 timing instead of enumerating (the valid set is enormous for this weak list).
 """
 
-import sys
 import time
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from puzzledesk.bruteforce import enumerate_squares
 from puzzledesk.lexicon import Lexicon
@@ -48,7 +45,10 @@ def check(n: int, tries: int = 30, ground_truth: bool = False):
                 assert rows in truth, f"sampler produced {rows} not in ground truth!"
     dt = time.perf_counter() - t0
 
-    print(f"sampler: solved {solved}/{tries}  |  {len(found)} distinct  |  {dt/tries*1e3:.1f} ms/run")
+    print(
+        f"sampler: solved {solved}/{tries}  |  {len(found)} distinct  |  "
+        f"{dt / tries * 1e3:.1f} ms/run"
+    )
     if found:
         print("  example:\n" + "\n".join("    " + " ".join(w) for w in sorted(found)[0]))
 

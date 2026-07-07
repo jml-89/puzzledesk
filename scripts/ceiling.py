@@ -10,8 +10,6 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
 from puzzledesk import backtrack
 from puzzledesk.lexicon import Lexicon
 from puzzledesk.square import DoubleSquare
@@ -56,6 +54,9 @@ if __name__ == "__main__":
     rest = args[1:]
     if rest and not rest[0].replace(".", "").isdigit():
         listname, rest = rest[0], rest[1:]
-    ts = [float(x) for x in rest] if rest else (
-        [40, 50, 60, 70, 80, 90] if listname == "cw" else [4.0, 4.5, 5.0, 5.5, 6.0])
+    ts = (
+        [float(x) for x in rest]
+        if rest
+        else ([40, 50, 60, 70, 80, 90] if listname == "cw" else [4.0, 4.5, 5.0, 5.5, 6.0])
+    )
     sweep(n, ts, listname=listname)
