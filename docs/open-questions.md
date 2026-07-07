@@ -58,14 +58,24 @@ left to a human/LLM editor pass.
 
 ## Model generality
 
-Current model is FULLY-CHECKED square only (no black cells). Real NYT minis
-sometimes include black squares and are not always 5x5. Open:
-- Generalise to grids with black cells (slots of varying length, a real crossword
-  fill). This is a bigger change: state is no longer "N equal-length across words";
-  need a slot/intersection graph and multi-length lexicons. The current
-  induced-column trick does not directly apply.
-- Larger orders: double word squares get rare fast (order 8+ is hard in English).
-  Feasibility/timing for 6x6, 7x7 on the curated list is unmeasured.
+Black-cell FILL is now done (D12, blocked.py/fill.py/blackcells.py): slot +
+crossing graph, MultiLexicon, complete MRV backtracking, distinct entries, tiny
+grid vs brute-force ground truth. What that spike deliberately left open:
+- **Block-pattern generation.** Patterns are INPUT right now. Generating legal
+  ones is its own CSP: rotational symmetry, full connectivity of the white cells,
+  minimum word length (>=3, no unchecked cells for an American grid), word-count
+  targets. This is the piece a real generator needs next.
+- **Word lists longer than 5.** Data is lengths 2..5, so demos use slots <= 5. A
+  full 15x15 needs 6..15-length lists (same `cw`/`scored` pipeline, longer slice).
+  Also: the curated list has no usable 2-letter entries, so any grid with a
+  length-2 slot is UNSAT on it — fine for American grids (min length 3).
+- **Theme placement.** Theme entries are chosen first and their lengths drive the
+  layout; fill then works around fixed entries. `fill.solve` already supports this
+  in principle (pre-place words / pre-fill cells before solving) but there is no
+  API or theme-tagged word data yet. See "Grid variety" above — themes are where
+  the soft objective (and a reason to sample) genuinely returns.
+- Larger word SQUARES (the no-black case): order 8+ gets rare fast in English;
+  feasibility/timing for 6x6, 7x7 on the curated list is still unmeasured.
 
 ## Performance / completeness follow-ups
 

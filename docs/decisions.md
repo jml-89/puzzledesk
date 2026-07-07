@@ -143,3 +143,29 @@ square) for the comparison and the scripts to be honest; the strategy choice is
 made by data, not assertion. Reversal: if soft preferences return and the sampler
 becomes primary, revisit whether the penalty overhead is worth vectorising
 further (or move the whole thing to JAX parallel chains).
+
+## D12. Spike black cells as a separate slot-graph model, not a warp of the square
+
+Context: the fully-checked square is the mini's special case; real crosswords have
+black cells. The square's power came from the induced-column trick (state = across
+words, downs read off columns), explicitly flagged load-bearing. Black cells break
+it: entries become variable-length slots that start/stop at blocks, so there is no
+whole column to read. Decision: model the blocked case as a SEPARATE, coexisting
+representation rather than generalising the square. `blocked.py` parses a `.`/`#`
+pattern into a slot + crossing graph; `MultiLexicon` buckets words by length and
+`Lexicon.matching(pattern)` answers the per-slot fit query; `fill.py` fills it with
+the SAME complete backtracking that won for the square (D7), adding MRV ordering
+(varying lengths make "fewest candidates first" pay off) and grid-wide distinctness
+(crosswords never repeat an entry). Scope held deliberately tight for a spike: the
+block PATTERN is input, not generated (legal-layout generation — symmetry,
+connectivity, min-length — is its own problem); word lists cover lengths 2..5, so
+demos use slots <= 5. Small-first kept: `enumerate_fills` is brute-force ground
+truth on a tiny blocked grid, and the solver's output is asserted to be a subset
+(cf. demo.py at N=2). Findings: (a) the curated list has no 2-letter entries above
+any real bar, so grids with length-2 slots are UNSAT on it — the list, not the
+solver, is again the limit; (b) on a fixed pattern the quality ceiling is set by
+the SHORTEST slot's bucket emptying first (length-3 hits zero between bar 90 and
+92), the blocked echo of "the lexicon is the bottleneck". Rationale: reuse the
+proven engine and Lexicon machinery; change only what the geometry forces.
+Reversal: none for the model; the tight scope items (pattern generation, longer
+lists, themes) are follow-on spikes, see open-questions.
