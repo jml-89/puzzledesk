@@ -26,16 +26,20 @@ That reframe collapsed "quality" into **feasibility on a threshold-filtered
 list**: filter to words above the bar, solve feasibility, and every result
 passes by construction — no soft-weighting. But on the small, hard lists that
 high bars produce, min-conflicts wanders. So the right engine became a
-**complete propagation-backtracking search** (`backtrack.py`): 64–450× faster
-than the sampler at 5×5, and *complete*, so it can prove when no acceptable grid
-exists at all.
+**complete propagation-backtracking search** (`backtrack.py`): it solves a
+distinct 5×5 in ~0.1–0.3 s where the stochastic sampler needs seconds
+(≈50–80× faster), and — on the small, hard lists high bars produce — the
+sampler's solve-rate collapses (2–3/10) while backtracking stays 10/10 and,
+being *complete*, can even prove when no acceptable grid exists at all.
 
 **Distinctness.** A genuine double word square needs all 2N words distinct.
-Otherwise the solver falls into the **symmetric basin** — a grid symmetric down
+Otherwise a solver falls into the **symmetric basin** — a grid symmetric down
 the diagonal has across ≡ down, the down constraints collapse onto the across
-ones, and you get an easy, degenerate fill that's really only N words. Both the
-acceptance test and the solver enforce 10-distinct; killing the basin drops 5×5
-from 17 ms → ~420 ms (the real problem is harder) and lowers the honest ceiling.
+ones, and you get an easy, degenerate fill that's really only N words. All three
+paths now enforce 10-distinct: the acceptance test, the backtracker (pruning +
+leaf check), and the sampler (a duplicate-pair penalty in the move, see
+`samplers.py`). Killing the basin drops backtracking's 5×5 from ~13 ms → ~380 ms
+(the real problem is harder) and lowers the honest ceiling.
 
 **Where it landed:** the solver is no longer the bottleneck — the lexicon is. On
 dwyl + wordfreq the genuine (10-distinct) 5×5 ceiling is ~`zipf≥3.5`
@@ -57,12 +61,13 @@ square by brute force as ground truth; above that, validity is by construction.
 | `src/puzzledesk/lexicon.py`    | word storage; `set` for column checks, `(M,N)` letter matrix for pattern queries, per-word scores, `filtered(bar)` |
 | `src/puzzledesk/square.py`     | double-word-square representation and energy |
 | `src/puzzledesk/backtrack.py`  | **complete** prefix-pruned search — the primary engine |
-| `src/puzzledesk/sampler.py`    | min-conflicts / annealed-Gibbs sampler (soft-objective / diversity engine) |
+| `src/puzzledesk/sampler.py`    | min-conflicts / annealed-Gibbs sampler; enforces distinctness (`distinct=True`) via a duplicate-pair penalty (soft-objective / diversity engine) |
 | `src/puzzledesk/validate.py`   | acceptance test — bottleneck (weakest-word) verdict |
 | `src/puzzledesk/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
 | `scripts/demo.py`              | validation across N=2..4 |
 | `scripts/frontier.py`          | sweep the acceptance bar; where does packing stay feasible |
-| `scripts/compare.py`           | sampler vs backtracking head-to-head |
+| `scripts/compare.py`           | sampler vs backtracking head-to-head (same distinct problem) |
+| `scripts/samplers.py`          | sampler strategy study — gate vs distinctness-penalty |
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
 | `scripts/mini.py`              | **the generator** — print distinct minis above a quality bar |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
@@ -91,8 +96,10 @@ python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
 - [x] Lexicon, energy model, sampler, brute-force ground truth
 - [x] Validated N=2 (vs. ground truth), 3, 4, 5
 - [x] Acceptance test as the feedback signal; quality → feasibility on a filtered list
-- [x] Complete backtracking engine — 5×5 in ~15 ms, 64–450× over the sampler
-- [x] 10-distinct-words constraint (forbid the symmetric basin) in test + solver
+- [x] Complete backtracking engine — non-distinct 5×5 in ~15 ms; on the distinct
+      problem ~50–80× over the sampler and complete where the sampler stalls
+- [x] 10-distinct-words constraint (forbid the symmetric basin) in test, solver,
+      and sampler; strategy study (`samplers.py`) settles how the sampler enforces it
 - [x] Mapped the frontier and honest ceiling (distinct 5×5 tops out ~zipf≥3.5;
       ≥4.0 provably UNSAT on the weak list)
 - [x] **Curated lexicon** — swapped in the Crossword-Nexus list; distinct 5×5

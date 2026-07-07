@@ -90,20 +90,31 @@ N down words are not mutually distinct or collide with an across word.
 
 ### sampler.py — the SECONDARY engine (energy-based / stochastic)
 
-`solve(sq, temperature=0.0, quality=0.0, max_steps, max_restarts, seed) -> Result`.
-Min-conflicts / annealed-Gibbs: from a random filled grid, repeatedly re-choose
-one row's word to minimise invalid columns. `_row_objective` scores every
-candidate row word by `BIG*(#columns made valid) + quality*(across score +
-induced down scores)`; `BIG` guarantees feasibility dominates quality. `quality`
-folds word frequency into the move; `temperature>0` samples instead of greedy.
-`Result` has `.state .energy .solved .steps .restarts`.
+`solve(sq, temperature=0.0, quality=0.0, distinct=False, guided=True,
+max_steps, max_restarts, seed) -> Result`. Min-conflicts / annealed-Gibbs: from a
+random filled grid, repeatedly re-choose one row's word to minimise invalid
+columns. `_row_objective` scores every candidate row word by `BIG*(#columns made
+valid) + quality*(across score + induced down scores) - DUP_WEIGHT*(#duplicate
+word-pairs)`; `BIG` guarantees feasibility dominates both quality and
+distinctness. `quality` folds word frequency into the move; `temperature>0`
+samples instead of greedy. `Result` has `.state .energy .solved .steps .restarts`.
 
-IMPORTANT GAP: the sampler does NOT enforce distinctness. It predates that
-constraint and remains the soft-objective/diversity engine. If you use it for
-real output, add the distinctness check or post-filter with `validate`. It is
-64-450x slower than backtracking on filtered lists and is currently kept only
-because (a) it can absorb genuinely soft preferences and (b) it produces a
-sample distribution. See open question "does the sampler earn its keep".
+DISTINCTNESS (`distinct=True`): the sampler now enforces the distinctness
+invariant, so it produces genuine double word squares (not just the raw-packing
+default). `_distinct_penalty` computes, vectorised, the number of duplicate
+word-pairs for every candidate row word (real words share ids via a string->id
+map; throwaway non-words get fresh per-step ids), and the move subtracts
+`DUP_WEIGHT` times that. The penalty is gated to near-feasible steps (`<=1`
+invalid column) because it rebuilds N*26 column strings — with more invalid
+columns `BIG*feasibility` dominates the argmax anyway. `guided=True` (default)
+uses that penalty to walk off the symmetric basin; `guided=False` is the naive
+"gate" baseline that just restarts on a degenerate valid grid (the basin is a
+fixed point of the unguided move). See `scripts/samplers.py` for the head-to-head.
+
+The sampler is ~50-80x slower than backtracking on distinct filtered lists and its
+solve-rate collapses on the small/hard lists where backtracking stays complete, so
+it is SECONDARY, kept for (a) genuinely soft preferences and (b) a sample
+distribution. See open question "does the sampler earn its keep".
 
 ## Acceptance test (src/puzzledesk/validate.py)
 
@@ -122,8 +133,10 @@ the feedback signal the whole design optimises against. `score_of` falls back to
 2. ENERGY 0 == valid. Any change to what counts as "a word" must go through the
    column lexicon's wordset so energy stays meaningful.
 3. DISTINCTNESS. Acceptable output has 2N distinct words. Enforced in `validate`
-   (acceptance) and `backtrack` (pruning + leaf). If you add a third code path
-   that emits grids, it must enforce this or the symmetric basin returns.
+   (acceptance), `backtrack` (pruning + leaf), and `sampler` (duplicate-pair
+   penalty, `distinct=True`). If you add a fourth code path that emits grids, it
+   must enforce this or the symmetric basin returns. The sampler's raw-packing
+   default (`distinct=False`) does NOT — it is not an output path.
 4. SCORE SCALE IS PER-LIST. `scored_N.txt` scores are wordfreq Zipf (~0..8).
    `cw_N.txt` scores are crossword 0..100. A threshold is only meaningful
    relative to its list. Never reuse a Zipf threshold on the curated list or
@@ -144,9 +157,13 @@ every word >= min_score by construction of the filter.
 - demo.py: correctness N=2..4. N=2 checks the sampler against brute-force ground
   truth (the only place we have ground truth); above N=2 validity is by
   construction. Run after touching the energy model or sampler.
-- bench.py: order-N solve timing for the sampler.
-- frontier.py: sweep the acceptance threshold; where does packing stay feasible.
-- compare.py: sampler vs backtrack head-to-head, same bar.
+- bench.py: order-N solve timing for the sampler (raw packing, distinct off).
+- frontier.py: sweep the acceptance threshold with the sampler (distinct=True);
+  where does packing into a genuine square stay feasible. Stochastic counterpart
+  to ceiling.py's complete sweep.
+- compare.py: sampler vs backtrack head-to-head on the same distinct problem.
+- samplers.py: sampler strategy study — gate vs distinctness-penalty (+backtrack
+  reference), same distinct problem.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).

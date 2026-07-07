@@ -1,12 +1,15 @@
-"""Map the feasibility/quality frontier.
+"""Map the feasibility/quality frontier -- the stochastic view.
 
-For each acceptance threshold T, filter the lexicon to words >= T, solve
-feasibility with the plain (quality-blind) sampler, and validate. Because we
-filtered at T, every solved grid passes the min-word acceptance test by
-construction -- so the only questions are: does it still pack, and how fast?
+For each acceptance threshold T, filter the lexicon to words >= T, solve for a
+distinct double word square with the sampler, and validate. Because we filtered
+at T, every solved grid passes the min-word acceptance test by construction -- so
+the only questions are: does it still pack (into a genuine, distinct square), and
+how fast?
 
 The highest T that still packs reliably is the best 'all words acceptable' bar
-we can hold for that order N.
+we can hold for that order N. This is the sampler's picture; ceiling.py draws the
+same frontier with the *complete* solver, which additionally proves UNSAT above
+the ceiling (the sampler can only fail to find one, never prove none exists).
 """
 
 import sys
@@ -23,7 +26,7 @@ from puzzledesk.validate import validate
 DATA = Path(__file__).resolve().parent.parent / "data"
 
 
-def frontier(n, thresholds, tries=40):
+def frontier(n, thresholds, tries=20):
     full = Lexicon.from_scored_file(DATA / f"scored_{n}.txt", length=n)
     print(f"\n=== N={n}  (full scored list: {len(full)} words) ===")
     print(f"{'T':>4} {'words':>6} {'solved':>8} {'ms/run':>7}  example (weakest word)")
@@ -36,7 +39,7 @@ def frontier(n, thresholds, tries=40):
         solved, times, best = 0, [], None
         for seed in range(tries):
             t0 = time.perf_counter()
-            r = solve(sq, seed=seed, max_steps=800, max_restarts=300)
+            r = solve(sq, seed=seed, distinct=True, max_steps=500, max_restarts=200)
             times.append(time.perf_counter() - t0)
             if r.solved:
                 solved += 1

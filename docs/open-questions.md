@@ -35,12 +35,16 @@ recurring, nor do we bias toward fresh/interesting fills. Open:
 
 ## Does the sampler earn its keep?
 
-`sampler.py` is the secondary engine, is 64-450x slower on filtered lists, and
-does NOT enforce distinctness (D8). It is retained for (a) genuinely soft
-preferences and (b) sample-distribution behaviour. Question: keep, fix
-(add distinctness), or delete? Resolution depends on whether soft preferences
-return (see variety, above). If they do, the sampler (or a JAX parallel-chain
-version) may retake primacy and must then enforce distinctness.
+`sampler.py` is the secondary engine and is ~50-80x slower than backtracking on
+distinct filtered lists (its solve-rate collapses on the small/hard ones). It NOW
+enforces distinctness (D11, `distinct=True`), so the "fix it" option is done; the
+strategy study (samplers.py) also showed distinctness is not its bottleneck, so
+the guided penalty barely beats the naive gate. It is retained for (a) genuinely
+soft preferences and (b) sample-distribution behaviour. Question narrows to: keep
+or delete? Resolution depends on whether soft preferences return (see variety,
+above). If they do, the sampler (or a JAX parallel-chain version) may retake
+primacy; the distinctness penalty is already in place, but would want vectorising
+harder (it currently rebuilds N*26 column strings per near-feasible step).
 
 ## Puzzle quality beyond word-score
 
@@ -65,7 +69,7 @@ sometimes include black squares and are not always 5x5. Open:
 
 ## Performance / completeness follow-ups
 
-- Distinctness leaf-rejection is the known inefficiency (17ms->420ms at 5x5). The
+- Distinctness leaf-rejection is the known inefficiency (~13ms->380ms at 5x5). The
   down words are only complete at the last row, so duplicates are caught late.
   Could we prune earlier — e.g. detect when a partial column can only complete to
   an already-used word? Unimplemented; measure before optimising.
