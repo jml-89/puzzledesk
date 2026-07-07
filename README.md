@@ -39,10 +39,13 @@ from 17 ms → ~420 ms (the real problem is harder) and lowers the honest ceilin
 
 **Where it landed:** the solver is no longer the bottleneck — the lexicon is. On
 dwyl + wordfreq the genuine (10-distinct) 5×5 ceiling is ~`zipf≥3.5`
-(`mates/irene/linda/asset/needs`); `zipf≥4.0` is provably UNSAT *for this list*
-— a property of the words, not the search. The surviving fills are name-heavy
-(lowercased proper nouns the list can't distinguish), so a curated scored
-crossword list is what makes good distinct minis exist at all.
+(`mates/irene/linda/asset/needs`); `zipf≥4.0` is provably UNSAT *for this list*.
+That diagnosis was confirmed by swapping in a **curated crossword list** (the
+Crossword-Nexus collaborative list, MIT, scored 0–100 for solver-enjoyment): the
+ceiling jumps from "UNSAT at zipf 4" to **every word scoring ≥90** — genuine
+distinct minis like `sedan/credo/rotor/adept/perth` in ~0.8 s, or ≥70-quality
+grids (`rotor/atone/strep/petal/srsly` × `rasps/otter/torts/oneal/reply`) in
+~0.2 s. Same solver, unchanged — the words were the whole story.
 
 Building small-first (2×2 → 3×3 → 4×4 → 5×5): at N=2 we enumerate every valid
 square by brute force as ground truth; above that, validity is by construction.
@@ -60,16 +63,20 @@ square by brute force as ground truth; above that, validity is by construction.
 | `scripts/demo.py`              | validation across N=2..4 |
 | `scripts/frontier.py`          | sweep the acceptance bar; where does packing stay feasible |
 | `scripts/compare.py`           | sampler vs backtracking head-to-head |
-| `scripts/ceiling.py`           | how high can the bar go before UNSAT |
+| `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
+| `scripts/mini.py`              | **the generator** — print distinct minis above a quality bar |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
-| `data/scored_N.txt`            | the above with wordfreq Zipf scores (see `scripts/gen_scored.py`) |
+| `data/scored_N.txt`            | the above with wordfreq Zipf scores (weak baseline list) |
+| `data/cw_N.txt`                | curated crossword list, scored 0–100 (the real list) |
+| `data/SOURCES.md`              | provenance and licenses for the word lists |
 
 ## Run
 
 ```bash
 pip install numpy wordfreq          # wordfreq only needed to regenerate scores
 python3 scripts/demo.py             # correctness across N=2..4
-python3 scripts/ceiling.py 5        # 5x5 quality ceiling with backtracking
+python3 scripts/mini.py 5 70 3      # three 5x5 minis, every word score >= 70
+python3 scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
 ```
 
 ## Status / next
@@ -80,12 +87,9 @@ python3 scripts/ceiling.py 5        # 5x5 quality ceiling with backtracking
 - [x] Complete backtracking engine — 5×5 in ~15 ms, 64–450× over the sampler
 - [x] 10-distinct-words constraint (forbid the symmetric basin) in test + solver
 - [x] Mapped the frontier and honest ceiling (distinct 5×5 tops out ~zipf≥3.5;
-      ≥4.0 provably UNSAT on this list)
-- [ ] **Better lexicon** — the solver is done; a curated scored crossword list
-      (e.g. Broda / Spread the Wordlist) is what lifts the quality ceiling
+      ≥4.0 provably UNSAT on the weak list)
+- [x] **Curated lexicon** — swapped in the Crossword-Nexus list; distinct 5×5
+      minis with every word ≥90, publishable fills. `scripts/mini.py` generates.
 - [ ] Clue generation (separate downstream stage)
+- [ ] Grid variety controls — seed words, themes, avoid overused entries
 - [ ] JAX parallel chains — only if we reintroduce genuinely soft preferences
-
-The word list here is deliberately weak (dwyl `words_alpha` + wordfreq Zipf) —
-it exercised the packing and pinned the ceiling, and it is now provably the
-limiting factor.

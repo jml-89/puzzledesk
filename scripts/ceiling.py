@@ -20,9 +20,9 @@ from puzzledesk.validate import validate
 DATA = Path(__file__).resolve().parent.parent / "data"
 
 
-def sweep(n, thresholds, tries=25):
-    full = Lexicon.from_scored_file(DATA / f"scored_{n}.txt", length=n)
-    print(f"\n=== N={n} ceiling sweep (full {len(full)} words) ===")
+def sweep(n, thresholds, tries=25, listname="scored"):
+    full = Lexicon.from_scored_file(DATA / f"{listname}_{n}.txt", length=n)
+    print(f"\n=== N={n} ceiling sweep [{listname}] (full {len(full)} words) ===")
     for T in thresholds:
         lex = full.filtered(T)
         if len(lex) < n:
@@ -38,6 +38,7 @@ def sweep(n, thresholds, tries=25):
                 solved += 1
                 found.add(tuple(sq.rows.words[i] for i in state))
                 v = validate(sq, state, T)
+                assert v.distinct
                 if best is None or v.min_score > best[0]:
                     best = (v.min_score, [sq.rows.words[i] for i in state])
         ms = sum(times) / len(times) * 1e3
@@ -48,6 +49,13 @@ def sweep(n, thresholds, tries=25):
 
 
 if __name__ == "__main__":
-    n = int(sys.argv[1]) if len(sys.argv) > 1 else 5
-    ts = [float(x) for x in sys.argv[2:]] if len(sys.argv) > 2 else [4.0, 4.5, 5.0, 5.5, 6.0]
-    sweep(n, ts)
+    # usage: ceiling.py [N] [listname] [thresholds...]
+    args = sys.argv[1:]
+    n = int(args[0]) if args else 5
+    listname = "scored"
+    rest = args[1:]
+    if rest and not rest[0].replace(".", "").isdigit():
+        listname, rest = rest[0], rest[1:]
+    ts = [float(x) for x in rest] if rest else (
+        [40, 50, 60, 70, 80, 90] if listname == "cw" else [4.0, 4.5, 5.0, 5.5, 6.0])
+    sweep(n, ts, listname=listname)
