@@ -99,26 +99,6 @@ class Lexicon:
     def is_word(self, s: str) -> bool:
         return s in self.wordset
 
-    def allowed_at(self, pattern: list[int | None]) -> np.ndarray:
-        """Given a length-N pattern with fixed letters and ``None`` blanks,
-        return a 26-bool mask of letters that can fill the (single) blank so the
-        whole string is a real word.
-
-        ``pattern`` must have exactly one ``None``. Used to compute, for a given
-        column, which letters at the free row make that column a valid word --
-        the per-cell "marginal" that drives the local update.
-        """
-        blank = pattern.index(None)
-        # Rows matching all the fixed positions.
-        mask = np.ones(len(self.words), dtype=bool)
-        for pos, val in enumerate(pattern):
-            if val is None:
-                continue
-            mask &= self.letters[:, pos] == val
-        allowed = np.zeros(26, dtype=bool)
-        allowed[self.letters[mask, blank]] = True
-        return allowed
-
     def words_matching(self, allowed: list[np.ndarray]) -> np.ndarray:
         """Return indices of words whose letter at each position is permitted by
         the corresponding 26-bool mask in ``allowed`` (length N).
@@ -137,8 +117,8 @@ class Lexicon:
         ``pattern`` has length N; each entry is a 0..25 letter index (that
         position is pinned) or ``None`` (free). This is the core query for
         blocked-grid fill: a slot's pattern is the letters its crossing entries
-        have already fixed, and the candidates are the words that fit. Unlike
-        :meth:`allowed_at` it allows *any* number of blanks, not exactly one.
+        have already fixed, and the candidates are the words that fit. Any number
+        of positions may be free.
         """
         mask = np.ones(len(self.words), dtype=bool)
         for pos, val in enumerate(pattern):

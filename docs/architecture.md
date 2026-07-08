@@ -115,9 +115,6 @@ read lives in the `FileLexicon` adapter, see "Layered architecture"):
   list families use this (see score-scale gotcha below).
 - `filtered(min_score)`: sub-lexicon of words with score >= min_score. This is
   how a quality bar is applied: filter, then solve feasibility.
-- `allowed_at(pattern)`: pattern is length-N with exactly one `None`; returns a
-  26-bool mask of letters that fill the blank to make a real word. The per-cell
-  "which letters keep this column alive" marginal.
 - `words_matching(allowed)`: allowed is a length-N list of 26-bool masks; returns
   indices of words whose letter at every position is permitted. The bitset-style
   intersection the backtracker uses to get legal row words directly.
@@ -204,10 +201,9 @@ blocked case is a SEPARATE, coexisting representation:
   refuses one. It also assigns conventional clue numbers.
 - `MultiLexicon` (lexicon.py) holds a `Lexicon` per length, since slots no longer
   share one length; `Lexicon.matching(pattern)` answers the per-slot query "words
-  that fit these already-fixed letters" (any number of blanks, unlike
-  `allowed_at`'s exactly-one). A length with no words at the bar is an empty
-  bucket (`_EmptyLexicon`), so such a slot is simply unfillable (UNSAT), not a
-  crash.
+  that fit these already-fixed letters" (any number of blanks). A length with no
+  words at the bar is an empty bucket (`_EmptyLexicon`), so such a slot is simply
+  unfillable (UNSAT), not a crash.
 - `fill.solve(grid, mlex, *, rng, distinct, ...)` is complete backtracking over
   slots with **MRV** ordering (`rng` injected as above; always extend the unfilled
   slot with the fewest candidates; a
