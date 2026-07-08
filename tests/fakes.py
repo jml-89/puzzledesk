@@ -9,10 +9,12 @@ difference.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from puzzledesk.app.clue import Clue, ClueStyle
+from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
 from puzzledesk.core.rng import Rng
 
@@ -49,3 +51,26 @@ class RecordingRngFactory:
     def create(self, seed: int) -> Rng:
         self.seeds.append(seed)
         return np.random.default_rng(seed)
+
+
+class FakeClueProvider:
+    """Implements ``app.clue.ClueProvider`` deterministically -- no LLM, no network.
+    Returns ``n`` canned clues per target that echo the answer, difficulty and
+    (for a meta) the kind, so a test can assert the pipeline wired the right target
+    to the right clue without any generative model."""
+
+    def clue(
+        self,
+        grid: FilledGrid,
+        targets: Sequence[Target],
+        *,
+        style: ClueStyle,
+        n: int = 1,
+    ) -> Mapping[TargetId, Sequence[Clue]]:
+        out: dict[TargetId, Sequence[Clue]] = {}
+        for t in targets:
+            label = "meta" if t.kind == "meta" else "clue"
+            out[t.id] = tuple(
+                Clue(f"[{style.difficulty.name}] {label} for {t.answer!r} #{i}") for i in range(n)
+            )
+        return out

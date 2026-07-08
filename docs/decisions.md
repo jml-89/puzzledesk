@@ -283,3 +283,77 @@ without touching the engines. The tool/benchmark *directory* split
 (`scripts/tools` vs `scripts/bench`, console entry points for every driver) remains
 a deliberate follow-up; `cli` now groups them by intent and adds `[project.scripts]`
 for the two tools.
+
+## D15. Clue generation: an interface, defined before the implementation
+
+Context: the grid problem is finished; a mini is not a puzzle without clues. Clue
+generation is the next spike, and it is a genuinely *different regime* from
+everything the system does so far. The solver is complete and deterministic — its
+`None` is a UNSAT proof; distinctness is a theorem. Clue writing is soft,
+generative, subjective, with no completeness and no ground truth. Before writing a
+line of it we designed the boundary: what does a clue provider *see*, and what does
+it *return*? Getting that wrong pollutes the pure core with the softness or
+forecloses whole styles of clue.
+
+Decision: fence clue generation behind a single `ClueProvider` port in `app`
+(`app/clue.py`), so all subjective/generative behaviour lives *behind* the port and
+the application applies only deterministic constraints on top. The port is defined;
+the impl (a Claude adapter, a ranking pass, an exporter) is deliberately deferred.
+The shape, arrived at by iterating the boundary hard:
+
+- **The port speaks the puzzle's canonical, space-first form.** `app/puzzle.py`
+  defines `FilledGrid` — a grid of cells, each a string (a letter, or several for a
+  rebus) or `None` for a black square. That is the whole truth. The across/down
+  words (`runs()`), the crossing graph (`crossings()`), and the numbering are
+  *derivations* computed on demand, never stored — the same way a Sudoku is a 9×9
+  grid, not a pre-materialised `{rows, columns, boxes}` object.
+- **"What to clue" is an explicit input, not a baked-in policy.** `clue(grid,
+  targets, *, style, n)` takes the `Target`s to clue. A `Target` is an ordered run
+  of cells + the answer they spell + a `kind` (`"A"`/`"D"`/`"meta"`), with spatial
+  identity `(start_cell, kind)`. Entries come from `grid.runs()`; a puzzle-level
+  META (the highlighted-cells-spell-the-answer lineage) is *just another target*
+  over scattered cells — so metas need no interface change and no separate return
+  channel. This also moves "clue every run" out of the adapter (a policy) and into
+  the app (where policy belongs).
+- **The `how` axis is a `ClueStyle`.** A comparable, sweepable `Difficulty` knob
+  (Mon..Sat, `IntEnum`) plus free-form `instructions` for the long tail (tone,
+  spelling, an imposed theme, taboo words). Output is `Mapping[TargetId,
+  Sequence[Clue]]` — up to `n` candidates per target, keyed by spatial identity
+  (never by answer value); a word the provider cannot clue maps to an empty
+  sequence, so the port stays total.
+- **Representation-agnostic projection (the anti-corruption layer).** Both core
+  grid models render into `FilledGrid` (`filled_from_square`,
+  `filled_from_blocked`), so the clue port never learns which model produced the
+  fill — honouring invariant 0 (two coexisting grid models).
+
+The design rule this crystallised, reusable beyond clues: **send the canonical
+aggregate; derive views at the point of use; introduce a modelled structure only
+where an external contract forces it.** The one structure beyond the grid is
+`Target`, forced because the *output* of cluing is per-word, not per-cell.
+
+Landed interface-only: `FilledGrid`/`Target`/`Crossing` + `runs()`/`crossings()`,
+the `ClueProvider` port + `ClueStyle`/`Clue`/`Difficulty`, the two projections, and
+a `FakeClueProvider` (tests/fakes.py) driving one mini end-to-end with no network —
+the DI payoff again: the whole pipeline is exercised before any adapter exists. The
+layers contract is untouched (`ClueProvider` sits in `app`).
+
+Alternatives considered — each an iteration of the boundary:
+- **Answer as a bare `str`** (per word): rejected — it does not merely drop
+  metadata, it dissolves the aggregate's defining invariant (the interlock: crossing
+  entries agree on the shared letter), and forecloses intersection-aware and
+  difficulty-by-gettability cluing.
+- **A semantic `Puzzle{entries, crossings}` aggregate**: rejected — that is
+  data-first re-architecting of a *derivation* dressed as DDD; it pre-materialises
+  a cache and privileges one reading of the grid.
+- **Passing a core grid object** (`DoubleSquare+state` / `BlockedGrid+assign`):
+  rejected — couples cluing to solver internals and to the two-model split.
+- **Per-cell grid decoration + a separate puzzle-level meta return channel**:
+  rejected in favour of the `Target` abstraction, which absorbs both with no extra
+  structure. Purely *aesthetic* shading/circling (decoration that spells nothing)
+  is an `.ipuz` **export** concern, added there when a puzzle type needs it.
+
+Reversal: the port is the seam to swap providers — a live Claude adapter, a 50%-
+cheaper Batch-API adapter, or the fake — without touching anything above or below.
+Generating meta puzzles means constructing a meta `Target`; no interface change.
+The soft objective that D6/D7 retired at the *fill* layer genuinely returns here at
+the *clue* layer — quarantined behind this port, never in `core`.

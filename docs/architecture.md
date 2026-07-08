@@ -21,6 +21,10 @@ stack, enforced by **import-linter** (`[tool.importlinter]` in `pyproject.toml`;
   ports they need from outside (`app/ports.py`: `LexiconSource`, `Writer`).
   Services orchestrate the core through ports and return structured results
   (`app/results.py`); they never import a concrete adapter, read a file, or print.
+  Clue generation (the next spike) is fenced here too: `app/puzzle.py` is the
+  canonical space-first `FilledGrid` (cells + occupation; runs/crossings derived),
+  and `app/clue.py::ClueProvider` is the port the soft/generative clue stage lives
+  behind (D15 — interface defined, adapter deferred).
 - **`adapters/`** — infrastructure implementing the ports: `NumpyRngFactory` (the
   injected Prng; `np.random.default_rng` is confined here), `FileLexicon` (the disk
   read that used to sit in the kernel), `StreamWriter`/`CapturingWriter`. Adapters
