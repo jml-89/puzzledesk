@@ -2,10 +2,16 @@
 ``app.clue.ClueProvider`` port.
 
 "Don't reinvent the wheel" applies *here*, inside the adapter: it leans on the
-Anthropic SDK for the client, retries, and structured outputs, and lets the SDK
-resolve credentials from the environment (``ANTHROPIC_API_KEY``, or an ``ant auth
-login`` profile) -- we never read the key ourselves. The domain stays clean: the
-app depends on ``ClueProvider``, which speaks grids and clues, not tokens.
+Anthropic SDK for the client, retries, and structured outputs. The adapter takes an
+explicit ``api_key`` -- mirroring ``anthropic.Anthropic(api_key=...)`` -- which the
+composition root resolves from ``Config.clue_api_key_env`` and injects; when it is
+``None`` the adapter defers to the SDK's own credential resolution
+(``ANTHROPIC_API_KEY`` or an ``ant auth login`` profile). Reading the environment is
+the composition root's job, so this adapter (like every other) is a pure value-taker.
+The configurable env-var name exists because the standard ``ANTHROPIC_API_KEY`` is
+auto-detected by other tooling in our environments; see docs/decisions.md D17. The
+domain stays clean: the app depends on ``ClueProvider``, which speaks grids and clues,
+not tokens -- credential wiring is construction, not part of the port's contract.
 
 ``anthropic`` is an **optional extra** (``uv sync --extra clue``), imported lazily
 so the package installs, imports, and the container builds without it; only an
@@ -98,9 +104,16 @@ def _parse(text: str, targets: Sequence[Target]) -> Mapping[TargetId, Sequence[C
 class ClaudeClueProvider:
     """``app.clue.ClueProvider`` backed by the Anthropic SDK (structured outputs)."""
 
-    def __init__(self, *, model: str = _DEFAULT_MODEL, max_tokens: int = 4096) -> None:
+    def __init__(
+        self,
+        *,
+        model: str = _DEFAULT_MODEL,
+        max_tokens: int = 4096,
+        api_key: str | None = None,
+    ) -> None:
         self._model = model
         self._max_tokens = max_tokens
+        self._api_key = api_key
         self._client: Any = None
 
     def _ensure_client(self) -> Any:
@@ -110,9 +123,15 @@ class ClaudeClueProvider:
             except ModuleNotFoundError as e:  # pragma: no cover - env-dependent
                 raise RuntimeError(
                     "clue generation needs the 'anthropic' SDK; install the 'clue' extra "
-                    "(uv sync --extra clue) and set ANTHROPIC_API_KEY"
+                    "(uv sync --extra clue) and provide a key (see Config.clue_api_key_env)"
                 ) from e
-            self._client = anthropic.Anthropic()  # resolves credentials from the environment
+            # An explicit key when the composition root resolved one; otherwise let the
+            # SDK resolve credentials from its own environment / profile.
+            self._client = (
+                anthropic.Anthropic(api_key=self._api_key)
+                if self._api_key
+                else anthropic.Anthropic()
+            )
         return self._client
 
     def clue(

@@ -92,6 +92,7 @@ addopts = "-q"
 # not depend on a concrete adapter" structural facts, not review conventions.
 [tool.importlinter]
 root_package = "puzzledesk"
+include_external_packages = true  # so the forbidden contract can name stdlib OS modules
 
 [[tool.importlinter.contracts]]
 name = "Hexagonal layers (core < app < adapters < bootstrap < cli)"
@@ -103,4 +104,26 @@ layers = [
     "adapters",   # infrastructure: implements the ports (above app on purpose)
     "app",        # use-case services + the ports; must NOT reach into adapters
     "core",       # the pure kernel (bottom): imports nothing above it
+]
+
+# OS reach is confined to the edges. The pure layers (core, app) are pure functions
+# over their inputs, so they must not import the operating system directly -- the
+# environment is grabbed once in `bootstrap` (the composition root), the filesystem
+# read lives in a `FileLexicon` adapter, and streams are resolved at wiring time.
+# This bans the import at compile time; it does not stop a determined adapter or a
+# runtime reflection trick, and `adapters`/`bootstrap`/`cli` are exempt by design --
+# it is a nice-start fence that keeps the kernel honest, not a sandbox. See D18.
+[[tool.importlinter.contracts]]
+name = "The pure layers (core, app) never reach the OS"
+type = "forbidden"
+source_modules = [
+    "puzzledesk.core",
+    "puzzledesk.app",
+]
+forbidden_modules = [
+    "os",
+    "io",
+    "sys",
+    "subprocess",
+    "socket",
 ]
