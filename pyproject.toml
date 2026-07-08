@@ -14,6 +14,10 @@ dependencies = [
 # Only needed to (re)generate data/scored_N.txt; the solvers read the files, not
 # wordfreq itself (see scripts/gen_scored.py).
 scoring = ["wordfreq>=3.0"]
+# Only needed for live clue generation (the ClaudeClueProvider adapter). The grid
+# generator has zero LLM dependency; the SDK is imported lazily and resolves the
+# API key from the environment. `uv sync --extra clue`.
+clue = ["anthropic>=0.40"]
 
 [project.scripts]
 # Console entry points for the tools (the front). `uv run mini 5 70 3` works
@@ -75,7 +79,7 @@ warn_unused_ignores = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["wordfreq"]
+module = ["wordfreq", "anthropic"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

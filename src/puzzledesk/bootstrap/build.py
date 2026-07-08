@@ -18,10 +18,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..adapters.claude_clue import ClaudeClueProvider
 from ..adapters.file_lexicon import FileLexicon
 from ..adapters.numpy_rng import NumpyRngFactory
 from ..adapters.writer import StreamWriter
 from ..app.blocked import BlockedGenerateService
+from ..app.clue import ClueProvider
+from ..app.cluing import ClueService
 from ..app.mini import MiniService
 from ..app.ports import LexiconSource, Writer
 from ..core.rng import RngFactory
@@ -36,6 +39,7 @@ class _Adapters:
     rng_factory: RngFactory
     lexicon: LexiconSource
     writer: Writer
+    clue_provider: ClueProvider
 
 
 def _stage_config(config: Config | None) -> Config:
@@ -43,16 +47,21 @@ def _stage_config(config: Config | None) -> Config:
 
 
 def _stage_adapters(config: Config) -> _Adapters:
+    # ClaudeClueProvider imports the `anthropic` SDK lazily, so constructing it (and
+    # the whole container) needs neither the extra installed nor a key -- only an
+    # actual clue call does.
     return _Adapters(
         rng_factory=NumpyRngFactory(),
         lexicon=FileLexicon(config.data_dir),
         writer=StreamWriter(config.stream),
+        clue_provider=ClaudeClueProvider(model=config.clue_model),
     )
 
 
 def _stage_services(config: Config, adapters: _Adapters) -> Container:
     mini = MiniService(adapters.lexicon, adapters.rng_factory)
     blocked = BlockedGenerateService(adapters.lexicon, adapters.rng_factory)
+    clue = ClueService(adapters.clue_provider)
     return Container(
         config=config,
         rng_factory=adapters.rng_factory,
@@ -60,6 +69,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
         writer=adapters.writer,
         mini=mini,
         blocked=blocked,
+        clue=clue,
     )
 
 

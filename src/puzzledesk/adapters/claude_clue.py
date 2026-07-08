@@ -1,0 +1,134 @@
+"""The Claude clue adapter -- the real (soft, generative) implementation of the
+``app.clue.ClueProvider`` port.
+
+"Don't reinvent the wheel" applies *here*, inside the adapter: it leans on the
+Anthropic SDK for the client, retries, and structured outputs, and lets the SDK
+resolve credentials from the environment (``ANTHROPIC_API_KEY``, or an ``ant auth
+login`` profile) -- we never read the key ourselves. The domain stays clean: the
+app depends on ``ClueProvider``, which speaks grids and clues, not tokens.
+
+``anthropic`` is an **optional extra** (``uv sync --extra clue``), imported lazily
+so the package installs, imports, and the container builds without it; only an
+actual clue call needs the SDK and a key. The prompt/schema/parse helpers are pure
+and unit-tested; the one untestable part is the live ``messages.create`` call.
+
+NOTE: the prompt below is a first draft -- functional, but clue *quality* is the
+next thing to iterate on against a live model.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+from ..app.clue import Clue, ClueStyle
+from ..app.puzzle import FilledGrid, Target, TargetId
+
+_DEFAULT_MODEL = "claude-opus-4-8"
+_KIND = {"A": "Across", "D": "Down", "meta": "Meta"}
+
+
+def _render_grid(grid: FilledGrid) -> str:
+    """The filled grid as text for the prompt (uppercase letters, ``#`` for black)."""
+    return "\n".join(
+        " ".join(cell.upper() if cell is not None else "#" for cell in row) for row in grid.cells
+    )
+
+
+def _build_prompt(grid: FilledGrid, targets: Sequence[Target], style: ClueStyle, n: int) -> str:
+    lines = [
+        "You are an expert crossword clue writer.",
+        "",
+        "Filled grid (uppercase = letters, # = black square):",
+        _render_grid(grid),
+        "",
+        f"Target difficulty: {style.difficulty.name.title()} (Monday easiest, Saturday hardest).",
+    ]
+    if style.instructions.strip():
+        lines += ["", f"Additional instructions: {style.instructions.strip()}"]
+    lines += [
+        "",
+        f"Write {n} distinct candidate clue(s) for each entry below, best first. "
+        "A clue must never contain its own answer.",
+        "",
+    ]
+    for i, t in enumerate(targets):
+        lines.append(f"  [{i}] {_KIND.get(t.kind, t.kind)} -- answer {t.answer.upper()}")
+    lines += [
+        "",
+        'Return JSON {"clues": [{"index": <i>, "candidates": ["clue", ...]}, ...]}, '
+        "one item per target index above.",
+    ]
+    return "\n".join(lines)
+
+
+def _schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "clues": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "candidates": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["index", "candidates"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["clues"],
+        "additionalProperties": False,
+    }
+
+
+def _parse(text: str, targets: Sequence[Target]) -> Mapping[TargetId, Sequence[Clue]]:
+    data = json.loads(text)
+    out: dict[TargetId, Sequence[Clue]] = {}
+    for item in data.get("clues", []):
+        i = item.get("index")
+        if isinstance(i, int) and 0 <= i < len(targets):
+            out[targets[i].id] = tuple(Clue(str(c)) for c in item.get("candidates", []))
+    return out
+
+
+class ClaudeClueProvider:
+    """``app.clue.ClueProvider`` backed by the Anthropic SDK (structured outputs)."""
+
+    def __init__(self, *, model: str = _DEFAULT_MODEL, max_tokens: int = 4096) -> None:
+        self._model = model
+        self._max_tokens = max_tokens
+        self._client: Any = None
+
+    def _ensure_client(self) -> Any:
+        if self._client is None:
+            try:
+                import anthropic
+            except ModuleNotFoundError as e:  # pragma: no cover - env-dependent
+                raise RuntimeError(
+                    "clue generation needs the 'anthropic' SDK; install the 'clue' extra "
+                    "(uv sync --extra clue) and set ANTHROPIC_API_KEY"
+                ) from e
+            self._client = anthropic.Anthropic()  # resolves credentials from the environment
+        return self._client
+
+    def clue(
+        self,
+        grid: FilledGrid,
+        targets: Sequence[Target],
+        *,
+        style: ClueStyle,
+        n: int = 1,
+    ) -> Mapping[TargetId, Sequence[Clue]]:
+        prompt = _build_prompt(grid, targets, style, n)
+        response = self._ensure_client().messages.create(
+            model=self._model,
+            max_tokens=self._max_tokens,
+            output_config={"format": {"type": "json_schema", "schema": _schema()}},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = next(block.text for block in response.content if block.type == "text")
+        return _parse(text, targets)

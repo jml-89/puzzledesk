@@ -283,3 +283,147 @@ without touching the engines. The tool/benchmark *directory* split
 (`scripts/tools` vs `scripts/bench`, console entry points for every driver) remains
 a deliberate follow-up; `cli` now groups them by intent and adds `[project.scripts]`
 for the two tools.
+
+## D15. Clue generation: an interface, defined before the implementation
+
+Context: the grid problem is finished; a mini is not a puzzle without clues. Clue
+generation is the next spike, and it is a genuinely *different regime* from
+everything the system does so far. The solver is complete and deterministic — its
+`None` is a UNSAT proof; distinctness is a theorem. Clue writing is soft,
+generative, subjective, with no completeness and no ground truth. Before writing a
+line of it we designed the boundary: what does a clue provider *see*, and what does
+it *return*? Getting that wrong pollutes the pure core with the softness or
+forecloses whole styles of clue.
+
+Decision: fence clue generation behind a single `ClueProvider` port in `app`
+(`app/clue.py`), so all subjective/generative behaviour lives *behind* the port and
+the application applies only deterministic constraints on top. The port is defined;
+the impl (a Claude adapter, a ranking pass, an exporter) is deliberately deferred.
+The shape, arrived at by iterating the boundary hard:
+
+- **The port speaks the puzzle's canonical, space-first form.** `app/puzzle.py`
+  defines `FilledGrid` — a grid of cells, each a string (a letter, or several for a
+  rebus) or `None` for a black square. That is the whole truth. The across/down
+  words (`runs()`), the crossing graph (`crossings()`), and the numbering are
+  *derivations* computed on demand, never stored — the same way a Sudoku is a 9×9
+  grid, not a pre-materialised `{rows, columns, boxes}` object.
+- **"What to clue" is an explicit input, not a baked-in policy.** `clue(grid,
+  targets, *, style, n)` takes the `Target`s to clue. A `Target` is an ordered run
+  of cells + the answer they spell + a `kind` (`"A"`/`"D"`/`"meta"`), with spatial
+  identity `(start_cell, kind)`. Entries come from `grid.runs()`; a puzzle-level
+  META (the highlighted-cells-spell-the-answer lineage) is *just another target*
+  over scattered cells — so metas need no interface change and no separate return
+  channel. This also moves "clue every run" out of the adapter (a policy) and into
+  the app (where policy belongs).
+- **The `how` axis is a `ClueStyle`.** A comparable, sweepable `Difficulty` knob
+  (Mon..Sat, `IntEnum`) plus free-form `instructions` for the long tail (tone,
+  spelling, an imposed theme, taboo words). Output is `Mapping[TargetId,
+  Sequence[Clue]]` — up to `n` candidates per target, keyed by spatial identity
+  (never by answer value); a word the provider cannot clue maps to an empty
+  sequence, so the port stays total.
+- **Representation-agnostic projection (the anti-corruption layer).** Both core
+  grid models render into `FilledGrid` (`filled_from_square`,
+  `filled_from_blocked`), so the clue port never learns which model produced the
+  fill — honouring invariant 0 (two coexisting grid models).
+
+The design rule this crystallised, reusable beyond clues: **send the canonical
+aggregate; derive views at the point of use; introduce a modelled structure only
+where an external contract forces it.** The one structure beyond the grid is
+`Target`, forced because the *output* of cluing is per-word, not per-cell.
+
+Landed interface-only: `FilledGrid`/`Target`/`Crossing` + `runs()`/`crossings()`,
+the `ClueProvider` port + `ClueStyle`/`Clue`/`Difficulty`, the two projections, and
+a `FakeClueProvider` (tests/fakes.py) driving one mini end-to-end with no network —
+the DI payoff again: the whole pipeline is exercised before any adapter exists. The
+layers contract is untouched (`ClueProvider` sits in `app`).
+
+Alternatives considered — each an iteration of the boundary:
+- **Answer as a bare `str`** (per word): rejected — it does not merely drop
+  metadata, it dissolves the aggregate's defining invariant (the interlock: crossing
+  entries agree on the shared letter), and forecloses intersection-aware and
+  difficulty-by-gettability cluing.
+- **A semantic `Puzzle{entries, crossings}` aggregate**: rejected — that is
+  data-first re-architecting of a *derivation* dressed as DDD; it pre-materialises
+  a cache and privileges one reading of the grid.
+- **Passing a core grid object** (`DoubleSquare+state` / `BlockedGrid+assign`):
+  rejected — couples cluing to solver internals and to the two-model split.
+- **Per-cell grid decoration + a separate puzzle-level meta return channel**:
+  rejected in favour of the `Target` abstraction, which absorbs both with no extra
+  structure. Purely *aesthetic* shading/circling (decoration that spells nothing)
+  is an `.ipuz` **export** concern, added there when a puzzle type needs it.
+
+Reversal: the port is the seam to swap providers — a live Claude adapter, a 50%-
+cheaper Batch-API adapter, or the fake — without touching anything above or below.
+Generating meta puzzles means constructing a meta `Target`; no interface change.
+The soft objective that D6/D7 retired at the *fill* layer genuinely returns here at
+the *clue* layer — quarantined behind this port, never in `core`.
+
+## D16. Clue service + the Claude adapter: the LLM lives in the adapter, not the port
+
+Context: D15 defined the `ClueProvider` port; this is the first implementation
+behind it — the deterministic orchestration and the real (soft) provider — plus the
+question the port raised: *the clue stage depends on a language model, so where does
+the LLM interface go?*
+
+Decision, split by half of D15's soft/deterministic line:
+
+- **`app/cluing.py::ClueService` — the deterministic half.** Pure orchestration over
+  the `ClueProvider` port: ask for candidates per target, keep the first that clears
+  the **hard** constraints, report the rest as `unclued`. The hard set is minimal and
+  universal — a clue is non-empty and must not contain its own answer (case-insensitive
+  substring). Softer rules (no cross-answer leak, no duplicated clue form, difficulty
+  calibration) are judgment calls left to the provider or a future `ClueRanker`, not
+  baked in here. Selection is "first surviving candidate" (providers order best-first).
+  A target whose every candidate is rejected is surfaced honestly (`CluedPuzzle.unclued`)
+  rather than given a bad clue. Fully testable with the fake — no model, no network.
+
+- **`adapters/claude_clue.py::ClaudeClueProvider` — the soft half, and the key call.**
+  The LLM does **not** become a port at the app layer. The app depends on
+  `ClueProvider`, which speaks grids and clues; a generic `LanguageModelProvider`
+  dependency would leak infrastructure language (messages, tokens) up into the domain
+  and undo the hexagon. Instead "don't reinvent the wheel" applies *inside* the
+  adapter: it uses the Anthropic SDK for the client, retries, and structured outputs,
+  and **lets the SDK resolve credentials from the environment** (`ANTHROPIC_API_KEY`,
+  or an `ant auth login` profile) — we never read the key ourselves. `anthropic` is an
+  **optional extra** (`clue`), imported lazily so the package installs, imports, and
+  the container `build()`s without it; only a live clue call needs the SDK and a key.
+  Structured output uses a raw JSON schema + `json.loads` (no `pydantic` dependency).
+  The prompt/schema/parse helpers are pure and unit-tested; the live `messages.create`
+  call is the one untestable-in-CI part. The default model is the latest Claude per
+  repo policy.
+
+- **DI: the container absorbs it unchanged.** `ClueService`'s dependency is the domain
+  port; the LLM is a dependency of the *adapter*, one level down, exactly where
+  `NumpyRngFactory`/`FileLexicon` sit. The staged `build()` grows one adapter with a
+  lazy sub-dependency and a `Config.clue_model` knob — no new pattern, and no DI
+  *framework* (the ~50-line hand-rolled composition root is a feature at this scale,
+  not debt). `ClueService` never learns an LLM exists, which is the test that the
+  boundary is right.
+
+Alternatives considered:
+- **A `LanguageModel`/`LanguageModelProvider` port at the app layer** (the tempting
+  reading of "the LLM is an interface in our system"): rejected — it couples the
+  domain to an infrastructure abstraction. Applying D15's own rule to *ports*:
+  introduce a modelled interface only where a contract forces it. A single LLM-backed
+  adapter forces nothing; a *second* consumer (a `ClueRanker`, a theme detector) would
+  justify a minimal, our-own `LanguageModel` seam for adapter testability — and only
+  then, wrapping the SDK, never a framework.
+- **A cross-provider framework (LangChain / LiteLLM / Pydantic AI):** rejected — they
+  buy provider-agnosticism we deliberately declined (repo policy = latest Claude), at
+  the cost of weight and losing clean access to Claude-native features (Batch API,
+  prompt caching, adaptive thinking). The "wheel" worth reusing is the SDK, in the
+  adapter — not a portability layer we won't use.
+- **`pydantic` for structured outputs:** rejected — the raw JSON-schema path via the
+  SDK avoids a new runtime dependency for a single call site.
+- **A DI container library (`dependency-injector`, `svcs`, …):** rejected — auto-wiring
+  magic is a liability at this scale; the explicit composition root stays.
+
+What is NOT done: no live round-trip is exercised (this environment has no key/egress);
+the prompt is a first draft and clue *quality* is the next iteration. A 50%-cheaper
+Batch-API adapter and an `.ipuz`/`.puz` exporter are the natural follow-ons, both
+additive behind the existing ports.
+
+Reversal: swap providers behind `ClueProvider` (batch adapter, a different vendor
+adapter, the fake) with nothing above the adapter changing. The soft objective D6/D7
+retired at the fill layer now lives, quarantined, at the clue layer — behind this
+adapter, out of `core`.

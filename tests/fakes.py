@@ -9,10 +9,12 @@ difference.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from puzzledesk.app.clue import Clue, ClueStyle
+from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
 from puzzledesk.core.rng import Rng
 
@@ -49,3 +51,36 @@ class RecordingRngFactory:
     def create(self, seed: int) -> Rng:
         self.seeds.append(seed)
         return np.random.default_rng(seed)
+
+
+class FakeClueProvider:
+    """Implements ``app.clue.ClueProvider`` deterministically -- no LLM, no network.
+
+    Clues reference the target's difficulty, kind and start cell -- never the answer
+    (a real clue does not contain its answer), so they pass the service's hard
+    constraint while still identifying the target, letting a test assert the right
+    clue reached the right target. ``leak_answer=True`` instead produces clues that
+    embed the answer, so a test can exercise the constraint's *reject* path (every
+    target ends up unclued)."""
+
+    def __init__(self, *, leak_answer: bool = False) -> None:
+        self._leak = leak_answer
+
+    def clue(
+        self,
+        grid: FilledGrid,
+        targets: Sequence[Target],
+        *,
+        style: ClueStyle,
+        n: int = 1,
+    ) -> Mapping[TargetId, Sequence[Clue]]:
+        out: dict[TargetId, Sequence[Clue]] = {}
+        for t in targets:
+            if self._leak:
+                texts = [f"the word is {t.answer} #{i}" for i in range(n)]
+            else:
+                texts = [
+                    f"[{style.difficulty.name}] {t.kind} at {t.cells[0]} #{i}" for i in range(n)
+                ]
+            out[t.id] = tuple(Clue(x) for x in texts)
+        return out

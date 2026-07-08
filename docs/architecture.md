@@ -21,6 +21,13 @@ stack, enforced by **import-linter** (`[tool.importlinter]` in `pyproject.toml`;
   ports they need from outside (`app/ports.py`: `LexiconSource`, `Writer`).
   Services orchestrate the core through ports and return structured results
   (`app/results.py`); they never import a concrete adapter, read a file, or print.
+  Clue generation is fenced here too: `app/puzzle.py` is the canonical space-first
+  `FilledGrid` (cells + occupation; runs/crossings derived), `app/clue.py::ClueProvider`
+  is the port the soft/generative clue stage lives behind, and `app/cluing.py::ClueService`
+  is the deterministic orchestration (hard constraints + selection) over it. The real
+  provider is `adapters/claude_clue.py` (the Anthropic SDK, an optional `clue` extra;
+  the LLM lives in the adapter, never as an app port). See D15 (interface) and D16
+  (service + adapter).
 - **`adapters/`** — infrastructure implementing the ports: `NumpyRngFactory` (the
   injected Prng; `np.random.default_rng` is confined here), `FileLexicon` (the disk
   read that used to sit in the kernel), `StreamWriter`/`CapturingWriter`. Adapters
