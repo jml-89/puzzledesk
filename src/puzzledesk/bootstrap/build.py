@@ -54,7 +54,9 @@ def _stage_adapters(config: Config) -> _Adapters:
         rng_factory=NumpyRngFactory(),
         lexicon=FileLexicon(config.data_dir),
         writer=StreamWriter(config.stream),
-        clue_provider=ClaudeClueProvider(model=config.clue_model),
+        clue_provider=ClaudeClueProvider(
+            model=config.clue_model, api_key_env=config.clue_api_key_env
+        ),
     )
 
 

@@ -2,10 +2,16 @@
 ``app.clue.ClueProvider`` port.
 
 "Don't reinvent the wheel" applies *here*, inside the adapter: it leans on the
-Anthropic SDK for the client, retries, and structured outputs, and lets the SDK
-resolve credentials from the environment (``ANTHROPIC_API_KEY``, or an ``ant auth
-login`` profile) -- we never read the key ourselves. The domain stays clean: the
-app depends on ``ClueProvider``, which speaks grids and clues, not tokens.
+Anthropic SDK for the client, retries, and structured outputs. Credentials are an
+infrastructure concern, so they resolve *here* too, not in the port: the adapter
+reads the key from a configurable env var (``api_key_env``, wired from
+``Config.clue_api_key_env``) and hands it to the SDK. When that var is unset -- or
+``api_key_env`` is ``None`` -- it falls back to the SDK's own resolution
+(``ANTHROPIC_API_KEY`` or an ``ant auth login`` profile). The configurable name
+exists because the standard ``ANTHROPIC_API_KEY`` is auto-detected by other tooling
+in our environments; see docs/decisions.md D17. The domain stays clean either way:
+the app depends on ``ClueProvider``, which speaks grids and clues, not tokens --
+credential wiring is construction, not part of the port's contract.
 
 ``anthropic`` is an **optional extra** (``uv sync --extra clue``), imported lazily
 so the package installs, imports, and the container builds without it; only an
@@ -19,6 +25,7 @@ next thing to iterate on against a live model.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -85,6 +92,16 @@ def _schema() -> dict[str, Any]:
     }
 
 
+def _resolve_key(api_key_env: str | None) -> str | None:
+    """The key value from the configured env var, or ``None`` to let the SDK resolve
+    credentials itself. ``None`` env name, or a name that is set to nothing, both mean
+    "defer to the SDK" -- so a missing/mis-set var degrades to standard resolution
+    rather than passing an empty key. Pure (env read only), so it is unit-tested."""
+    if not api_key_env:
+        return None
+    return os.environ.get(api_key_env) or None
+
+
 def _parse(text: str, targets: Sequence[Target]) -> Mapping[TargetId, Sequence[Clue]]:
     data = json.loads(text)
     out: dict[TargetId, Sequence[Clue]] = {}
@@ -98,9 +115,16 @@ def _parse(text: str, targets: Sequence[Target]) -> Mapping[TargetId, Sequence[C
 class ClaudeClueProvider:
     """``app.clue.ClueProvider`` backed by the Anthropic SDK (structured outputs)."""
 
-    def __init__(self, *, model: str = _DEFAULT_MODEL, max_tokens: int = 4096) -> None:
+    def __init__(
+        self,
+        *,
+        model: str = _DEFAULT_MODEL,
+        max_tokens: int = 4096,
+        api_key_env: str | None = None,
+    ) -> None:
         self._model = model
         self._max_tokens = max_tokens
+        self._api_key_env = api_key_env
         self._client: Any = None
 
     def _ensure_client(self) -> Any:
@@ -110,9 +134,13 @@ class ClaudeClueProvider:
             except ModuleNotFoundError as e:  # pragma: no cover - env-dependent
                 raise RuntimeError(
                     "clue generation needs the 'anthropic' SDK; install the 'clue' extra "
-                    "(uv sync --extra clue) and set ANTHROPIC_API_KEY"
+                    "(uv sync --extra clue) and set the API key env var "
+                    "(see Config.clue_api_key_env)"
                 ) from e
-            self._client = anthropic.Anthropic()  # resolves credentials from the environment
+            key = _resolve_key(self._api_key_env)
+            # An explicit key when we resolved one; otherwise let the SDK resolve
+            # credentials from its own environment / profile.
+            self._client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
         return self._client
 
     def clue(
