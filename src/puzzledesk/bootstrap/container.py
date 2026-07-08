@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..app.blocked import BlockedGenerateService
+from ..app.cluing import ClueService
 from ..app.mini import MiniService
 from ..app.ports import LexiconSource, Writer
 from ..core.rng import RngFactory
@@ -29,3 +30,4 @@ class Container:
     writer: Writer
     mini: MiniService
     blocked: BlockedGenerateService
+    clue: ClueService

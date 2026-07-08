@@ -121,6 +121,10 @@ uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 - **`wordfreq` is optional**, needed only to regenerate `data/scored_N.txt`:
   `uv run --extra scoring scripts/gen_scored.py`. The solvers read the files, not
   `wordfreq`.
+- **`anthropic` is optional** (`clue` extra), needed only for *live* clue generation
+  (`adapters/claude_clue.py`); it is imported lazily and resolves the API key from the
+  environment. The grid generator and tests run without it (the `FakeClueProvider`
+  drives the clue pipeline). `uv sync --extra clue` + `ANTHROPIC_API_KEY` to go live.
 - In CI or any reproducible run, prefer `uv sync --frozen` / `uv run --frozen` so
   the committed `uv.lock` is honoured rather than silently resolved.
 

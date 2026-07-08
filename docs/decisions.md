@@ -357,3 +357,73 @@ cheaper Batch-API adapter, or the fake — without touching anything above or be
 Generating meta puzzles means constructing a meta `Target`; no interface change.
 The soft objective that D6/D7 retired at the *fill* layer genuinely returns here at
 the *clue* layer — quarantined behind this port, never in `core`.
+
+## D16. Clue service + the Claude adapter: the LLM lives in the adapter, not the port
+
+Context: D15 defined the `ClueProvider` port; this is the first implementation
+behind it — the deterministic orchestration and the real (soft) provider — plus the
+question the port raised: *the clue stage depends on a language model, so where does
+the LLM interface go?*
+
+Decision, split by half of D15's soft/deterministic line:
+
+- **`app/cluing.py::ClueService` — the deterministic half.** Pure orchestration over
+  the `ClueProvider` port: ask for candidates per target, keep the first that clears
+  the **hard** constraints, report the rest as `unclued`. The hard set is minimal and
+  universal — a clue is non-empty and must not contain its own answer (case-insensitive
+  substring). Softer rules (no cross-answer leak, no duplicated clue form, difficulty
+  calibration) are judgment calls left to the provider or a future `ClueRanker`, not
+  baked in here. Selection is "first surviving candidate" (providers order best-first).
+  A target whose every candidate is rejected is surfaced honestly (`CluedPuzzle.unclued`)
+  rather than given a bad clue. Fully testable with the fake — no model, no network.
+
+- **`adapters/claude_clue.py::ClaudeClueProvider` — the soft half, and the key call.**
+  The LLM does **not** become a port at the app layer. The app depends on
+  `ClueProvider`, which speaks grids and clues; a generic `LanguageModelProvider`
+  dependency would leak infrastructure language (messages, tokens) up into the domain
+  and undo the hexagon. Instead "don't reinvent the wheel" applies *inside* the
+  adapter: it uses the Anthropic SDK for the client, retries, and structured outputs,
+  and **lets the SDK resolve credentials from the environment** (`ANTHROPIC_API_KEY`,
+  or an `ant auth login` profile) — we never read the key ourselves. `anthropic` is an
+  **optional extra** (`clue`), imported lazily so the package installs, imports, and
+  the container `build()`s without it; only a live clue call needs the SDK and a key.
+  Structured output uses a raw JSON schema + `json.loads` (no `pydantic` dependency).
+  The prompt/schema/parse helpers are pure and unit-tested; the live `messages.create`
+  call is the one untestable-in-CI part. The default model is the latest Claude per
+  repo policy.
+
+- **DI: the container absorbs it unchanged.** `ClueService`'s dependency is the domain
+  port; the LLM is a dependency of the *adapter*, one level down, exactly where
+  `NumpyRngFactory`/`FileLexicon` sit. The staged `build()` grows one adapter with a
+  lazy sub-dependency and a `Config.clue_model` knob — no new pattern, and no DI
+  *framework* (the ~50-line hand-rolled composition root is a feature at this scale,
+  not debt). `ClueService` never learns an LLM exists, which is the test that the
+  boundary is right.
+
+Alternatives considered:
+- **A `LanguageModel`/`LanguageModelProvider` port at the app layer** (the tempting
+  reading of "the LLM is an interface in our system"): rejected — it couples the
+  domain to an infrastructure abstraction. Applying D15's own rule to *ports*:
+  introduce a modelled interface only where a contract forces it. A single LLM-backed
+  adapter forces nothing; a *second* consumer (a `ClueRanker`, a theme detector) would
+  justify a minimal, our-own `LanguageModel` seam for adapter testability — and only
+  then, wrapping the SDK, never a framework.
+- **A cross-provider framework (LangChain / LiteLLM / Pydantic AI):** rejected — they
+  buy provider-agnosticism we deliberately declined (repo policy = latest Claude), at
+  the cost of weight and losing clean access to Claude-native features (Batch API,
+  prompt caching, adaptive thinking). The "wheel" worth reusing is the SDK, in the
+  adapter — not a portability layer we won't use.
+- **`pydantic` for structured outputs:** rejected — the raw JSON-schema path via the
+  SDK avoids a new runtime dependency for a single call site.
+- **A DI container library (`dependency-injector`, `svcs`, …):** rejected — auto-wiring
+  magic is a liability at this scale; the explicit composition root stays.
+
+What is NOT done: no live round-trip is exercised (this environment has no key/egress);
+the prompt is a first draft and clue *quality* is the next iteration. A 50%-cheaper
+Batch-API adapter and an `.ipuz`/`.puz` exporter are the natural follow-ons, both
+additive behind the existing ports.
+
+Reversal: swap providers behind `ClueProvider` (batch adapter, a different vendor
+adapter, the fake) with nothing above the adapter changing. The soft objective D6/D7
+retired at the fill layer now lives, quarantined, at the clue layer — behind this
+adapter, out of `core`.

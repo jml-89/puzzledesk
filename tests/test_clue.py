@@ -87,7 +87,7 @@ def test_provider_clues_every_target() -> None:
     assert set(clues) == {t.id for t in targets}
     for t in targets:
         assert len(clues[t.id]) == 2  # n candidates
-        assert t.answer in clues[t.id][0].text  # the right clue for the right target
+        assert str(t.cells[0]) in clues[t.id][0].text  # the right clue for the right target
         assert "SATURDAY" in clues[t.id][0].text  # the style knob reached the provider
 
 

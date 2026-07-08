@@ -23,6 +23,7 @@ class Config:
 
     data_dir: Path
     stream: TextIO | None = None
+    clue_model: str = "claude-opus-4-8"  # the Claude model the clue adapter calls
 
     @classmethod
     def default(cls) -> Config:

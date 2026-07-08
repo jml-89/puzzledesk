@@ -55,9 +55,16 @@ class RecordingRngFactory:
 
 class FakeClueProvider:
     """Implements ``app.clue.ClueProvider`` deterministically -- no LLM, no network.
-    Returns ``n`` canned clues per target that echo the answer, difficulty and
-    (for a meta) the kind, so a test can assert the pipeline wired the right target
-    to the right clue without any generative model."""
+
+    Clues reference the target's difficulty, kind and start cell -- never the answer
+    (a real clue does not contain its answer), so they pass the service's hard
+    constraint while still identifying the target, letting a test assert the right
+    clue reached the right target. ``leak_answer=True`` instead produces clues that
+    embed the answer, so a test can exercise the constraint's *reject* path (every
+    target ends up unclued)."""
+
+    def __init__(self, *, leak_answer: bool = False) -> None:
+        self._leak = leak_answer
 
     def clue(
         self,
@@ -69,8 +76,11 @@ class FakeClueProvider:
     ) -> Mapping[TargetId, Sequence[Clue]]:
         out: dict[TargetId, Sequence[Clue]] = {}
         for t in targets:
-            label = "meta" if t.kind == "meta" else "clue"
-            out[t.id] = tuple(
-                Clue(f"[{style.difficulty.name}] {label} for {t.answer!r} #{i}") for i in range(n)
-            )
+            if self._leak:
+                texts = [f"the word is {t.answer} #{i}" for i in range(n)]
+            else:
+                texts = [
+                    f"[{style.difficulty.name}] {t.kind} at {t.cells[0]} #{i}" for i in range(n)
+                ]
+            out[t.id] = tuple(Clue(x) for x in texts)
         return out
