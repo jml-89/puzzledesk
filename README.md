@@ -14,7 +14,10 @@ square iff every induced column is itself a real word.
 
 We started with **energy-based sampling** — the grid as a Markov random field on
 a 2-D lattice, `energy = number of invalid columns`, drawn toward zero by an
-annealed min-conflicts move (`sampler.py`). It packs 5×5 fast on a big list.
+annealed min-conflicts move (a stochastic `sampler`). It packs 5×5 fast on a big
+list. That sampler was the origin of everything below — and, having lost the
+head-to-head it set up, was eventually **retired** (see the epilogue and D19). Its
+value was the arc, not the shipped code.
 
 Then we built the **acceptance test** as a first-class feedback signal
 (`validate.py`), and it corrected the objective. A grid is acceptable iff *every*
@@ -35,11 +38,11 @@ being *complete*, can even prove when no acceptable grid exists at all.
 **Distinctness.** A genuine double word square needs all 2N words distinct.
 Otherwise a solver falls into the **symmetric basin** — a grid symmetric down
 the diagonal has across ≡ down, the down constraints collapse onto the across
-ones, and you get an easy, degenerate fill that's really only N words. All three
-paths now enforce 10-distinct: the acceptance test, the backtracker (pruning +
-leaf check), and the sampler (a duplicate-pair penalty in the move, see
-`samplers.py`). Killing the basin drops backtracking's 5×5 from ~13 ms → ~380 ms
-(the real problem is harder) and lowers the honest ceiling.
+ones, and you get an easy, degenerate fill that's really only N words. Every output
+path enforces 10-distinct: the acceptance test, the backtracker (pruning + leaf
+check), and — for blocked grids — `fill` (a grid-wide `used` set). Killing the basin
+drops backtracking's 5×5 from ~13 ms → ~380 ms (the real problem is harder) and
+lowers the honest ceiling.
 
 **Where it landed:** the solver is no longer the bottleneck — the lexicon is. On
 dwyl + wordfreq the genuine (10-distinct) 5×5 ceiling is ~`zipf≥3.5`
@@ -53,6 +56,17 @@ grids (`rotor/atone/strep/petal/srsly` × `rasps/otter/torts/oneal/reply`) in
 
 Building small-first (2×2 → 3×3 → 4×4 → 5×5): at N=2 we enumerate every valid
 square by brute force as ground truth; above that, validity is by construction.
+
+**Epilogue — retiring the sampler.** Once the acceptance test turned quality into a
+*hard* feasibility problem (no soft objective left to sample against) and complete
+backtracking won the head-to-head decisively — ~50–80× faster, and, being complete,
+able to *prove* UNSAT where the sampler just burned its restart budget — the sampler
+had served its purpose in the arc but earned no place in the shipped system. It was
+removed (**D19**): the artifact is deleted, the lesson and the measured numbers are
+kept in `docs/decisions.md` and `docs/notes.md`, and `git` holds the code should a
+genuinely soft, big-list regime ever reopen the question. Deleting a spike but
+recording its verdict is the point — it stops the idea from being silently
+re-attempted.
 
 **Black cells (the model generalization).** The induced-column trick above is
 load-bearing but only works while every row and column is one full-length word.
@@ -96,8 +110,7 @@ import-linter: `core < app < adapters < bootstrap < cli` (see
 | `src/puzzledesk/core/blocked.py`    | **blocked grids** — parse a black-cell pattern into the across/down slot + crossing graph |
 | `src/puzzledesk/core/validate.py`   | acceptance test — bottleneck (weakest-word) verdict |
 | `src/puzzledesk/core/rng.py`        | the `Rng`/`RngFactory` ports — randomness is injected, not built in the kernel |
-| `src/puzzledesk/core/engines/backtrack.py`  | **complete** prefix-pruned search — the primary engine for squares |
-| `src/puzzledesk/core/engines/sampler.py`    | min-conflicts / annealed-Gibbs sampler; enforces distinctness (`distinct=True`) via a duplicate-pair penalty |
+| `src/puzzledesk/core/engines/backtrack.py`  | **complete** prefix-pruned search — the engine for squares |
 | `src/puzzledesk/core/engines/fill.py`       | **complete** MRV backtracking fill over slots — the blocked-grid engine (+ `enumerate_fills` ground truth) |
 | `src/puzzledesk/core/engines/patterns.py`   | **block-pattern generation** — from a black-cell *count* to legal layouts; `fill_by_count` ties layout search to fill |
 | `src/puzzledesk/core/engines/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
@@ -107,10 +120,7 @@ import-linter: `core < app < adapters < bootstrap < cli` (see
 | `src/puzzledesk/cli/`               | thin entry points: argv → build → run → present |
 | `tests/`                            | pytest suite — invariants, ground truth, DI (fakes for the ports) |
 | `scripts/mini.py`, `scripts/generate.py` | tool shims (logic in `cli/`); also `uv run mini …` / `uv run generate …` |
-| `scripts/demo.py`              | validation across N=2..4 (benchmark driver) |
-| `scripts/frontier.py`          | sweep the acceptance bar; where does packing stay feasible |
-| `scripts/compare.py`           | sampler vs backtracking head-to-head (same distinct problem) |
-| `scripts/samplers.py`          | sampler strategy study — gate vs distinctness-penalty |
+| `scripts/demo.py`              | validation across N=2..4, `backtrack ⊆ bruteforce` at N=2 (benchmark driver) |
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
 | `scripts/blackcells.py`        | **blocked-grid fill** — ground-truth check, filled grids, quality ceiling |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
@@ -159,22 +169,25 @@ architecture is a checked fact, not a convention.
 
 ## Deeper docs (agent-facing, in `docs/`)
 
-- `docs/architecture.md` — data model, invariants, the two engines, gotchas
+- `docs/architecture.md` — data model, invariants, the engines, gotchas
 - `docs/decisions.md` — decision log (why it is shaped this way)
 - `docs/open-questions.md` — unresolved questions and next-spike considerations
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration
 
 ## Status / next
 
-- [x] Lexicon, energy model, sampler, brute-force ground truth
+- [x] Lexicon, energy model, brute-force ground truth
 - [x] Validated N=2 (vs. ground truth), 3, 4, 5
 - [x] Acceptance test as the feedback signal; quality → feasibility on a filtered list
 - [x] Complete backtracking engine — non-distinct 5×5 in ~15 ms; on the distinct
-      problem ~50–80× over the sampler and complete where the sampler stalls
-- [x] 10-distinct-words constraint (forbid the symmetric basin) in test, solver,
-      and sampler; strategy study (`samplers.py`) settles how the sampler enforces it
+      problem ~50–80× over the (original) sampler and complete where the sampler stalled
+- [x] 10-distinct-words constraint (forbid the symmetric basin) in test, backtracker,
+      and blocked-grid fill
 - [x] Mapped the frontier and honest ceiling (distinct 5×5 tops out ~zipf≥3.5;
       ≥4.0 provably UNSAT on the weak list)
+- [x] **Retired the sampler** (D19) — the original stochastic engine lost the
+      head-to-head to complete search; removed with its benchmark drivers, verdict
+      recorded in `docs/decisions.md`/`docs/notes.md`
 - [x] **Curated lexicon** — swapped in the Crossword-Nexus list; distinct 5×5
       minis with every word ≥90, publishable fills. `scripts/mini.py` generates.
 - [x] **Black cells** — slot/crossing model + complete MRV backtracking fill;

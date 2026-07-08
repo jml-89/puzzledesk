@@ -1,6 +1,6 @@
 """Smoke test / demo (benchmark driver).
 
-At N=2 we enumerate every valid double word square and assert the sampler only
+At N=2 we enumerate every valid double word square and assert the backtracker only
 ever emits real ones (energy-model ground truth). Above N=2, energy()==0 already
 guarantees validity by construction, so we report solve-rate, diversity and
 timing instead of enumerating.
@@ -13,8 +13,8 @@ ground-truth contract is also encoded as a proper test (tests/test_ground_truth.
 import time
 
 from puzzledesk.bootstrap import build
+from puzzledesk.core.engines import backtrack
 from puzzledesk.core.engines.bruteforce import enumerate_squares
-from puzzledesk.core.engines.sampler import solve
 from puzzledesk.core.square import DoubleSquare
 
 
@@ -36,18 +36,20 @@ def check(container, n: int, tries: int = 30, ground_truth: bool = False):
     found: set[tuple[str, ...]] = set()
     t0 = time.perf_counter()
     for seed in range(tries):
-        r = solve(sq, rng=container.rng_factory.create(seed), max_restarts=100, max_steps=500)
-        if r.solved:
+        # distinct=False so the ground-truth subset check spans EVERY valid square
+        # (including the diagonally-symmetric ones brute force enumerates).
+        state = backtrack.solve(sq, rng=container.rng_factory.create(seed), distinct=False)
+        if state is not None:
             solved += 1
-            assert sq.energy(r.state) == 0  # never emit an invalid square
-            rows = rows_of(sq, r.state)
+            assert sq.energy(state) == 0  # never emit an invalid square
+            rows = rows_of(sq, state)
             found.add(rows)
             if truth is not None:
-                assert rows in truth, f"sampler produced {rows} not in ground truth!"
+                assert rows in truth, f"backtrack produced {rows} not in ground truth!"
     dt = time.perf_counter() - t0
 
     print(
-        f"sampler: solved {solved}/{tries}  |  {len(found)} distinct  |  "
+        f"backtrack: solved {solved}/{tries}  |  {len(found)} distinct  |  "
         f"{dt / tries * 1e3:.1f} ms/run"
     )
     if found:

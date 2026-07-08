@@ -1,7 +1,7 @@
 # Architecture and invariants
 
 Audience: an agent modifying this codebase. This documents the data model, the
-invariants you must not break, the two engines, and the non-obvious details that
+invariants you must not break, the engines, and the non-obvious details that
 are easy to get wrong. Read `docs/decisions.md` for *why* it is shaped this way
 and `docs/notes.md` for benchmarks/environment.
 
@@ -19,7 +19,7 @@ that keeps the OS out of the pure layers (see "OS reach is confined to init", be
 - **`core/`** — the pure kernel (this document's data model + engines + lexicon +
   `validate`). No I/O, deterministic given its inputs. Defines the one port its
   engines need, `core/rng.py::Rng`/`RngFactory` — randomness is *injected*, not
-  constructed here (the engines take `rng=`; see the two engines below).
+  constructed here (the engines take `rng=`; see the engines below).
 - **`app/`** — use-case services (`MiniService`, `BlockedGenerateService`) and the
   ports they need from outside (`app/ports.py`: `LexiconSource`, `Writer`).
   Services orchestrate the core through ports and return structured results
@@ -118,8 +118,6 @@ read lives in the `FileLexicon` adapter, see "Layered architecture"):
 - `allowed_at(pattern)`: pattern is length-N with exactly one `None`; returns a
   26-bool mask of letters that fill the blank to make a real word. The per-cell
   "which letters keep this column alive" marginal.
-- `allowed_and_scores_at(pattern)`: same, plus a 26-float array of the resulting
-  word's score per letter (0 where invalid). Used by the sampler's quality move.
 - `words_matching(allowed)`: allowed is a length-N list of 26-bool masks; returns
   indices of words whose letter at every position is permitted. The bitset-style
   intersection the backtracker uses to get legal row words directly.
@@ -135,9 +133,14 @@ parses and bar-filters each length, keeping empty lengths as an unfillable bucke
 encode/decode map lowercase word <-> uint8 index array. `encode` uses
 `np.frombuffer(word.encode('ascii'))` so inputs must be lowercase ascii a-z.
 
-## The two engines
+## The square engine
 
-### backtrack.py — the PRIMARY engine, complete
+Squares have one engine: complete propagation-backtracking. (An energy-based
+stochastic `sampler` was the *original* engine and was removed once it lost the
+head-to-head — see D19; the blocked model has its own engines, `fill`/`patterns`,
+documented further below.)
+
+### backtrack.py — the square engine, complete
 
 `solve(sq, *, rng, randomize=True, distinct=True) -> state | None`. `rng` is an
 injected `core.rng.Rng` (a fresh stream per seed, built at the composition root);
@@ -160,34 +163,19 @@ solution you get and measure diversity/timing.
 whose across word is already used, and at the leaf (r==N) rejects the grid if the
 N down words are not mutually distinct or collide with an across word.
 
-### sampler.py — the SECONDARY engine (energy-based / stochastic)
+### The retired sampler (D19)
 
-`solve(sq, *, rng, temperature=0.0, quality=0.0, distinct=False, guided=True,
-max_steps, max_restarts) -> Result` (`rng` injected, as backtrack). Min-conflicts /
-annealed-Gibbs: from a
-random filled grid, repeatedly re-choose one row's word to minimise invalid
-columns. `_row_objective` scores every candidate row word by `BIG*(#columns made
-valid) + quality*(across score + induced down scores) - DUP_WEIGHT*(#duplicate
-word-pairs)`; `BIG` guarantees feasibility dominates both quality and
-distinctness. `quality` folds word frequency into the move; `temperature>0`
-samples instead of greedy. `Result` has `.state .energy .solved .steps .restarts`.
-
-DISTINCTNESS (`distinct=True`): the sampler now enforces the distinctness
-invariant, so it produces genuine double word squares (not just the raw-packing
-default). `_distinct_penalty` computes, vectorised, the number of duplicate
-word-pairs for every candidate row word (real words share ids via a string->id
-map; throwaway non-words get fresh per-step ids), and the move subtracts
-`DUP_WEIGHT` times that. The penalty is gated to near-feasible steps (`<=1`
-invalid column) because it rebuilds N*26 column strings — with more invalid
-columns `BIG*feasibility` dominates the argmax anyway. `guided=True` (default)
-uses that penalty to walk off the symmetric basin; `guided=False` is the naive
-"gate" baseline that just restarts on a degenerate valid grid (the basin is a
-fixed point of the unguided move). See `scripts/samplers.py` for the head-to-head.
-
-The sampler is ~50-80x slower than backtracking on distinct filtered lists and its
-solve-rate collapses on the small/hard lists where backtracking stays complete, so
-it is SECONDARY, kept for (a) genuinely soft preferences and (b) a sample
-distribution. See open question "does the sampler earn its keep".
+For its first several iterations the square also had a *secondary* engine: an
+energy-based min-conflicts / annealed-Gibbs `sampler` (D3), the original engine,
+kept on after D7 made backtracking primary. It was removed in D19 once measurement
+settled the question: ~50-80× slower than backtracking on distinct filtered lists,
+solve-rate collapsing on exactly the small/hard lists where backtracking stays
+complete, and distinctness was never its bottleneck. Its stated reasons to survive
+(soft preferences, a sample distribution) were hypothetical future needs, not
+current ones, so it was recorded (D19 + the numbers in notes.md) rather than kept.
+If a big-and-soft regime ever returns (a large list with genuine soft preferences —
+themes, per-batch novelty), restoring it from git is a fresh spike; see D19's
+reversal note and open-questions "Grid variety".
 
 ## Acceptance test (src/puzzledesk/validate.py)
 
@@ -278,10 +266,9 @@ minis generated from a black-cell count.
 2. ENERGY 0 == valid. Any change to what counts as "a word" must go through the
    column lexicon's wordset so energy stays meaningful.
 3. DISTINCTNESS. Acceptable output has 2N distinct words. Enforced in `validate`
-   (acceptance), `backtrack` (pruning + leaf), and `sampler` (duplicate-pair
-   penalty, `distinct=True`). If you add a fourth code path that emits grids, it
-   must enforce this or the symmetric basin returns. The sampler's raw-packing
-   default (`distinct=False`) does NOT — it is not an output path.
+   (acceptance), `backtrack` (pruning + leaf), and `fill` (grid-wide `used` set for
+   blocked grids). If you add a new code path that emits grids, it must enforce this
+   or the symmetric basin returns.
 4. SCORE SCALE IS PER-LIST. `scored_N.txt` scores are wordfreq Zipf (~0..8).
    `cw_N.txt` scores are crossword 0..100. A threshold is only meaningful
    relative to its list. Never reuse a Zipf threshold on the curated list or
@@ -312,16 +299,9 @@ Tools (`cli/`, typed, over services; `scripts/{mini,generate}.py` are shims;
 Benchmark/demo drivers (`scripts/`, loose, ANN-exempt; each builds the container
 and uses the injected `lexicon`/`rng_factory` adapters):
 
-- demo.py: correctness N=2..4. N=2 checks the sampler against brute-force ground
-  truth; above N=2 validity is by construction. (Also encoded in
-  `tests/test_ground_truth.py`.)
-- bench.py: order-N solve timing for the sampler (raw packing, distinct off).
-- frontier.py: sweep the acceptance threshold with the sampler (distinct=True);
-  where does packing into a genuine square stay feasible. Stochastic counterpart
-  to ceiling.py's complete sweep.
-- compare.py: sampler vs backtrack head-to-head on the same distinct problem.
-- samplers.py: sampler strategy study — gate vs distinctness-penalty (+backtrack
-  reference), same distinct problem.
+- demo.py: correctness N=2..4. N=2 checks `backtrack` against brute-force ground
+  truth (`backtrack ⊆ bruteforce`); above N=2 validity is by construction. (Also
+  encoded in `tests/test_ground_truth.py`.)
 - blackcells.py: blocked-grid fill — tiny-grid ground truth, filled grids from the
   curated list, and a quality ceiling (shortest slot's list runs dry first).
 - ceiling.py: sweep thresholds with the complete solver to find where it goes

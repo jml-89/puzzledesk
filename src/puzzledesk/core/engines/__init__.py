@@ -1,9 +1,10 @@
 """Solving engines over the two grid models.
 
-Squares: :mod:`backtrack` (primary, complete) and :mod:`sampler` (secondary,
-stochastic), with :mod:`bruteforce` as tiny-N ground truth. Blocked grids:
-:mod:`fill` (complete MRV backtracking over slots) and :mod:`patterns` (generate
-legal block layouts from a count, then fill).
+Squares: :mod:`backtrack` (complete propagation-backtracking search), with
+:mod:`bruteforce` as tiny-N ground truth. Blocked grids: :mod:`fill` (complete MRV
+backtracking over slots) and :mod:`patterns` (generate legal block layouts from a
+count, then fill). (An energy-based stochastic ``sampler`` was the original engine;
+it lost decisively to complete search and was removed -- see decisions D19.)
 
 Every engine takes its randomness as an injected :class:`~puzzledesk.core.rng.Rng`
 (or, where it re-seeds internally, a :class:`~puzzledesk.core.rng.RngFactory`)

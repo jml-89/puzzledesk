@@ -64,11 +64,12 @@ emits passes the acceptance test (invariant 3).
 
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
-`bench.py`, `ceiling.py`, `frontier.py`, `compare.py`, `samplers.py`, `quality.py`,
-`demo.py`, `blackcells.py`: they *measure/demo*, not produce. They stay loose and
-`ANN`-exempt (`scripts/*.py`), but now `build()` the container and drive the core
-engines through its injected `lexicon`/`rng_factory` adapters — no bare
-`default_rng`/`DATA` path. Their output is numbers for `docs/notes.md`.
+`ceiling.py`, `demo.py`, `blackcells.py`: they *measure/demo*, not produce. They
+stay loose and `ANN`-exempt (`scripts/*.py`), but now `build()` the container and
+drive the core engines through its injected `lexicon`/`rng_factory` adapters — no
+bare `default_rng`/`DATA` path. Their output is numbers for `docs/notes.md`. (The
+sampler-only drivers `bench`/`frontier`/`compare`/`samplers`/`quality` were removed
+with the sampler engine — D19.)
 
 > Still a follow-up: splitting tool vs benchmark *directories* and console entry
 > points for every driver. `cli` groups them by intent; honour the distinction.
@@ -86,10 +87,9 @@ agents most often:
   with a retry budget, never describe it as a timeout. This epistemics (a ceiling
   becomes a theorem) is the point of the whole design.
 - **Distinctness gates every output path.** Acceptable output has 2N distinct
-  words (invariant 3). It is enforced in `validate`, `backtrack`, and the
-  `distinct=True` sampler. **If you add a new emitter, it must enforce
-  distinctness** or the symmetric basin returns. The sampler's `distinct=False`
-  raw-packing default is *not* an output path.
+  words (invariant 3). It is enforced in `validate`, `backtrack`, and `fill` (the
+  blocked-grid engine's grid-wide `used` set). **If you add a new emitter, it must
+  enforce distinctness** or the symmetric basin returns.
 - **Score scale is per-list.** `scored_N.txt` is wordfreq Zipf (~0–8);
   `cw_N.txt` is crossword 0–100 (invariant 4). A threshold means nothing across
   lists. Never reuse a bar from one list on the other.

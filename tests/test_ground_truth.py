@@ -10,7 +10,6 @@ import numpy as np
 
 from puzzledesk.core.engines import backtrack, fill
 from puzzledesk.core.engines.bruteforce import enumerate_squares
-from puzzledesk.core.engines.sampler import solve as sample_solve
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
 from puzzledesk.core.square import DoubleSquare
 
@@ -37,18 +36,6 @@ def test_backtrack_output_is_a_valid_square_in_ground_truth() -> None:
         assert rows in truth
         assert sq.energy(state) == 0
     assert solved > 0
-
-
-def test_sampler_output_is_a_valid_square_in_ground_truth() -> None:
-    sq = DoubleSquare(Lexicon(_TINY))
-    truth = set(enumerate_squares(sq.rows))
-    for seed in range(20):
-        r = sample_solve(sq, rng=_rng(seed), max_steps=200, max_restarts=50)
-        if not r.solved:
-            continue
-        rows = tuple("".join(chr(int(c) + 97) for c in sq.rows.letters[i]) for i in r.state)
-        assert rows in truth
-        assert sq.energy(r.state) == 0
 
 
 def test_blocked_fill_is_a_subset_of_enumeration() -> None:

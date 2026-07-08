@@ -1,4 +1,4 @@
-"""Lexicon: word storage plus the two lookup structures the sampler needs.
+"""Lexicon: word storage plus the lookup structures the engines need.
 
 For a double word square of order N we only ever deal with words of a single
 length N. We keep:
@@ -118,25 +118,6 @@ class Lexicon:
         allowed = np.zeros(26, dtype=bool)
         allowed[self.letters[mask, blank]] = True
         return allowed
-
-    def allowed_and_scores_at(self, pattern: list[int | None]) -> tuple[np.ndarray, np.ndarray]:
-        """Like :meth:`allowed_at`, but also return a 26-array giving, for each
-        letter that fills the blank, the score of the resulting word (0 where the
-        letter is not allowed). Lets the sampler value the *induced* word, not
-        just check its existence."""
-        blank = pattern.index(None)
-        mask = np.ones(len(self.words), dtype=bool)
-        for pos, val in enumerate(pattern):
-            if val is None:
-                continue
-            mask &= self.letters[:, pos] == val
-        allowed = np.zeros(26, dtype=bool)
-        colscore = np.zeros(26, dtype=np.float64)
-        idx = np.nonzero(mask)[0]
-        letters = self.letters[idx, blank]
-        allowed[letters] = True
-        colscore[letters] = self.scores[idx]  # column words are unique per letter
-        return allowed, colscore
 
     def words_matching(self, allowed: list[np.ndarray]) -> np.ndarray:
         """Return indices of words whose letter at each position is permitted by
