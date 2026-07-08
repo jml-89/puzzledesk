@@ -1,4 +1,4 @@
-"""How high can the acceptance bar go and still pack an N x N grid?
+"""How high can the acceptance bar go and still pack an N x N grid? (benchmark)
 
 Backtracking is complete, so at each threshold we learn one of three things:
 solutions exist (and how fast we find distinct ones), or no grid exists at all
@@ -8,18 +8,15 @@ quality ceiling.
 
 import sys
 import time
-from pathlib import Path
 
-from puzzledesk import backtrack
-from puzzledesk.lexicon import Lexicon
-from puzzledesk.square import DoubleSquare
-from puzzledesk.validate import validate
-
-DATA = Path(__file__).resolve().parent.parent / "data"
+from puzzledesk.bootstrap import build
+from puzzledesk.core.engines import backtrack
+from puzzledesk.core.square import DoubleSquare
+from puzzledesk.core.validate import validate
 
 
-def sweep(n, thresholds, tries=25, listname="scored"):
-    full = Lexicon.from_scored_file(DATA / f"{listname}_{n}.txt", length=n)
+def sweep(container, n, thresholds, tries=25, listname="scored"):
+    full = container.lexicon.load(listname, n)
     print(f"\n=== N={n} ceiling sweep [{listname}] (full {len(full)} words) ===")
     for T in thresholds:
         lex = full.filtered(T)
@@ -30,7 +27,7 @@ def sweep(n, thresholds, tries=25, listname="scored"):
         solved, times, found, best = 0, [], set(), None
         for seed in range(tries):
             t0 = time.perf_counter()
-            state = backtrack.solve(sq, seed=seed)
+            state = backtrack.solve(sq, rng=container.rng_factory.create(seed))
             times.append(time.perf_counter() - t0)
             if state is not None:
                 solved += 1
@@ -59,4 +56,4 @@ if __name__ == "__main__":
         if rest
         else ([40, 50, 60, 70, 80, 90] if listname == "cw" else [4.0, 4.5, 5.0, 5.5, 6.0])
     )
-    sweep(n, ts, listname=listname)
+    sweep(build(), n, ts, listname=listname)

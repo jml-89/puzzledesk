@@ -85,25 +85,34 @@ just enumerates a larger legal set.
 
 ## Layout
 
+The package is a hexagon (ports & adapters) with a linear import stack enforced by
+import-linter: `core < app < adapters < bootstrap < cli` (see
+`docs/architecture.md`).
+
 | Path | What |
 |------|------|
-| `src/puzzledesk/lexicon.py`    | word storage; `set` for column checks, `(M,N)` letter matrix for pattern queries, per-word scores, `filtered(bar)`, `matching(pattern)`; `MultiLexicon` buckets words by length for blocked grids |
-| `src/puzzledesk/square.py`     | double-word-square representation and energy (the fully-checked model) |
-| `src/puzzledesk/backtrack.py`  | **complete** prefix-pruned search — the primary engine for squares |
-| `src/puzzledesk/sampler.py`    | min-conflicts / annealed-Gibbs sampler; enforces distinctness (`distinct=True`) via a duplicate-pair penalty (soft-objective / diversity engine) |
-| `src/puzzledesk/validate.py`   | acceptance test — bottleneck (weakest-word) verdict |
-| `src/puzzledesk/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
-| `src/puzzledesk/blocked.py`    | **blocked grids** — parse a black-cell pattern into the across/down slot + crossing graph |
-| `src/puzzledesk/fill.py`       | **complete** MRV backtracking fill over slots — the blocked-grid engine (+ `enumerate_fills` ground truth) |
-| `src/puzzledesk/patterns.py`   | **block-pattern generation** — from a black-cell *count* to legal symmetric/checked/connected layouts; `fill_by_count` ties layout search to fill |
-| `scripts/demo.py`              | validation across N=2..4 |
+| `src/puzzledesk/core/lexicon.py`    | word storage; `set` for column checks, `(M,N)` letter matrix for pattern queries, per-word scores, `filtered(bar)`, `matching(pattern)`, text parsers; `MultiLexicon` buckets words by length for blocked grids |
+| `src/puzzledesk/core/square.py`     | double-word-square representation and energy (the fully-checked model) |
+| `src/puzzledesk/core/blocked.py`    | **blocked grids** — parse a black-cell pattern into the across/down slot + crossing graph |
+| `src/puzzledesk/core/validate.py`   | acceptance test — bottleneck (weakest-word) verdict |
+| `src/puzzledesk/core/rng.py`        | the `Rng`/`RngFactory` ports — randomness is injected, not built in the kernel |
+| `src/puzzledesk/core/engines/backtrack.py`  | **complete** prefix-pruned search — the primary engine for squares |
+| `src/puzzledesk/core/engines/sampler.py`    | min-conflicts / annealed-Gibbs sampler; enforces distinctness (`distinct=True`) via a duplicate-pair penalty |
+| `src/puzzledesk/core/engines/fill.py`       | **complete** MRV backtracking fill over slots — the blocked-grid engine (+ `enumerate_fills` ground truth) |
+| `src/puzzledesk/core/engines/patterns.py`   | **block-pattern generation** — from a black-cell *count* to legal layouts; `fill_by_count` ties layout search to fill |
+| `src/puzzledesk/core/engines/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
+| `src/puzzledesk/app/`               | use-case services (`MiniService`, `BlockedGenerateService`), the ports they need (`LexiconSource`, `Writer`), and structured results |
+| `src/puzzledesk/adapters/`          | infrastructure implementing the ports: `NumpyRngFactory` (the injected Prng), `FileLexicon` (disk reads), `StreamWriter` |
+| `src/puzzledesk/bootstrap/`         | composition root — `build()` a service `Container` in stages (config → adapters → services) |
+| `src/puzzledesk/cli/`               | thin entry points: argv → build → run → present |
+| `tests/`                            | pytest suite — invariants, ground truth, DI (fakes for the ports) |
+| `scripts/mini.py`, `scripts/generate.py` | tool shims (logic in `cli/`); also `uv run mini …` / `uv run generate …` |
+| `scripts/demo.py`              | validation across N=2..4 (benchmark driver) |
 | `scripts/frontier.py`          | sweep the acceptance bar; where does packing stay feasible |
 | `scripts/compare.py`           | sampler vs backtracking head-to-head (same distinct problem) |
 | `scripts/samplers.py`          | sampler strategy study — gate vs distinctness-penalty |
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
-| `scripts/mini.py`              | **the generator** — print distinct minis above a quality bar |
 | `scripts/blackcells.py`        | **blocked-grid fill** — ground-truth check, filled grids, quality ceiling |
-| `scripts/generate.py`          | **blocked minis from a black-cell count** — layout search + fill (`generate.py 5 5 4 60 3`) |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
 | `data/scored_N.txt`            | the above with wordfreq Zipf scores (weak baseline list) |
 | `data/cw_N.txt`                | curated crossword list, scored 0–100 (the real list) |
@@ -138,11 +147,15 @@ uv sync                # create/refresh the dev environment
 uv run ruff check      # lint
 uv run ruff format     # format
 uv run mypy            # type-check src/puzzledesk
+uv run lint-imports    # enforce the hexagonal layers (import-linter)
+uv run pytest          # invariants + ground truth + DI
 ```
 
-Ruff (lint + format) and mypy are configured in `pyproject.toml`. The package
-ships type information (`py.typed`); `mypy` runs with `disallow_untyped_defs`, so
-new code in `src/puzzledesk` must be fully annotated.
+Ruff (lint + format), mypy, import-linter and pytest are configured in
+`pyproject.toml`. The package ships type information (`py.typed`); `mypy` runs with
+`disallow_untyped_defs`, so new code in `src/puzzledesk` must be fully annotated.
+`lint-imports` fails the build on a forbidden cross-layer import, so the
+architecture is a checked fact, not a convention.
 
 ## Deeper docs (agent-facing, in `docs/`)
 
@@ -173,6 +186,9 @@ new code in `src/puzzledesk` must be fully annotated.
 - [x] **Non-symmetric black cells** — `symmetric=False` drops the 180° constraint
       so any legal placement is allowed (e.g. 3 blacks across a full 5×5, which no
       symmetric layout admits); `generate.py --nonsymmetric`
+- [x] **Hexagonal architecture** — pure `core`, `app` services, `adapters` (the
+      injected Prng lives here), a staged `bootstrap` container, thin `cli`; layering
+      enforced by import-linter; pytest suite driven by injected fakes (D14)
 - [ ] Word lists longer than 5 — needed for full-size (15×15) blocked grids
 - [ ] Clue generation (separate downstream stage)
 - [ ] Grid variety controls — seed words, themes, avoid overused entries

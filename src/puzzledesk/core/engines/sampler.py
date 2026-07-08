@@ -29,8 +29,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .lexicon import decode
-from .square import DoubleSquare
+from ..lexicon import decode
+from ..rng import Rng
+from ..square import DoubleSquare
 
 
 @dataclass
@@ -164,23 +165,24 @@ def _is_distinct(sq: DoubleSquare, state: np.ndarray) -> bool:
 def solve(
     sq: DoubleSquare,
     *,
+    rng: Rng,
     temperature: float = 0.0,
     quality: float = 0.0,
     distinct: bool = False,
     guided: bool = True,
     max_steps: int = 2000,
     max_restarts: int = 200,
-    seed: int = 0,
 ) -> Result:
     """Min-conflicts / annealed-Gibbs search for a double word square.
 
-    ``distinct`` requires all 2N words distinct (a genuine double word square).
-    ``guided`` (default) folds the distinctness penalty into the move so the
-    descent walks off the symmetric basin; ``guided=False`` is the naive baseline
-    that restarts on every valid-but-degenerate grid (the symmetric basin is a
-    fixed point of the unguided move, so it cannot climb out).
+    ``rng`` is the injected random stream (fresh per seed at the composition root)
+    that drives restarts, the row pick, and the annealed move. ``distinct``
+    requires all 2N words distinct (a genuine double word square). ``guided``
+    (default) folds the distinctness penalty into the move so the descent walks
+    off the symmetric basin; ``guided=False`` is the naive baseline that restarts
+    on every valid-but-degenerate grid (the symmetric basin is a fixed point of
+    the unguided move, so it cannot climb out).
     """
-    rng = np.random.default_rng(seed)
     total_steps = 0
     vocab = _word_ids(sq) if distinct else {}
     cand_across_id = (

@@ -8,7 +8,7 @@ just use a prefix set built from the column lexicon.
 
 from __future__ import annotations
 
-from .lexicon import Lexicon
+from ..lexicon import Lexicon
 
 
 def _prefix_set(words: list[str]) -> set[str]:

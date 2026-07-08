@@ -5,6 +5,39 @@ invariants you must not break, the two engines, and the non-obvious details that
 are easy to get wrong. Read `docs/decisions.md` for *why* it is shaped this way
 and `docs/notes.md` for benchmarks/environment.
 
+## Layered architecture (hexagonal; D14)
+
+`src/puzzledesk/` is a hexagon (ports & adapters) with a single **linear** import
+stack, enforced by **import-linter** (`[tool.importlinter]` in `pyproject.toml`;
+`uv run lint-imports`). A layer may import any layer *below* it, never one above:
+
+    core  <  app  <  adapters  <  bootstrap  <  cli
+
+- **`core/`** — the pure kernel (this document's data model + engines + lexicon +
+  `validate`). No I/O, deterministic given its inputs. Defines the one port its
+  engines need, `core/rng.py::Rng`/`RngFactory` — randomness is *injected*, not
+  constructed here (the engines take `rng=`; see the two engines below).
+- **`app/`** — use-case services (`MiniService`, `BlockedGenerateService`) and the
+  ports they need from outside (`app/ports.py`: `LexiconSource`, `Writer`).
+  Services orchestrate the core through ports and return structured results
+  (`app/results.py`); they never import a concrete adapter, read a file, or print.
+- **`adapters/`** — infrastructure implementing the ports: `NumpyRngFactory` (the
+  injected Prng; `np.random.default_rng` is confined here), `FileLexicon` (the disk
+  read that used to sit in the kernel), `StreamWriter`/`CapturingWriter`. Adapters
+  sit *above* `app` on purpose — they implement `app`'s ports — which is what makes
+  one `layers` contract forbid `app → adapters` (the DI inversion) yet allow
+  `adapters → app`.
+- **`bootstrap/`** — the composition root: `build()` assembles a `Container` in
+  three explicit stages (config → adapters → services).
+- **`cli/`** — thin entry points: argv → `build()` → run a service → present via a
+  `Writer`. `scripts/*.py` for the tools are two-line shims; benchmark drivers stay
+  in `scripts/` but build the container and use its injected adapters.
+
+Determinism is unchanged by the injection: `NumpyRngFactory.create(seed)` returns
+`np.random.default_rng(seed)`, so a `(lists, seed)` pair still reproduces exactly
+(invariant below). Tests (`tests/`, `uv run pytest`) drive the services with an
+in-memory `LexiconSource` and a recording `RngFactory` — no files, no global RNG.
+
 ## Object being generated
 
 A double word square of order N: an N x N grid, fully checked (no black cells),
@@ -47,10 +80,11 @@ Words of a single fixed length N. Three representations, each for a query shape:
   per-position pattern queries.
 - `scores` (M float) + `score_map` (dict word->score): per-word quality.
 
-Key methods:
-- `from_file(path, length)`: plain word-per-line, scores default to 0.
-- `from_scored_file(path, length)`: "word score" per line. BOTH data list
-  families use this (see score-scale gotcha below).
+Key methods (all *pure* — the kernel parses text, it does not read files; the disk
+read lives in the `FileLexicon` adapter, see "Layered architecture"):
+- `from_words_text(text, length)`: parse a plain word-per-line body, scores 0.
+- `from_scored_text(text, length)`: parse a "word score" per-line body. BOTH data
+  list families use this (see score-scale gotcha below).
 - `filtered(min_score)`: sub-lexicon of words with score >= min_score. This is
   how a quality bar is applied: filter, then solve feasibility.
 - `allowed_at(pattern)`: pattern is length-N with exactly one `None`; returns a
@@ -66,8 +100,9 @@ Key methods:
   blocked-grid fill.
 
 `MultiLexicon` (same file) buckets a `Lexicon` per length for blocked grids, whose
-slots differ in length; `MultiLexicon.from_scored_files(path_for, lengths, bar)`
-loads and bar-filters each length, keeping empty lengths as an unfillable bucket.
+slots differ in length; `MultiLexicon.from_scored_texts(text_for, lengths, bar)`
+parses and bar-filters each length, keeping empty lengths as an unfillable bucket.
+(The `FileLexicon` adapter supplies `text_for`/`path_for` by reading the files.)
 
 encode/decode map lowercase word <-> uint8 index array. `encode` uses
 `np.frombuffer(word.encode('ascii'))` so inputs must be lowercase ascii a-z.
@@ -76,7 +111,9 @@ encode/decode map lowercase word <-> uint8 index array. `encode` uses
 
 ### backtrack.py — the PRIMARY engine, complete
 
-`solve(sq, seed=0, randomize=True, distinct=True) -> state | None`.
+`solve(sq, *, rng, randomize=True, distinct=True) -> state | None`. `rng` is an
+injected `core.rng.Rng` (a fresh stream per seed, built at the composition root);
+the engine no longer opens its own `default_rng`. `randomize=False` ignores it.
 
 Fills rows top to bottom. Before placing row r, each partial column
 `cols[j]` (r letters so far) must remain a live prefix of some column word. A
@@ -97,8 +134,9 @@ N down words are not mutually distinct or collide with an across word.
 
 ### sampler.py — the SECONDARY engine (energy-based / stochastic)
 
-`solve(sq, temperature=0.0, quality=0.0, distinct=False, guided=True,
-max_steps, max_restarts, seed) -> Result`. Min-conflicts / annealed-Gibbs: from a
+`solve(sq, *, rng, temperature=0.0, quality=0.0, distinct=False, guided=True,
+max_steps, max_restarts) -> Result` (`rng` injected, as backtrack). Min-conflicts /
+annealed-Gibbs: from a
 random filled grid, repeatedly re-choose one row's word to minimise invalid
 columns. `_row_objective` scores every candidate row word by `BIG*(#columns made
 valid) + quality*(across score + induced down scores) - DUP_WEIGHT*(#duplicate
@@ -154,8 +192,9 @@ blocked case is a SEPARATE, coexisting representation:
   `allowed_at`'s exactly-one). A length with no words at the bar is an empty
   bucket (`_EmptyLexicon`), so such a slot is simply unfillable (UNSAT), not a
   crash.
-- `fill.solve(grid, mlex, distinct, ...)` is complete backtracking over slots with
-  **MRV** ordering (always extend the unfilled slot with the fewest candidates; a
+- `fill.solve(grid, mlex, *, rng, distinct, ...)` is complete backtracking over
+  slots with **MRV** ordering (`rng` injected as above; always extend the unfilled
+  slot with the fewest candidates; a
   0-candidate slot is an immediate dead end). Distinctness is a grid-wide `used`
   set (crosswords never repeat an entry). Randomised candidate order gives
   per-seed diversity. None == exhausted tree == real UNSAT, same as `backtrack`.
@@ -171,8 +210,9 @@ data only covers 2..5, enough for slots up to length 5).
 `blocked.py` takes the block pattern as INPUT. `patterns.py` makes it a PARAMETER:
 from a shape and a *number* of black cells, generate the legal layouts (D13).
 
-- `gen_patterns(rows, cols, num_black, min_len=3, symmetric=True, seed, randomize)`
-  yields every legal `BlockedGrid` with exactly `num_black` blacks. Legal =
+- `gen_patterns(rows, cols, num_black, *, rng, min_len=3, symmetric=True, randomize)`
+  yields every legal `BlockedGrid` with exactly `num_black` blacks (`rng` injected;
+  `randomize=False` leaves orbit order fixed for the ground-truth check). Legal =
   (default) 180°-rotationally symmetric, *fully checked* (every white cell in an
   across AND a down run >= min_len; equivalently no white run has length
   1..min_len-1 — this subsumes `blocked.py`'s no-orphan rule), and white cells
@@ -186,10 +226,13 @@ from a shape and a *number* of black cells, generate the legal layouts (D13).
   an odd count like 3 blacks on a 5x5 that no symmetric layout admits. Everything
   else (fully-checked, connected, completeness) is unchanged; `generate.py` exposes
   it as `--nonsymmetric`.
-- `fill_by_count(rows, cols, num_black, mlex, ...)` composes the layout search with
-  `fill.solve`: returns `(grid, assign)` for the first legal layout that admits a
-  distinct fill, or None. Both stages complete, so None is a real UNSAT proof for
-  the shape+count+lists (unless `max_patterns`/`node_budget` bound the search).
+- `fill_by_count(rows, cols, num_black, mlex, *, rng_factory, seed=0, ...)` composes
+  the layout search with `fill.solve`: returns `(grid, assign)` for the first legal
+  layout that admits a distinct fill, or None. It re-seeds per attempt, so it takes
+  an `RngFactory` (not a single stream) and a `seed`; the layout search and each
+  fill get a fresh `rng_factory.create(seed)`. Both stages complete, so None is a
+  real UNSAT proof for the shape+count+lists (unless `max_patterns`/`node_budget`
+  bound the search).
 
 `patterns.py` produces only `BlockedGrid`s and reuses `fill.py` unchanged — the
 square/blocked split (invariant 0) is intact. `scripts/generate.py` is the demo:
@@ -219,18 +262,31 @@ minis generated from a black-cell count.
 5. LOWERCASE ASCII. Lexicon assumes a-z; the curated source is upper/mixed and
    is lowercased at ingestion (see notes.md, generation commands).
 
-## Data flow for "generate a mini" (scripts/mini.py)
+## Data flow for "generate a mini" (`app.mini.MiniService`)
 
-Lexicon.from_scored_file(cw_N) -> filtered(min_score) -> DoubleSquare ->
-backtrack.solve(distinct=True) per seed -> validate (assert ok) -> render across
-(state) and down (column_strings). Every emitted grid is distinct-words and
-every word >= min_score by construction of the filter.
+`FileLexicon.load("cw", N, min_score)` (reads `cw_N.txt`, parses via
+`Lexicon.from_scored_text`, filters) -> DoubleSquare -> `backtrack.solve(rng=
+factory.create(seed), distinct=True)` per seed -> validate (assert ok) -> shape a
+`MiniResult`. The `cli.mini` entry point + `cli.present` render it. Every emitted
+grid is distinct-words and every word >= min_score by construction of the filter.
+`cli.generate` + `BlockedGenerateService` are the blocked analogue.
 
-## Scripts (all under scripts/, add `src` to sys.path themselves)
+## Entry points
+
+Tools (`cli/`, typed, over services; `scripts/{mini,generate}.py` are shims;
+`mini`/`generate` are also `[project.scripts]` console commands):
+
+- mini.py: the generator. `mini.py N min_score count`.
+- generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
+  rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
+  fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
+
+Benchmark/demo drivers (`scripts/`, loose, ANN-exempt; each builds the container
+and uses the injected `lexicon`/`rng_factory` adapters):
 
 - demo.py: correctness N=2..4. N=2 checks the sampler against brute-force ground
-  truth (the only place we have ground truth); above N=2 validity is by
-  construction. Run after touching the energy model or sampler.
+  truth; above N=2 validity is by construction. (Also encoded in
+  `tests/test_ground_truth.py`.)
 - bench.py: order-N solve timing for the sampler (raw packing, distinct off).
 - frontier.py: sweep the acceptance threshold with the sampler (distinct=True);
   where does packing into a genuine square stay feasible. Stochastic counterpart
@@ -240,18 +296,14 @@ every word >= min_score by construction of the filter.
   reference), same distinct problem.
 - blackcells.py: blocked-grid fill — tiny-grid ground truth, filled grids from the
   curated list, and a quality ceiling (shortest slot's list runs dry first).
-- generate.py: blocked minis from a black-cell COUNT (not a template) — layout
-  property check on a tiny case, then `generate.py rows cols num_black min_score
-  count` searches legal layouts and fills them.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
-- mini.py: the generator. `mini.py N min_score count`.
 - gen_scored.py: regenerate `scored_N.txt` from `words_N.txt` via wordfreq. Only
   needed if you change the weak list; requires the wordfreq package.
 
-## bruteforce.py
+## bruteforce.py (`core/engines/`)
 
 Exhaustive enumeration for tiny N (ground truth at N=2; N=3+ explodes on a
-permissive list — do not enumerate the full curated list). Prefix-pruned. Used
-only by demo.py at N=2.
+permissive list — do not enumerate the full curated list). Prefix-pruned. Used by
+`demo.py` at N=2 and by `tests/test_ground_truth.py`.

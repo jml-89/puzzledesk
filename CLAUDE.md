@@ -13,52 +13,65 @@ does **not** restate the design — that lives in `docs/`, and you should read i
 When this file and `docs/architecture.md` seem to disagree, `architecture.md`
 wins and this file is stale — fix it.
 
-## The four layers
+## The layers (hexagonal; enforced — D14)
 
-Code here divides into four layers with different rules. Keep the boundaries
-sharp; most review friction comes from smearing them.
+`src/puzzledesk/` is a hexagon with a **linear** import stack, and it is no longer
+a convention: **import-linter** (`uv run lint-imports`) fails the build on a
+forbidden edge. A layer may import any layer *below* it, never one above:
 
-### kernel — `src/puzzledesk/`
+    core  <  app  <  adapters  <  bootstrap  <  cli
 
-The pure library: the two grid models, the engines, the lexicon. Rules:
+Keep the boundaries sharp; the linter is what keeps them so. Full detail lives in
+`docs/architecture.md` §"Layered architecture" and `docs/decisions.md` D14.
 
-- **No I/O.** No `print`, no argv, no reading files except through an explicit
-  path argument (`Lexicon.from_scored_file(path, …)`). `render`/`column_strings`
-  *return* strings; they do not print them.
-- **Deterministic given a seed.** All randomness goes through
-  `np.random.default_rng(seed)`. No unseeded `random`, no wall-clock, no
-  `Math.random`-equivalent. A `(lists, seed)` pair reproduces a result exactly.
-- **Fully typed.** `mypy` runs here with `disallow_untyped_defs`; the package
-  ships `py.typed`. New code is fully annotated, no exceptions.
+### core — the pure kernel (`src/puzzledesk/core/`)
+
+The two grid models, the engines, the lexicon, `validate`. Rules:
+
+- **No I/O.** No `print`, no argv, **no reading files** (the kernel now *parses
+  text* — `Lexicon.from_scored_text`/`from_words_text` — and the `FileLexicon`
+  adapter does the read). `render`/`column_strings` *return* strings.
+- **Deterministic, randomness injected.** Engines take an `rng` (the `core.rng.Rng`
+  port), they do **not** open their own `np.random.default_rng`. Still no unseeded
+  `random`, no wall-clock. A `(lists, seed)` pair reproduces a result exactly —
+  `NumpyRngFactory.create(seed)` is `default_rng(seed)`, so injection changed the
+  wiring, not the numbers.
+- **Fully typed** (`mypy`, `disallow_untyped_defs`; ships `py.typed`).
 - Carries the invariants below. This is where correctness lives.
 
-### shell — the I/O boundary
+### app — use-case services + ports (`src/puzzledesk/app/`)
 
-The thin layer that turns kernel values into bytes and back: argv parsing, file
-loading, rendering, `stdout`. Today this is **smeared into each script's
-`__main__`** rather than being a module; that is a known wart, not the target.
-When you touch it, keep I/O *here* and keep the kernel pure — do not push a
-`print` down into `src/`.
+`MiniService`, `BlockedGenerateService`, and the ports they need from outside
+(`app/ports.py`: `LexiconSource`, `Writer`). Services orchestrate the core through
+ports and return structured results (`app/results.py`). **They must not import a
+concrete adapter, read a file, or print** — that inversion is the whole point and
+the linter enforces it (`app → adapters` is a broken contract).
 
-### tools — user-facing generators (`scripts/`, artifact producers)
+### adapters — infrastructure (`src/puzzledesk/adapters/`)
 
-Programs a user runs to *get a crossword*: `mini.py`, `generate.py`,
-`blackcells.py`. They should be tight, produce artifacts, and every grid they
-emit must pass the acceptance test (invariant 3, below). A tool is an **output
-path**.
+Where effects are bound: `NumpyRngFactory` (the injected Prng — `default_rng` lives
+only here), `FileLexicon` (the disk read), `StreamWriter`/`CapturingWriter`. They
+sit *above* app because they implement app's ports. Keep new I/O *here*, never in
+`core`/`app`.
+
+### bootstrap + cli — composition root and the front
+
+`bootstrap.build()` assembles a `Container` in three stages (config → adapters →
+services). `cli/` are thin entry points (argv → build → run → present); the tools
+`mini`/`generate` are typed `cli` modules with `scripts/*.py` shims (and
+`[project.scripts]` console commands). A tool is an **output path** — every grid it
+emits passes the acceptance test (invariant 3).
 
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
-Programs that *measure*, not produce: `bench.py`, `ceiling.py`, `frontier.py`,
-`compare.py`, `samplers.py`, `quality.py`. They may be slow, throwaway, and
-loosely typed (`scripts/*.py` are `ANN`-exempt in ruff on purpose). Their output
-is numbers for `docs/notes.md`, not grids for a user.
+`bench.py`, `ceiling.py`, `frontier.py`, `compare.py`, `samplers.py`, `quality.py`,
+`demo.py`, `blackcells.py`: they *measure/demo*, not produce. They stay loose and
+`ANN`-exempt (`scripts/*.py`), but now `build()` the container and drive the core
+engines through its injected `lexicon`/`rng_factory` adapters — no bare
+`default_rng`/`DATA` path. Their output is numbers for `docs/notes.md`.
 
-> Tools and benchmarks currently share the `scripts/` directory and each script
-> hand-rolls its own `sys.path`/argv handling. Splitting them (a `scripts/tools`
-> vs `scripts/bench` layout, and/or `[project.scripts]` console entry points) is
-> a deliberate follow-up, not done here. Until then, honour the distinction by
-> *intent* even though the files sit together.
+> Still a follow-up: splitting tool vs benchmark *directories* and console entry
+> points for every driver. `cli` groups them by intent; honour the distinction.
 
 ## Load-bearing invariants
 
@@ -91,13 +104,20 @@ uv sync                 # create/refresh the dev environment
 uv run ruff check       # lint (authoritative — the config in pyproject.toml is the rulebook)
 uv run ruff format      # format
 uv run mypy             # type-check src/puzzledesk (strict: disallow_untyped_defs)
+uv run lint-imports     # architecture: the hexagonal layers contract (import-linter)
+uv run pytest           # tests: invariants + ground truth + DI (see below)
 uv run scripts/mini.py 5 70 3          # a tool: three distinct 5x5 minis, every word >= 70
+uv run mini 5 70 3                     # ...same, via the console entry point
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 ```
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the
   code or change the shared config in `pyproject.toml` with a reason. The `select`
   set is broad on purpose (`E W F I UP B C4 SIM ANN RUF`).
+- **import-linter is authoritative for the architecture.** The `layers` contract in
+  `pyproject.toml` (`[tool.importlinter]`) *is* the boundary spec. If you genuinely
+  need a new cross-layer edge, change the contract with a reason (a D-entry if it
+  reshapes the architecture) — do not route around it.
 - **`wordfreq` is optional**, needed only to regenerate `data/scored_N.txt`:
   `uv run --extra scoring scripts/gen_scored.py`. The solvers read the files, not
   `wordfreq`.
@@ -120,27 +140,31 @@ PEP-604 `X | None`, `@dataclass`, `pathlib`, keyword-only args (`def solve(sq, *
 use 3.11+-only features until the floor is deliberately raised (that is a D-entry
 decision, not a drive-by). "Modern" means modern *within 3.10*.
 
-## Tests as contracts (target state — not yet wired)
+## Tests as contracts (wired — D14)
 
-There is **no `tests/` directory and pytest is not yet a dependency** (though
-`.pytest_cache/` is already git-ignored in anticipation). Today the contracts are
-asserted ad hoc inside scripts: `demo.py` checks the sampler against N=2
-brute-force ground truth, `generate.py` asserts the layout invariants, `mini.py`
-asserts `validate(...).ok`. The intended direction is to promote these into a
-real pytest suite where **each test encodes an invariant**:
+There is a **`tests/` suite** (`uv run pytest`; pytest is in the `dev` group), and
+**each test encodes an invariant**, driven with injected fakes (`tests/fakes.py`:
+an in-memory `LexiconSource`, a recording `RngFactory`) so the pure code runs with
+no files and no global RNG:
 
-- ground-truth subset: solver output ⊆ `bruteforce` / `enumerate_fills`
-  enumeration at N=2 and on the tiny blocked grid (small-first, made permanent);
-- completeness: a known-UNSAT case (weak-list distinct 5×5 at `zipf≥4.0`) returns
-  `None` — the proof is a test;
-- distinctness: every output path's grids pass `validate` with `n_distinct == 2N`.
+- ground-truth subset (`test_ground_truth.py`): solver output ⊆ `bruteforce` /
+  `enumerate_fills` enumeration on tiny in-memory lexicons;
+- layout search (`test_patterns.py`): `gen_patterns` == brute force on a small case
+  (was `generate.py`'s inline property-check);
+- completeness (`test_invariants.py`): a known-UNSAT case (the `{ab,ba}` symmetric
+  basin) returns `None` — the proof is a test;
+- distinctness (`test_invariants.py`, `test_services.py`): output has
+  `n_distinct == 2N`;
+- ports/DI (`test_rng_port.py`, `test_services.py`): numpy satisfies `Rng`; the
+  services are reproducible and use the injected factory.
 
-Two rules for when the suite exists:
+Two standing rules:
 
 - **Tests assert correctness/contracts; benchmarks measure.** Keep wall-clock out
-  of tests — the timings in `docs/notes.md` are explicitly order-of-magnitude and
+  of tests — the timings in `docs/notes.md` are order-of-magnitude and
   container-dependent, so any timing assertion would be flaky.
-- Add pytest to the `dev` dependency group, not the runtime deps.
+- The `demo.py`/`blackcells.py` drivers keep runnable copies of the ground-truth
+  checks; the tests are the gate. If you change a contract, update both.
 
 ## Keep the docs in sync — this is a workflow rule, not a nicety
 

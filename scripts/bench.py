@@ -1,25 +1,26 @@
-"""Performance magnitude check for a given order N."""
+"""Performance magnitude check for a given order N (benchmark driver)."""
 
 import sys
 import time
-from pathlib import Path
 
-from puzzledesk.lexicon import Lexicon
-from puzzledesk.sampler import solve
-from puzzledesk.square import DoubleSquare
-
-DATA = Path(__file__).resolve().parent.parent / "data"
+from puzzledesk.bootstrap import build
+from puzzledesk.core.engines.sampler import solve
+from puzzledesk.core.square import DoubleSquare
 
 
-def bench(n, tries=20, temperature=0.0, max_steps=2000, max_restarts=400):
-    lex = Lexicon.from_file(DATA / f"words_{n}.txt", length=n)
+def bench(container, n, tries=20, temperature=0.0, max_steps=2000, max_restarts=400):
+    lex = container.lexicon.load("words", n)
     sq = DoubleSquare(lex)
     solved, times, steps, restarts, fail_energy = 0, [], [], [], []
     found = set()
     for seed in range(tries):
         t0 = time.perf_counter()
         r = solve(
-            sq, seed=seed, temperature=temperature, max_steps=max_steps, max_restarts=max_restarts
+            sq,
+            rng=container.rng_factory.create(seed),
+            temperature=temperature,
+            max_steps=max_steps,
+            max_restarts=max_restarts,
         )
         dt = time.perf_counter() - t0
         times.append(dt)
@@ -49,4 +50,4 @@ def bench(n, tries=20, temperature=0.0, max_steps=2000, max_restarts=400):
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 5
-    bench(n)
+    bench(build(), n)

@@ -1,31 +1,23 @@
 """Sampler strategy comparison: how should the stochastic engine reach a
-*distinct* double word square?
+*distinct* double word square? (benchmark)
 
-Two strategies for the same distinctness constraint, same acceptance bar:
+  gate    -- pure min-conflicts on feasibility; restart when it lands on a valid
+             but degenerate grid (a fixed point of the feasibility move).
+  penalty -- fold a duplicate-pair penalty into the move so the descent is pulled
+             off the degenerate basin toward a genuine square without restarting.
 
-  gate    -- pure min-conflicts on feasibility; when it lands on a valid grid
-             that is degenerate (a word repeats, e.g. the symmetric basin) it
-             restarts. Simple, but the degenerate grid is a fixed point of the
-             feasibility move, so every hit is a wasted restart.
-  penalty -- fold a duplicate-pair penalty into the move (weighted below one
-             valid column) so the descent is pulled off the degenerate basin
-             toward a genuine square without restarting.
-
-Backtracking (complete) is shown alongside as the reference the sampler is being
-measured against. Usage: uv run scripts/samplers.py [N] [thresholds...]
+Backtracking (complete) is shown alongside as the reference. Usage:
+    uv run scripts/samplers.py [N] [thresholds...]
 """
 
 import sys
 import time
-from pathlib import Path
 
-from puzzledesk import backtrack
-from puzzledesk.lexicon import Lexicon
-from puzzledesk.sampler import solve as sample_solve
-from puzzledesk.square import DoubleSquare
-from puzzledesk.validate import validate
-
-DATA = Path(__file__).resolve().parent.parent / "data"
+from puzzledesk.bootstrap import build
+from puzzledesk.core.engines import backtrack
+from puzzledesk.core.engines.sampler import solve as sample_solve
+from puzzledesk.core.square import DoubleSquare
+from puzzledesk.core.validate import validate
 
 
 def _run(label, run, sq, T, tries):
@@ -45,15 +37,21 @@ def _run(label, run, sq, T, tries):
     )
 
 
-def compare(n, T, tries=10):
-    lex = Lexicon.from_scored_file(DATA / f"scored_{n}.txt", length=n).filtered(T)
+def compare(container, n, T, tries=10):
+    lex = container.lexicon.load("scored", n).filtered(T)
     sq = DoubleSquare(lex)
+    rf = container.rng_factory
     print(f"\n=== N={n} T={T} ({len(lex)} words), distinct=True ===")
 
     def sampler(guided):
         def run(seed):
             r = sample_solve(
-                sq, seed=seed, distinct=True, guided=guided, max_steps=500, max_restarts=200
+                sq,
+                rng=rf.create(seed),
+                distinct=True,
+                guided=guided,
+                max_steps=500,
+                max_restarts=200,
             )
             return r.state if r.solved else None
 
@@ -61,11 +59,12 @@ def compare(n, T, tries=10):
 
     _run("sampler gate", sampler(False), sq, T, tries)
     _run("sampler penalty", sampler(True), sq, T, tries)
-    _run("backtrack", lambda s: backtrack.solve(sq, seed=s, distinct=True), sq, T, tries)
+    _run("backtrack", lambda s: backtrack.solve(sq, rng=rf.create(s), distinct=True), sq, T, tries)
 
 
 if __name__ == "__main__":
+    container = build()
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 5
     ts = [float(x) for x in sys.argv[2:]] if len(sys.argv) > 2 else [3.0, 3.5]
     for T in ts:
-        compare(n, T)
+        compare(container, n, T)

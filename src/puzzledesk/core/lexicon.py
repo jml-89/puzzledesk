@@ -13,7 +13,6 @@ length N. We keep:
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from pathlib import Path
 
 import numpy as np
 
@@ -51,9 +50,14 @@ class Lexicon:
         return len(self.words)
 
     @classmethod
-    def from_file(cls, path: str | Path, length: int | None = None) -> Lexicon:
+    def from_words_text(cls, text: str, length: int | None = None) -> Lexicon:
+        """Parse a plain word-per-line body into a Lexicon (scores default to 0).
+
+        Pure: the caller (an adapter) reads the file and hands us the text, so no
+        path or filesystem enters the kernel. See ``adapters.file_lexicon``.
+        """
         words = []
-        for line in Path(path).read_text().splitlines():
+        for line in text.splitlines():
             w = line.strip().lower()
             if not w.isalpha():
                 continue
@@ -65,11 +69,12 @@ class Lexicon:
         return cls(uniq)
 
     @classmethod
-    def from_scored_file(cls, path: str | Path, length: int | None = None) -> Lexicon:
-        """Load a 'word score' per line file (see scripts/gen_scored.py)."""
+    def from_scored_text(cls, text: str, length: int | None = None) -> Lexicon:
+        """Parse a 'word score' per-line body (see cli/gen_scored.py) into a
+        Lexicon. Pure text in, Lexicon out -- the file read happens in an adapter."""
         words, scores = [], []
         seen: set[str] = set()
-        for line in Path(path).read_text().splitlines():
+        for line in text.splitlines():
             parts = line.split()
             if len(parts) != 2:
                 continue
@@ -169,6 +174,9 @@ class _EmptyLexicon:
     def __init__(self, n: int) -> None:
         self.n = n
         self.words: list[str] = []
+        # Empty, but present so this bucket shares Lexicon's shape: a slot of this
+        # length is unfillable, so score_map is never actually indexed.
+        self.score_map: dict[str, float] = {}
 
     def __len__(self) -> int:
         return 0
@@ -199,17 +207,18 @@ class MultiLexicon:
         return self.by_length[length]
 
     @classmethod
-    def from_scored_files(
-        cls, path_for: Callable[[int], str | Path], lengths: Iterable[int], min_score: float = 0.0
+    def from_scored_texts(
+        cls, text_for: Callable[[int], str], lengths: Iterable[int], min_score: float = 0.0
     ) -> MultiLexicon:
-        """Load one scored file per length. ``path_for(n)`` returns the path for
-        length n (e.g. ``lambda n: DATA / f'cw_{n}.txt'``). ``min_score`` applies
-        the same acceptance-bar filter the rest of the system uses, so every
-        entry a fill can use already clears the bar. A length that ends up empty
-        after filtering is kept as an empty bucket (its slots become unfillable)."""
+        """Build one bucket per length from scored-file *bodies*. ``text_for(n)``
+        returns the text for length n (an adapter reads the file and supplies it).
+        ``min_score`` applies the same acceptance-bar filter the rest of the system
+        uses, so every entry a fill can use already clears the bar. A length that
+        ends up empty after filtering is kept as an empty bucket (its slots become
+        unfillable)."""
         buckets: dict[int, Lexicon | _EmptyLexicon] = {}
         for n in sorted(set(lengths)):
-            lex = Lexicon.from_scored_file(path_for(n), length=n)
+            lex = Lexicon.from_scored_text(text_for(n), length=n)
             kept = [
                 (w, s)
                 for w, s in zip(lex.words, lex.scores.tolist(), strict=True)

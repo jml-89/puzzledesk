@@ -10,14 +10,21 @@ keep that prefix alive; intersecting those per-position constraints against the
 row lexicon (via Lexicon.words_matching) yields the legal row words directly --
 no scan-and-reject. Randomising the candidate order gives distinct grids per
 seed, recovering the diversity we liked about sampling.
+
+Randomness is injected: the caller passes an :class:`~puzzledesk.core.rng.Rng`
+(built from a seed at the composition root) instead of this module opening its own
+``default_rng``. A given stream reproduces a run exactly; ``randomize=False``
+ignores the stream and takes candidates in lexicon order (deterministic, for
+ground-truth checks).
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-from .lexicon import Lexicon
-from .square import DoubleSquare
+from ..lexicon import Lexicon
+from ..rng import Rng
+from ..square import DoubleSquare
 
 
 class _PrefixIndex:
@@ -39,18 +46,19 @@ class _PrefixIndex:
 
 
 def solve(
-    sq: DoubleSquare, *, seed: int = 0, randomize: bool = True, distinct: bool = True
+    sq: DoubleSquare, *, rng: Rng, randomize: bool = True, distinct: bool = True
 ) -> np.ndarray | None:
     """Return a solved state (array of N row-word indices) or None if the grid
     admits no double word square from these lexicons (a real proof of UNSAT).
 
-    With ``distinct`` (default), the 2N words must all differ: no across word
-    reused, and no down word equal to another down word or to any across word.
-    This forbids the symmetric-square basin (across == down down the diagonal),
-    where the down constraints collapse onto the across constraints and the
-    solver would otherwise get an easy, degenerate fill.
+    ``rng`` supplies candidate-shuffling randomness (inject a fresh stream per
+    seed for reproducible diversity); ``randomize=False`` ignores it. With
+    ``distinct`` (default), the 2N words must all differ: no across word reused,
+    and no down word equal to another down word or to any across word. This
+    forbids the symmetric-square basin (across == down down the diagonal), where
+    the down constraints collapse onto the across constraints and the solver would
+    otherwise get an easy, degenerate fill.
     """
-    rng = np.random.default_rng(seed)
     n = sq.n
     pidx = _PrefixIndex(sq.cols)
     state = np.full(n, -1, dtype=np.int64)
