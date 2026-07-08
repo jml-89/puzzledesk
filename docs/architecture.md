@@ -13,6 +13,9 @@ stack, enforced by **import-linter** (`[tool.importlinter]` in `pyproject.toml`;
 
     core  <  app  <  adapters  <  bootstrap  <  cli
 
+Two contracts hold: the `layers` contract above (D14), and a `forbidden` contract
+that keeps the OS out of the pure layers (see "OS reach is confined to init", below).
+
 - **`core/`** — the pure kernel (this document's data model + engines + lexicon +
   `validate`). No I/O, deterministic given its inputs. Defines the one port its
   engines need, `core/rng.py::Rng`/`RngFactory` — randomness is *injected*, not
@@ -44,6 +47,24 @@ Determinism is unchanged by the injection: `NumpyRngFactory.create(seed)` return
 `np.random.default_rng(seed)`, so a `(lists, seed)` pair still reproduces exactly
 (invariant below). Tests (`tests/`, `uv run pytest`) drive the services with an
 in-memory `LexiconSource` and a recording `RngFactory` — no files, no global RNG.
+
+### OS reach is confined to init (D18)
+
+The program's shape is **entry point → bootstrap → service container → steady state**:
+a `cli` entry does argv → `build()` → run a service → present. `build()` (the
+composition root) is the *one* place that touches the operating system at startup — it
+reads the configured key env var (D17), fixes `Config.data_dir`, and resolves the
+output stream — then hands back a frozen `Container` whose services run over ports
+without reaching back out. This is the run-fast-and-exit tool's version of OpenBSD's
+`pledge`/`unveil`: grab OS capabilities once at init, then stay confined. The
+environment is grabbed only in `bootstrap`; filesystem access is *unveil*-shaped (the
+directory is fixed at init, `FileLexicon` reads on demand but only under it); `core`
+and `app` are pure functions over their inputs.
+
+The `forbidden` import-linter contract fences this: `core` and `app` may not import
+`os`, `io`, `sys`, `subprocess`, or `socket`. It is an import-time fence, not a sandbox
+— it exempts `adapters`/`bootstrap`/`cli` (the OS edge) by design and does not stop a
+runtime reflection trick — but it keeps the kernel honest, which is the point. See D18.
 
 ## Object being generated
 

@@ -114,10 +114,13 @@ uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the
   code or change the shared config in `pyproject.toml` with a reason. The `select`
   set is broad on purpose (`E W F I UP B C4 SIM ANN RUF`).
-- **import-linter is authoritative for the architecture.** The `layers` contract in
-  `pyproject.toml` (`[tool.importlinter]`) *is* the boundary spec. If you genuinely
-  need a new cross-layer edge, change the contract with a reason (a D-entry if it
-  reshapes the architecture) — do not route around it.
+- **import-linter is authoritative for the architecture.** Two contracts in
+  `pyproject.toml` (`[tool.importlinter]`) *are* the boundary spec: the `layers`
+  contract (D14) and a `forbidden` contract keeping the OS (`os`/`io`/`sys`/
+  `subprocess`/`socket`) out of the pure `core`/`app` layers — the environment is
+  grabbed once in `bootstrap`, never in the kernel (D18). If you genuinely need a new
+  cross-layer edge, change the contract with a reason (a D-entry if it reshapes the
+  architecture) — do not route around it.
 - **`wordfreq` is optional**, needed only to regenerate `data/scored_N.txt`:
   `uv run --extra scoring scripts/gen_scored.py`. The solvers read the files, not
   `wordfreq`.

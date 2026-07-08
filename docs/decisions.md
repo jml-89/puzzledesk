@@ -474,3 +474,48 @@ Alternatives considered:
 
 Reversal: set `Config.clue_api_key_env` to `None` (or `"ANTHROPIC_API_KEY"`) to return
 to the SDK's own resolution; the port and services are unaffected.
+
+## D18. OS reach is confined to init — the entry-point → bootstrap → container shape, fenced by import-linter
+
+Context: D17 moved the one environment read into the composition root. That is an
+instance of a broader discipline worth naming and holding to. There are two kinds of
+program — the long-lived daemon and the run-fast-and-exit tool — and ours is firmly the
+latter. For that camp the OpenBSD `pledge(2)`/`unveil(2)` model is a clean fit: grab
+the operating-system capabilities you need *at startup*, then run the rest of the
+program confined, without reaching back out. We want to (a) formalise the shape that
+already does this, and (b) stop the pure layers from quietly reaching the OS later.
+
+Decision, two parts — a stated pattern and a mechanical fence:
+
+- **The pattern: entry point → bootstrap → service container → steady state.** A `cli`
+  entry point does argv → `build()` → run a service → present. `build()` (the
+  composition root, `bootstrap/`) is the *only* place that touches the environment: it
+  reads the configured key var (D17), fixes `Config.data_dir`, and resolves the output
+  stream — the "init grab". It hands back a frozen `Container`; from there the services
+  run in steady state over ports, reaching the OS only through capabilities declared at
+  init. The environment is grabbed once and never again; filesystem access is
+  *unveil*-shaped — the directory is fixed at init, and `FileLexicon` reads on demand
+  but only under it. `core`/`app` are pure functions over their inputs.
+
+- **The fence: an import-linter `forbidden` contract.** `core` and `app` may not import
+  `os`, `io`, `sys`, `subprocess`, or `socket` (`[tool.importlinter]`, alongside the
+  D14 `layers` contract; `include_external_packages` lets the contract name stdlib). A
+  planted `import os` in a `core` submodule is caught, so the rule is enforced, not just
+  asserted — the same "the linter is what keeps them so" stance as D14.
+
+Honest about what it is *not*: an import-time fence, not a sandbox. It does not stop a
+runtime reflection trick (`__import__("os")`, `getattr`), it exempts
+`adapters`/`bootstrap`/`cli` by necessity (they *are* the OS edge), and it does not
+touch the Anthropic SDK's own fallback env resolution (D17, vendor-side, opt-in). It is
+a nice start that gets the idea across and keeps the kernel honest — no more.
+
+Alternatives considered:
+- **Runtime capability-dropping (a literal `pledge`):** rejected — no portable Python
+  equivalent, and the payoff for a short-lived batch tool doesn't justify the machinery.
+  The import fence buys most of the intent at compile time for free.
+- **Forbid the OS modules in `adapters` too:** rejected — adapters are exactly where the
+  disk read, the streams, and (in `bootstrap`) the env grab must live. The fence targets
+  the *pure* layers, which is where "reaches the OS" is a real bug.
+
+Reversal: drop the `forbidden` contract (and `include_external_packages`); the `layers`
+contract, the composition-root pattern, and all code are unaffected.
