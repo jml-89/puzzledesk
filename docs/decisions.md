@@ -428,43 +428,49 @@ adapter, the fake) with nothing above the adapter changing. The soft objective D
 retired at the fill layer now lives, quarantined, at the clue layer — behind this
 adapter, out of `core`.
 
-## D17. The clue key resolves from a configurable, off-normal env var
+## D17. The clue key: a configurable, off-normal env var, resolved in the composition root
 
 Context: the Claude adapter (D16) let the SDK resolve credentials from the standard
 `ANTHROPIC_API_KEY`. In our environments that name is *auto-detected by other tooling*,
 and that coupling has caused trouble — the key gets picked up where we don't want it.
-We want the clue adapter's key to live under a name nothing else claims, without
-smearing credential logic across the layers.
+We want the clue key to live under a name nothing else claims, wired the same way as
+every other piece of configuration — not through a bespoke path.
 
-Decision: the adapter resolves its key from a **configurable env var name**, defaulting
-to `ANTHROPIC_API_KEY_TWO`.
+Decision: `Config.clue_api_key_env` names the env var (default `ANTHROPIC_API_KEY_TWO`);
+the **composition root** reads it and injects the resolved value into the adapter as a
+plain `api_key`.
 
-- **The name is a `Config` knob, not a port change.** `Config.clue_api_key_env`
-  (default `"ANTHROPIC_API_KEY_TWO"`) is threaded through `build()` into
-  `ClaudeClueProvider(api_key_env=...)`. The `ClueProvider` *port* is untouched: it
-  defines a capability (`clue(...)`), and credential wiring is *construction*, not part
-  of that contract. This is the same reading of D15's "model only where a contract
-  forces it" applied to the port — which is why the config rides on the adapter's
-  `__init__`, exactly where `model`/`max_tokens` already sit, and one layer down from
-  the service that never learns a key exists.
-- **Resolution stays in the adapter (infrastructure), and stays lazy.** A pure
-  `_resolve_key(api_key_env)` reads the named var at first-client time and is
-  unit-tested; `_ensure_client` passes an explicit `api_key` when one resolved, else
-  constructs `anthropic.Anthropic()` and defers to the SDK's own resolution. So an
-  unset or blank var (and `api_key_env=None`) degrades to standard SDK behaviour
-  rather than passing an empty key — normal setups keep working, ours prefers the
-  off-normal name.
+- **The name is a `Config` knob, not a port change.** `Config.clue_api_key_env` is
+  threaded through `build()`; the `ClueProvider` *port* is untouched — it defines a
+  capability (`clue(...)`), and credential wiring is *construction*, not part of that
+  contract. The knob rides on the adapter's `__init__` beside `model`/`max_tokens`, one
+  layer down from the service that never learns a key exists (D15's "model only where a
+  contract forces it", applied to the port).
+- **The composition root owns the environment boundary; the adapter is a pure
+  value-taker.** `build()` resolves the name → value (`_resolve_api_key`) and passes
+  `ClaudeClueProvider(api_key=...)`, whose constructor now mirrors the SDK's own
+  `anthropic.Anthropic(api_key=...)`. When the key is `None` (var unset/blank, or name
+  `None`) the adapter defers to the SDK's own resolution, so normal setups still work.
+  This keeps the clue adapter uniform with `FileLexicon`/`StreamWriter`/`NumpyRngFactory`
+  — none reach into ambient global state; each takes its dependency as a constructor arg
+  — and keeps the environment read in exactly one place. The container still builds
+  without a key (the read yields `None` harmlessly) and still imports the SDK only on a
+  live call. `_resolve_api_key` is pure and unit-tested.
 
 Alternatives considered:
 - **Keep the SDK's `ANTHROPIC_API_KEY` default (D16 as-is):** rejected — it is exactly
   the auto-detected name whose side effects we are avoiding.
+- **Have the adapter read `os.environ` itself (the first cut of this change):**
+  rejected on review — it made the clue adapter the only one reaching into ambient
+  global env, unlike every other adapter. Resolving at the composition-root boundary and
+  injecting a value is the more conventional DI shape, leaves the adapter trivially
+  testable (no env monkeypatching), and makes its constructor read like the SDK's. The
+  "read eagerly at `build()` breaks laziness" worry was unfounded: the read yields `None`
+  when unset, so the container still builds keyless and still imports the SDK only on a
+  live call.
 - **A second meta env var to name the key var (`PUZZLEDESK_CLUE_KEY_ENV`):** rejected —
-  it trades a code-level default for more env plumbing to manage; the config default is
+  it trades a code-level default for more env plumbing to manage; the `Config` default is
   the simpler seam and the fallback keeps it safe.
-- **Read the key in `bootstrap` and pass the value in:** rejected — it pulls a
-  credential read up into the composition root and reads eagerly at `build()` time,
-  breaking D16's "the container builds without a key" laziness. The adapter is where
-  effects bind; the read belongs there.
 
 Reversal: set `Config.clue_api_key_env` to `None` (or `"ANTHROPIC_API_KEY"`) to return
 to the SDK's own resolution; the port and services are unaffected.

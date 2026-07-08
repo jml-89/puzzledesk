@@ -16,6 +16,7 @@ adapter set, or just call a service constructor directly).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from ..adapters.claude_clue import ClaudeClueProvider
@@ -46,16 +47,28 @@ def _stage_config(config: Config | None) -> Config:
     return config if config is not None else Config.default()
 
 
+def _resolve_api_key(env_name: str | None) -> str | None:
+    """Read the clue API key from the configured env var -- the one place the
+    composition root reaches into the environment for a secret, so adapters stay
+    pure value-takers. A ``None`` name (or a name set to nothing) means "no key" ->
+    the adapter defers to the SDK's own resolution. Reading here yields ``None``
+    harmlessly when unset, so the container still builds without a key."""
+    if not env_name:
+        return None
+    return os.environ.get(env_name) or None
+
+
 def _stage_adapters(config: Config) -> _Adapters:
     # ClaudeClueProvider imports the `anthropic` SDK lazily, so constructing it (and
     # the whole container) needs neither the extra installed nor a key -- only an
-    # actual clue call does.
+    # actual clue call does. The key is resolved here and injected; the adapter itself
+    # never touches the environment.
     return _Adapters(
         rng_factory=NumpyRngFactory(),
         lexicon=FileLexicon(config.data_dir),
         writer=StreamWriter(config.stream),
         clue_provider=ClaudeClueProvider(
-            model=config.clue_model, api_key_env=config.clue_api_key_env
+            model=config.clue_model, api_key=_resolve_api_key(config.clue_api_key_env)
         ),
     )
 

@@ -8,12 +8,15 @@ targets unclued), and that a meta target flows through unchanged.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from fakes import FakeClueProvider
 
 from puzzledesk.app.clue import ClueStyle, Difficulty
 from puzzledesk.app.cluing import ClueService
 from puzzledesk.app.puzzle import FilledGrid, Target, filled_from_square
 from puzzledesk.bootstrap import build
+from puzzledesk.bootstrap.build import _resolve_api_key
+from puzzledesk.bootstrap.config import Config
 from puzzledesk.core.engines import backtrack
 from puzzledesk.core.lexicon import Lexicon
 from puzzledesk.core.square import DoubleSquare
@@ -64,3 +67,25 @@ def test_container_wires_a_clue_service() -> None:
     # `anthropic` extra installed (the SDK import is lazy) -- only a clue call needs it.
     container = build()
     assert isinstance(container.clue, ClueService)
+
+
+def test_config_default_names_the_off_normal_key_env() -> None:
+    # the knob the composition root reads before injecting the key (docs/decisions.md D17)
+    assert Config.default().clue_api_key_env == "ANTHROPIC_API_KEY_TWO"
+
+
+def test_resolve_api_key_reads_the_configured_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SOME_OFF_NORMAL_KEY", "sk-live-123")
+    assert _resolve_api_key("SOME_OFF_NORMAL_KEY") == "sk-live-123"
+
+
+def test_resolve_api_key_yields_none_when_absent_blank_or_unnamed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a name that resolves to nothing -> None (adapter defers to the SDK), never an
+    # empty key; no name configured at all -> None too.
+    monkeypatch.delenv("MISSING_KEY", raising=False)
+    assert _resolve_api_key("MISSING_KEY") is None
+    monkeypatch.setenv("BLANK_KEY", "")
+    assert _resolve_api_key("BLANK_KEY") is None
+    assert _resolve_api_key(None) is None
