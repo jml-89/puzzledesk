@@ -8,6 +8,17 @@ Searches legal layouts (fully checked, connected white cells; 180°-symmetric
 unless ``--nonsymmetric``) for ones that fill with distinct words above the bar.
 The layout-search property check that used to run first now lives in the pytest
 suite (``tests/test_patterns.py``).
+
+With ``--max-len K`` the search switches to the *cap-driven* path
+(``patterns.gen_capped``): every entry is forced to length <= K by tactically
+placed black cells, so a grid larger than the word data can fill -- e.g. a 10x10
+from the 2..5 lists at ``--max-len 5``:
+
+    uv run generate 10 10 0 60 3 --max-len 5
+
+In cap mode the black-cell count is *derived* from the cap; the ``num_black``
+positional is an optional exact target (``0`` = let the search choose, defaulting to
+~20% black). ``--max-black K`` bounds the count above for a specific density (D25).
 """
 
 from __future__ import annotations
@@ -15,6 +26,7 @@ from __future__ import annotations
 import sys
 import time
 
+from ..app import blocked
 from ..bootstrap import Container, build
 from . import present
 
@@ -22,10 +34,17 @@ from . import present
 def main(argv: list[str] | None = None) -> None:
     args = sys.argv[1:] if argv is None else argv
     symmetric = True
+    max_len: int | None = None
+    max_black: int | None = None
     positional: list[str] = []
-    for a in args:
+    it = iter(args)
+    for a in it:
         if a in ("--nonsymmetric", "--asym"):
             symmetric = False
+        elif a == "--max-len":
+            max_len = int(next(it))
+        elif a == "--max-black":
+            max_black = int(next(it))
         else:
             positional.append(a)
     rows = int(positional[0]) if len(positional) > 0 else 5
@@ -34,7 +53,10 @@ def main(argv: list[str] | None = None) -> None:
     min_score = float(positional[3]) if len(positional) > 3 else 60.0
     count = int(positional[4]) if len(positional) > 4 else 3
 
-    _run(build(), rows, cols, num_black, min_score, count, symmetric)
+    if max_len is not None:
+        _run_capped(build(), rows, cols, max_len, num_black, min_score, count, symmetric, max_black)
+    else:
+        _run(build(), rows, cols, num_black, min_score, count, symmetric)
 
 
 def _run(
@@ -93,6 +115,74 @@ def _run(
         w()
         if seed + 1 >= count:  # shown `count` grids (a None result already broke above)
             break
+
+
+def _run_capped(
+    c: Container,
+    rows: int,
+    cols: int,
+    max_len: int,
+    num_black: int,
+    min_score: float,
+    count: int,
+    symmetric: bool,
+    max_black: int | None,
+) -> None:
+    """The cap-driven path: entries capped at ``max_len`` by black cells, so a grid
+    bigger than the word data fills from the 2..5 lists. ``num_black`` (positional) > 0
+    pins the count; ``0`` lets the search choose (density defaults to ~20% via
+    ``--max-black``, D25)."""
+    w = c.writer.line
+    kind = "symmetric" if symmetric else "non-symmetric"
+    target = None if num_black <= 0 else num_black
+    if target is not None:
+        density = f", {target} black cells"
+    elif max_black is not None:
+        density = f", <= {max_black} black cells"
+    else:
+        density = f", ~{blocked.default_black_ceiling(rows, cols)} black cells (default)"
+    w()
+    w(
+        f"{rows}x{cols} {kind} capped minis, max entry length {max_len}{density}, "
+        f"every word score >= {min_score:.0f}"
+    )
+    w()
+
+    if not c.blocked.capped_layout_exists(
+        rows, cols, max_len=max_len, symmetric=symmetric, num_black=target, max_black=max_black
+    ):
+        w(
+            f"no legal length-<= {max_len} layout exists for a {kind} {rows}x{cols} grid"
+            f"{density} (the cap, count bound, or symmetry forbids it)."
+        )
+        return
+
+    shown = 0
+    # The capped layout space is large, so budget the seeds; a miss here is
+    # exhaustion of the budget, not a UNSAT theorem (unlike the count-driven path).
+    for seed in range(count * 20):
+        t0 = time.perf_counter()
+        res = c.blocked.fill_capped_once(
+            rows,
+            cols,
+            max_len=max_len,
+            min_score=min_score,
+            seed=seed,
+            symmetric=symmetric,
+            num_black=target,
+            max_black=max_black,
+        )
+        dt = time.perf_counter() - t0
+        if res is None:
+            continue
+        present.blocked_result(res, c.writer)
+        w(f"  ({dt * 1e3:.0f} ms)")
+        w()
+        shown += 1
+        if shown >= count:
+            break
+    if shown == 0:
+        w(f"legal layouts exist, but none filled at score >= {min_score:.0f} in the seed budget.")
 
 
 if __name__ == "__main__":
