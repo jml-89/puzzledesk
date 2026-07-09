@@ -113,8 +113,14 @@ read lives in the `FileLexicon` adapter, see "Layered architecture"):
 - `from_words_text(text, length)`: parse a plain word-per-line body, scores 0.
 - `from_scored_text(text, length)`: parse a "word score" per-line body. BOTH data
   list families use this (see score-scale gotcha below).
-- `filtered(min_score)`: sub-lexicon of words with score >= min_score. This is
-  how a quality bar is applied: filter, then solve feasibility.
+- `filtered(min_score, max_score=None)`: sub-lexicon of words with score in
+  `[min_score, max_score]` (`max_score=None` == an open upper bound, the plain quality
+  bar). A one-sided floor applies a quality bar (filter, then solve feasibility); a
+  two-sided *band* applies a difficulty bar — "harder" draws from the obscure band, and
+  a banded run still proves a difficulty ceiling because search stays complete (D20).
+- `n_letters_at(word, pos)`: how many distinct letters this lexicon still admits at
+  `pos` if that cell of `word` were blanked and the rest held fixed. `1` means the word
+  alone forces the letter there. The primitive behind structural checkability (below).
 - `words_matching(allowed)`: allowed is a length-N list of 26-bool masks; returns
   indices of words whose letter at every position is permitted. The bitset-style
   intersection the backtracker uses to get legal row words directly.
@@ -184,6 +190,34 @@ reversal note and open-questions "Grid variety".
 `Verdict` fields: `ok, min_score, weakest, distinct, n_distinct, words`. This is
 the feedback signal the whole design optimises against. `score_of` falls back to
 0.0 for words not in the lexicon's score_map.
+
+## Difficulty: structural checkability (src/puzzledesk/app/difficulty.py)
+
+`validate` scores *quality* (per-word crowd score + distinctness). Difficulty is a
+separate, layered thing (D20); the one *complete, deterministic* structural slice
+lives here. `analyze(grid, options)` reads a `FilledGrid` (invariant 0: either grid
+model projects into it) and reports, per crossing cell, whether the shared letter is
+**forced** (one of the two words alone pins it) or **open** (neither does, so the
+solver needs outside knowledge — the Natick pathology). `CrossingOpenness` carries
+`across_options`/`down_options` (distinct letters each word admits at that cell) with
+`forced`/`is_open`/`ambiguity`; `StructuralDifficulty` aggregates `open_crossings`,
+`max_ambiguity`, `hardest`.
+
+Two modelling choices (D20), both at the call site, not baked into the metric:
+- **Full vocabulary, not the filtered list.** `options` is wired against the
+  *unfiltered* lexicon — a solver knows every word, not only those above the
+  generation bar. `Lexicon.n_letters_at` is the primitive; the driver supplies
+  `options(answer, pos) = full_lex.n_letters_at(answer, pos)`.
+- **Maximal support (final state).** The rest of each word is assumed known, so an
+  open crossing is *unavoidably* hard regardless of solve order — a conservative
+  signal, not a solve-trajectory simulation (that trajectory/BP model is a deferred
+  spike, see open-questions "Difficulty").
+
+`analyze` imports nothing from `core` (it takes the `options` callable), so it is
+representation-agnostic and fakeable with a plain dict. `scripts/difficulty.py` is the
+measurement driver: it solves minis, projects to `FilledGrid`, runs `analyze` against
+the full list, and cross-references openness with per-word score (invariant 4) for the
+"unfair Natick" read.
 
 ## Blocked grids (src/puzzledesk/blocked.py, fill.py)
 
@@ -287,7 +321,10 @@ grid is distinct-words and every word >= min_score by construction of the filter
 Tools (`cli/`, typed, over services; `scripts/{mini,generate}.py` are shims;
 `mini`/`generate` are also `[project.scripts]` console commands):
 
-- mini.py: the generator. `mini.py N min_score count`.
+- mini.py: the generator. `mini.py N min_score count [--max HI]`. The positionals are
+  unchanged (`mini 5 70 3` still means N=5, floor 70, 3 grids); `--max HI` turns the
+  floor into a difficulty *band* `[min_score, HI]` (D20), drawing from the obscure band
+  instead of merely lowering the floor.
 - generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
   rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
@@ -303,6 +340,10 @@ and uses the injected `lexicon`/`rng_factory` adapters):
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
+- difficulty.py: structural checkability of generated minis — solves at a score band
+  and reports each grid's *open* crossings (Natick risk) via `app.difficulty.analyze`,
+  cross-referenced with word obscurity (D20). `difficulty.py N listname min [max]
+  [obscure_below]`.
 - gen_scored.py: regenerate `scored_N.txt` from `words_N.txt` via wordfreq. Only
   needed if you change the weak list; requires the wordfreq package.
 

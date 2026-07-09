@@ -37,6 +37,7 @@ class MiniBatch:
     min_score: float
     eligible: int
     results: list[MiniResult]
+    max_score: float | None = None  # set == a difficulty band [min, max] (D20)
 
 
 @dataclass(frozen=True, slots=True)

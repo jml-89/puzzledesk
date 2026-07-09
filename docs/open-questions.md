@@ -53,6 +53,38 @@ condition under which D3/D7 said stochastic (or a JAX parallel-chain) sampling c
 retake primacy, and it would be a fresh spike with a new hypothesis, restoring the
 old code from git as a starting point rather than a resurrection.
 
+## Difficulty — partially modelled (D20)
+
+Difficulty is decomposed into four layers (D20); the two *complete/deterministic*
+ones are built, the two *soft* ones are recorded and blocked on data:
+
+- **A. Word prior — BUILT.** Obscurity band `[lo, hi]` via `Lexicon.filtered(min,
+  max)`, threaded to `cli.mini` (`mini N min count --max HI`). A banded run still proves a
+  difficulty ceiling (complete search). Open follow-up: a *difficulty*-labelled sweep
+  driver analogous to `ceiling.py` (where does a band go UNSAT), and whether obscurity
+  band is the right proxy for "word difficulty" or whether a separate difficulty score
+  (distinct from crowd-enjoyment score) is worth sourcing.
+- **A′. Structural checkability — BUILT.** `app/difficulty.analyze` flags *open*
+  crossings (Natick risk) from the lexicon, no solve data. Open follow-ups: (i) it is
+  the conservative maximal-support reading — the **order-dependent cascade** (which
+  entries a solver gets first, how support propagates) is unmodelled and is where a
+  real belief-propagation/marginal computation would live (the soft regime returning
+  on the *analysis* side; cf. D19 reversal); (ii) openness is currently structural
+  only — fusing it with per-word obscurity into a single calibrated "Natick score"
+  needs the score scale settled (invariant 4).
+- **B. Clue difficulty — knob exists, calibration deferred.** The Mon..Sat
+  `Difficulty` enum behind `ClueProvider` (D15/D16) is the soft, sampled layer.
+  Proving a clue hits a target difficulty needs human solve logs this environment does
+  not have — same blocker as "solvability/fun" below.
+- **C. Batch difficulty distribution — deferred.** A bell curve of difficulty is a
+  *batch* property (schedule mostly-medium, few extreme), needing a per-puzzle
+  difficulty number to schedule against. This is the difficulty face of "Grid variety
+  and curation across a batch" (below).
+
+The one thing that would unblock B and C, and grow A′ into the trajectory model, is a
+**human solve-time signal** (playtesting or logged solves) to calibrate IRT `θ`/`b`
+against. Until then difficulty is what we can compute and prove, and no more.
+
 ## Puzzle quality beyond word-score
 
 The acceptance test scores fillability + per-word crowd score. It does NOT capture:

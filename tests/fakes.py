@@ -31,11 +31,18 @@ class InMemoryLexiconSource:
         self._single = single or {}
         self._multi = multi
 
-    def load(self, name: str, length: int, *, min_score: float = 0.0) -> Lexicon:
-        return self._single[length].filtered(min_score)
+    def load(
+        self, name: str, length: int, *, min_score: float = 0.0, max_score: float | None = None
+    ) -> Lexicon:
+        return self._single[length].filtered(min_score, max_score)
 
     def load_multi(
-        self, name: str, lengths: Iterable[int], *, min_score: float = 0.0
+        self,
+        name: str,
+        lengths: Iterable[int],
+        *,
+        min_score: float = 0.0,
+        max_score: float | None = None,
     ) -> MultiLexicon:
         assert self._multi is not None, "no multi-lexicon configured"
         return self._multi

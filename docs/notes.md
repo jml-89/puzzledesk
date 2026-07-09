@@ -76,6 +76,35 @@ ground truth, solver output a strict subset over 60 seeds. Data covers lengths
 2..5, so demos use slots <= 5; the curated list has no 2-letter entry above any
 real bar (length-2 slots are UNSAT on it).
 
+## Structural difficulty — open crossings (D20, scripts/difficulty.py)
+
+`app.difficulty.analyze` scores each crossing against the *full* solving vocabulary
+(cw 5-letter list, 20,292 words) — a cell is *open* if neither crossing word alone
+pins the shared letter. Measured on 5 distinct 5x5 minis per bar (this container):
+
+- cw score>=90 (gen list 2384): **~12 open crossings/grid** (9–15), **0 unfair**,
+  max ambiguity 4–6. Dense minis are structurally under-constrained (a 5x5
+  fully-checked grid has 25 crossings and most cells admit several letters from one
+  side), but at the top tier every entry is a common word, so open ≠ hard.
+- cw score>=70 (gen list 4981): ~10 open/grid, 0 unfair.
+- cw band [50,58] (gen list 924, obscure crossword-ese): **9 open/grid, all 9
+  unfair** — with the cutoff at <60 ("below solid") both entries at every open
+  crossing are obscure, so each open cell is a genuine Natick (e.g.
+  `casas/useme/towit/inigo/tenon` — `towit x sewin` open 6/6).
+
+The finding: **open-crossing count is roughly bar-independent (~9–15)** — it is a
+property of the dense 5x5 geometry, not the word quality — while **unfairness =
+openness × obscurity**, and the score band (layer A) is the knob that controls the
+obscurity term. So the checkability metric (layer A′) and the band (layer A) are
+complementary: the band decides how obscure the fill is, the metric shows which
+crossings that obscurity turns into Naticks. Openness is scored against the whole
+vocabulary and at maximal support (the rest of each word known), so an open crossing
+is unavoidably hard regardless of solve order — a conservative signal (D20).
+
+Reproducibility note: `mini 5 70 1` is unchanged by the band work
+(`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
+to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed

@@ -29,19 +29,27 @@ from ..core.lexicon import Lexicon, MultiLexicon
 class LexiconSource(Protocol):
     """Loads lexicons for a named word list (``"cw"``, ``"scored"``, ``"words"``).
 
-    ``name`` selects the list family and its on-disk format; ``min_score`` applies
-    the acceptance-bar filter (0.0 == the full list). The adapter owns the mapping
-    from ``(name, length)`` to a file and the read; the kernel only parses.
+    ``name`` selects the list family and its on-disk format; ``min_score``/
+    ``max_score`` apply the score band filter (``min_score=0.0`` + ``max_score=None``
+    == the full list; a two-sided band is the difficulty knob, D20). The adapter owns
+    the mapping from ``(name, length)`` to a file and the read; the kernel only parses.
     """
 
-    def load(self, name: str, length: int, *, min_score: float = 0.0) -> Lexicon:
-        """A single-length lexicon, filtered to words scoring >= ``min_score``."""
+    def load(
+        self, name: str, length: int, *, min_score: float = 0.0, max_score: float | None = None
+    ) -> Lexicon:
+        """A single-length lexicon, filtered to words scoring in ``[min, max]``."""
         ...
 
     def load_multi(
-        self, name: str, lengths: Iterable[int], *, min_score: float = 0.0
+        self,
+        name: str,
+        lengths: Iterable[int],
+        *,
+        min_score: float = 0.0,
+        max_score: float | None = None,
     ) -> MultiLexicon:
-        """A length-bucketed multi-lexicon (for blocked grids), bar-filtered."""
+        """A length-bucketed multi-lexicon (for blocked grids), band-filtered."""
         ...
 
 

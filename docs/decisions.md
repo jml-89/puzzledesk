@@ -428,6 +428,112 @@ adapter, the fake) with nothing above the adapter changing. The soft objective D
 retired at the fill layer now lives, quarantined, at the clue layer — behind this
 adapter, out of `core`.
 
+## D20. Difficulty is a layered decomposition; build only the complete, deterministic slices
+
+Context: "how hard is a mini" had one knob — the clue `Difficulty` enum (D15, Mon..Sat)
+— and no model behind it. The question we actually asked: for a *dense* mini, what
+*is* difficulty, and which parts of it can this repo treat the way it treats
+everything else (a complete, provable signal) versus which parts are irreducibly soft
+(need human solve data we do not have)? Three literatures describe one phenomenon:
+**Item Response Theory** gives a per-entry logistic gettability `P = σ(θ − b)`
+(ability minus item difficulty); **flow theory** puts the fun at θ≈b; **queuing
+theory** explains the *effort* blow-up (time-to-solve scales like `1/(1−ρ)` as the
+puzzle's demand approaches the solver's capacity). The synthesis: IRT is the smooth
+per-entry primitive; the queuing/effort blow-up is what *emerges* when you compose
+per-entry gettability across an interlocked grid. The composition operator is the
+crossings — so difficulty is "the marriage of the word and its crossing support",
+and a mini solves as a **percolation/belief-propagation cascade**: get the gettable
+entries, they donate letters, neighbours' effective difficulty collapses, the grid
+unzips — unless a cluster of mutually-hard, weakly-supported entries stalls the
+cascade (the queuing blow-up: the solver is *stuck*).
+
+Decision: model difficulty as four layers, each landing on the layer of the hexagon
+where its regime already lives, and **implement only the two that are complete and
+deterministic** — filter-and-prove, the house style (D6/D7) — leaving the soft ones
+recorded but unbuilt until there is data to calibrate them.
+
+- **A. Word prior (complete, `core`, *built*).** A word's intrinsic gettability is
+  (inverse) obscurity = its score. Today `Lexicon.filtered` is a one-sided *floor*;
+  difficulty wants a two-sided **band** `[lo, hi]`, so "harder" means *drawing from
+  the obscure band*, not merely lowering the floor. `filtered(min_score, max_score)`
+  (and the `LexiconSource`/`MiniService`/`cli.mini` thread) makes an obscurity band a
+  first-class generation parameter. Because backtracking is complete, a banded run
+  still yields a **difficulty ceiling** as a theorem (a `None` = "no distinct mini
+  exists drawn from this band"), exactly parallel to the quality ceiling of
+  `ceiling.py`. This is a filter operation in the complete regime — *not* something to
+  sample.
+- **A′. Structural checkability (complete, `app`, *built*).** The mini-specific
+  pathology is the **Natick**: two obscure entries crossing at a letter neither word
+  pins, so the solver can only get it by *knowing* one word outright. That is a
+  low-support percolation stall at one cell, and it is *computable from the lexicon
+  with no solve data*: for each crossing cell, free that cell in the across word and
+  count the distinct letters the rest of the across word still admits
+  (`Lexicon.n_letters_at`), likewise for the down word; the cell is **forced** if
+  either count is 1 (one direction determines the letter) and **open** otherwise.
+  `app/difficulty.analyze` reports the open crossings of a `FilledGrid`. Two modelling
+  choices are load-bearing and documented at the call site: (i) openness is scored
+  against the solver's **full** vocabulary (the unfiltered list), not the
+  generation-filtered list — a solver knows all words, not only the ones above the
+  bar; (ii) it is the **final-state, maximal-support** reading (the rest of each word
+  is assumed known), so an open crossing is *unavoidably* hard regardless of solve
+  order — a sound, conservative signal, not a full solve-trajectory simulation. This
+  is a `core`-computable structural difficulty signal that word-score alone cannot
+  see (a grid of all-common words can still hide an open crossing; a grid of obscure
+  words can unzip cleanly). `analyze` couples to nothing in `core`: it takes an
+  `options(answer, pos) -> int` callable, so it is representation-agnostic (square or
+  blocked) and trivially fakeable.
+- **B. Clue transform (soft, `app`/adapter, *deferred — the knob exists, calibration
+  does not*).** The same answer is Monday or Saturday depending on the clue; the clue
+  *shifts* effective `b` for a fixed grid, which is why word- and clue-difficulty
+  *decouple and compensate* (hard word ↔ gentle clue). This already has a home: the
+  `Difficulty` enum behind `ClueProvider` (D15/D16), in the one regime with no
+  completeness. It stays soft and sampled (n candidates, rank); what is missing is
+  *calibration* — proving a clue is "Wednesday" needs human solve logs, which this
+  environment does not have (cf. open-questions "solvability/fun needs playtesting").
+- **C. Batch curation (scheduling, above the generator, *deferred*).** The "normal
+  distribution of difficulty" is a property of a *batch/week* (mostly medium, few
+  extreme), not of one grid — it is the open "Grid variety across a batch" problem,
+  needing a per-puzzle difficulty number to schedule against. Recorded, not built.
+
+Rationale: this is D6's move applied to a second axis. D6 turned *quality* into
+feasibility on a filtered list; difficulty's word-and-structure layers are likewise
+*complete* (filter, prove, measure) and belong in `core`/`app`, while its clue layer
+is *soft* and stays quarantined behind the existing port exactly as clue *quality*
+does. Splitting the axis this way keeps the epistemics honest: we ship the slices we
+can prove and are explicit that the rest awaits data. It also retires a tempting
+error — a single "difficulty sampler" spanning words and clues — which would cut
+across the complete/soft seam the architecture already draws (D19 removed a sampler
+for precisely the complete-regime half). Note the pleasing inversion: message-passing,
+evicted from *generation* (D3→D19) because generation is hard-bar feasibility, is the
+right lens for *solver difficulty* — the soft, probabilistic regime returns, on the
+analysis side, and D15's interface already anticipated it (it rejected "answer as a
+bare `str`" for foreclosing "difficulty-by-gettability cluing").
+
+Alternatives considered:
+- **One difficulty knob / one sampler for both words and clues:** rejected — conflates
+  a complete filter (words, structure) with a soft sample (clues). They are different
+  regimes on different layers; the seam is the point.
+- **Model the full solve trajectory (order-dependent cascade / BP marginals) now:**
+  rejected for the first cut — it needs a solver-ability model and buys little over the
+  conservative maximal-support reading, which already flags the unavoidable Natick.
+  The trajectory model is the natural next spike *if* solve logs arrive (it is where a
+  real message-passing/marginal computation would earn its keep — see D19's reversal
+  condition).
+- **Put `analyze` in `core` over `DoubleSquare`:** rejected — it would serve only the
+  square model and re-import the two-model split into a place that does not need it.
+  `FilledGrid` (the D15 anti-corruption form) is exactly the representation-agnostic
+  input, so the metric lives in `app` and reads both models for free.
+- **Weight openness into a single "Natick score" inside `analyze`:** rejected for now —
+  kept `analyze` purely structural (openness) and left the obscurity cross-reference
+  (openness × low score = the *unfair* Natick) to the `scripts/difficulty.py` driver,
+  where the per-list score scale (invariant 4) is in hand. A fused score can move into
+  the metric once its scale is settled.
+
+Reversal: none for the decomposition. The band is additive and default-off
+(`max_score=None` == today's floor). If solve logs arrive, layers B and C get built and
+A′ grows the trajectory reading; the `options` seam in `analyze` is where a marginal/BP
+computation would slot in without touching the callers.
+
 ## D17. The clue key: a configurable, off-normal env var, resolved in the composition root
 
 Context: the Claude adapter (D16) let the SDK resolve credentials from the standard

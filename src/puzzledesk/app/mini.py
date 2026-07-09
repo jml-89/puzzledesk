@@ -32,12 +32,21 @@ class MiniService:
         self._rng = rng_factory
         self._list_name = list_name
 
-    def generate(self, n: int = 5, *, min_score: float = 70.0, count: int = 3) -> MiniBatch:
-        """Up to ``count`` distinct minis of order ``n`` with every word scoring
-        >= ``min_score``. Backtracking is complete, so a seed that returns None
-        simply found no grid on its randomised path; we try more seeds up to a
-        budget and stop at ``count`` grids (or when the budget is spent)."""
-        lex = self._lexicon.load(self._list_name, n, min_score=min_score)
+    def generate(
+        self,
+        n: int = 5,
+        *,
+        min_score: float = 70.0,
+        max_score: float | None = None,
+        count: int = 3,
+    ) -> MiniBatch:
+        """Up to ``count`` distinct minis of order ``n`` with every word scoring in
+        ``[min_score, max_score]`` (``max_score=None`` == an open floor, the plain
+        quality bar; a two-sided band is the difficulty knob, D20). Backtracking is
+        complete, so a seed that returns None simply found no grid on its randomised
+        path; we try more seeds up to a budget and stop at ``count`` grids (or when the
+        budget is spent)."""
+        lex = self._lexicon.load(self._list_name, n, min_score=min_score, max_score=max_score)
         sq = DoubleSquare(lex)
         results: list[MiniResult] = []
         for seed in range(count * 20):
@@ -49,7 +58,9 @@ class MiniService:
             results.append(_to_result(sq, state, v))
             if len(results) >= count:
                 break
-        return MiniBatch(n=n, min_score=min_score, eligible=len(lex), results=results)
+        return MiniBatch(
+            n=n, min_score=min_score, max_score=max_score, eligible=len(lex), results=results
+        )
 
 
 def _to_result(sq: DoubleSquare, state: np.ndarray, v: Verdict) -> MiniResult:

@@ -13,9 +13,13 @@ from ..app.results import BlockedResult, MiniBatch, MiniResult
 
 def mini_batch(batch: MiniBatch, writer: Writer) -> None:
     """Render a batch of minis exactly as ``scripts/mini.py`` did."""
+    bar = (
+        f">= {batch.min_score:.0f}"
+        if batch.max_score is None
+        else f"in [{batch.min_score:.0f}, {batch.max_score:.0f}]"
+    )
     writer.line(
-        f"{batch.n}x{batch.n} minis, every word score >= {batch.min_score:.0f} "
-        f"(from {batch.eligible} eligible words)"
+        f"{batch.n}x{batch.n} minis, every word score {bar} (from {batch.eligible} eligible words)"
     )
     writer.line()
     if not batch.results:
