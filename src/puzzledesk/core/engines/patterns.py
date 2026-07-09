@@ -184,6 +184,175 @@ def gen_patterns(
     yield from rec(0)
 
 
+def _cell_ok(
+    block: list[list[bool]],
+    colrun: list[int],
+    r: int,
+    c: int,
+    cols: int,
+    is_black: bool,
+    min_len: int,
+    max_len: int | None,
+) -> bool:
+    """Row/column run-length prune for placing ``is_black`` at ``(r, c)`` during a
+    row-major scan. Sound (never rejects a value a legal layout could use):
+
+      * a black that *closes* a white run of length 1..min_len-1 (across or down)
+        can never become legal -- that run is already too short;
+      * a white that pushes its across/down run past ``max_len`` can never become
+        legal -- the run is already too long.
+
+    ``colrun[c]`` is the open (not-yet-closed) white run in column ``c`` as the scan
+    descends. Row runs are read left-to-right from ``block``. The final open column
+    runs (>= min_len) and connectivity are checked at the leaf, not here.
+    """
+    if is_black:
+        run = 0  # white cells immediately left of (r, c) in this row
+        cc = c - 1
+        while cc >= 0 and not block[r][cc]:
+            run += 1
+            cc -= 1
+        if 0 < run < min_len:
+            return False
+        return not 0 < colrun[c] < min_len
+    run = 1  # this white plus the white run to its left
+    cc = c - 1
+    while cc >= 0 and not block[r][cc]:
+        run += 1
+        cc -= 1
+    if max_len is not None and run > max_len:
+        return False
+    if max_len is not None and colrun[c] + 1 > max_len:
+        return False
+    # last column: this white run is final (no block can close it), so it must
+    # already reach min_len.
+    return not (c == cols - 1 and run < min_len)
+
+
+def gen_capped(
+    rows: int,
+    cols: int,
+    *,
+    rng: Rng,
+    min_len: int = 3,
+    max_len: int | None = None,
+    symmetric: bool = True,
+    num_black: int | None = None,
+    randomize: bool = True,
+) -> Iterator[BlockedGrid]:
+    """Yield every legal :class:`BlockedGrid` whose every entry has length in
+    ``[min_len, max_len]`` (``max_len`` ``None`` == no upper bound).
+
+    This is the cap-driven sibling of :func:`gen_patterns`: the governing parameter
+    is the *maximum* run length, and the black-cell count falls out of it (pass
+    ``num_black`` to also pin the count). Legality is otherwise identical to
+    ``gen_patterns`` -- 180°-symmetric (unless ``symmetric=False``), fully checked,
+    white cells 4-connected -- and with ``max_len=None`` and a fixed ``num_black`` it
+    enumerates the *same set* ``gen_patterns`` does.
+
+    Why a separate search: ``gen_patterns`` chooses black *orbits* and validates whole
+    layouts at the leaf, so a run-length bound cannot prune until a layout is complete
+    -- fine at 5x5, hopeless at 10x10 where a cap forces many blacks. This search runs
+    **row-major** and prunes each partial row/column the moment a run is too short or
+    too long (:func:`_cell_ok`), which is what makes a capped 10x10 tractable. It is
+    still complete: iterating to exhaustion yields every legal layout, so an empty
+    generator is a proof none exists. ``rng`` shuffles each cell's black/white order
+    for per-seed diversity without changing the reachable set; ``randomize=False``
+    fixes it (for the ground-truth check).
+    """
+    total = rows * cols
+    if num_black is not None and (num_black < 0 or num_black >= total):
+        return
+    cells = [(r, c) for r in range(rows) for c in range(cols)]
+    index = {rc: i for i, rc in enumerate(cells)}
+    partner = {rc: _partner(rc[0], rc[1], rows, cols) for rc in cells}
+    block = [[False] * cols for _ in range(rows)]
+    colrun = [0] * cols
+
+    def rec(idx: int, nblack: int) -> Iterator[BlockedGrid]:
+        if idx == total:
+            if num_black is not None and nblack != num_black:
+                return
+            if nblack == total:  # an all-black grid has no entries; not a puzzle
+                return
+            if any(0 < colrun[c] < min_len for c in range(cols)):
+                return  # a final (bottom-edge) column run is too short
+            if _connected(block, rows, cols, total - nblack):
+                yield _to_grid(block, rows, cols, min_len)
+            return
+        # Lower-bound prune: even blackening every remaining cell can't reach the target.
+        if num_black is not None and nblack + (total - idx) < num_black:
+            return
+        r, c = cells[idx]
+        p = partner[(r, c)]
+        if symmetric and index[p] < idx:
+            choices = [block[p[0]][p[1]]]  # partner already fixed this cell
+        else:
+            choices = [False, True]
+            if randomize:
+                rng.shuffle(choices)
+        for is_black in choices:
+            if num_black is not None and is_black and nblack + 1 > num_black:
+                continue
+            if not _cell_ok(block, colrun, r, c, cols, is_black, min_len, max_len):
+                continue
+            saved = colrun[c]
+            block[r][c] = is_black
+            colrun[c] = 0 if is_black else colrun[c] + 1
+            yield from rec(idx + 1, nblack + (1 if is_black else 0))
+            block[r][c] = False
+            colrun[c] = saved
+
+    yield from rec(0, 0)
+
+
+def fill_capped(
+    rows: int,
+    cols: int,
+    mlex: MultiLexicon,
+    *,
+    rng_factory: RngFactory,
+    max_len: int,
+    seed: int = 0,
+    min_len: int = 3,
+    symmetric: bool = True,
+    distinct: bool = True,
+    num_black: int | None = None,
+    node_budget: int | None = None,
+    max_patterns: int | None = None,
+) -> tuple[BlockedGrid, dict[int, str]] | None:
+    """Search legal length-capped layouts for one that fills -- the cap-driven
+    analogue of :func:`fill_by_count`.
+
+    Returns ``(grid, assign)`` for the first :func:`gen_capped` layout (entries in
+    ``[min_len, max_len]``) that admits a distinct fill from ``mlex``, or ``None``.
+    Because a cap of ``max_len <= 5`` keeps every entry within the lengths the word
+    data already covers (2..5), a 10x10 fills from the existing lists with no new
+    data. Both searches are complete, so an *exhausted* ``None`` is a real UNSAT proof;
+    but the capped layout space at 10x10 is astronomically large, so a ``None`` under a
+    ``max_patterns``/``node_budget`` bound is exhaustion of the budget, not a theorem
+    (say so when presenting it).
+    """
+    layouts = gen_capped(
+        rows,
+        cols,
+        rng=rng_factory.create(seed),
+        min_len=min_len,
+        max_len=max_len,
+        symmetric=symmetric,
+        num_black=num_black,
+    )
+    for tried, g in enumerate(layouts):
+        if max_patterns is not None and tried >= max_patterns:
+            return None
+        assign = fill.solve(
+            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=node_budget
+        )
+        if assign is not None:
+            return g, assign
+    return None
+
+
 def fill_by_count(
     rows: int,
     cols: int,

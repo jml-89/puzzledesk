@@ -70,6 +70,72 @@ class BlockedGenerateService:
         mlex, (grid, assign) = found
         return result_of(grid, mlex, assign)
 
+    def fill_capped_once(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        max_len: int,
+        min_score: float,
+        seed: int = 0,
+        symmetric: bool = True,
+        min_len: int = 3,
+        num_black: int | None = None,
+        max_patterns: int | None = None,
+    ) -> BlockedResult | None:
+        """A *length-capped* mini: every entry has length in ``[min_len, max_len]``,
+        so a grid larger than the word data can fill (e.g. 10x10 from the 2..5 lists).
+
+        Searches :func:`patterns.gen_capped` layouts (cap-driven, count derived --
+        pass ``num_black`` to also pin the count) and fills the first that solves above
+        the bar. Because the cap keeps entries within the loaded lengths
+        (``range(min_len, max_len + 1)``), no word list beyond 5 is needed. A ``None``
+        under ``max_patterns`` is budget exhaustion, not a UNSAT theorem (the capped
+        layout space is astronomically large at 10x10)."""
+        mlex = self._lexicon.load_multi(
+            self._list_name, range(min_len, max_len + 1), min_score=min_score
+        )
+        found = patterns.fill_capped(
+            rows,
+            cols,
+            mlex,
+            rng_factory=self._rng,
+            max_len=max_len,
+            seed=seed,
+            min_len=min_len,
+            symmetric=symmetric,
+            distinct=True,
+            num_black=num_black,
+            max_patterns=max_patterns,
+        )
+        if found is None:
+            return None
+        grid, assign = found
+        return result_of(grid, mlex, assign)
+
+    def capped_layout_exists(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        max_len: int,
+        symmetric: bool = True,
+        min_len: int = 3,
+        num_black: int | None = None,
+    ) -> bool:
+        """Does any legal length-capped layout exist at all -- a property of the shape
+        and the cap, independent of the words?"""
+        layouts = patterns.gen_capped(
+            rows,
+            cols,
+            rng=self._rng.create(0),
+            min_len=min_len,
+            max_len=max_len,
+            symmetric=symmetric,
+            num_black=num_black,
+        )
+        return next(layouts, None) is not None
+
     def fill_grid_once(
         self,
         rows: int,

@@ -76,6 +76,44 @@ ground truth, solver output a strict subset over 60 seeds. Data covers lengths
 2..5, so demos use slots <= 5; the curated list has no 2-letter entry above any
 real bar (length-2 slots are UNSAT on it).
 
+## Large capped minis — 10x10+ (D24, scripts/largemini.py)
+
+The reframing that makes a big mini work: **cap the maximum entry length, don't grow
+the word lists.** A 10x10 with few blacks has length-10 runs (needs 6..10 lists we don't
+have, and would be a monster of obscure long words); cap every entry at `<= max_len` and
+it fills from the length-2..5 data we already ship.
+
+The count-driven `gen_patterns` (D13) cannot cap: it validates whole layouts at the leaf
+with a min-length-only test, and its orbit-subset order can't prune a run-length bound.
+Measured (this container):
+- `gen_patterns(10x10, 20 black)`: first layout in **~2.7 s**, longest entry **10 letters**;
+  a post-hoc max cap finds nothing (sparse-black layouts are all giant-run).
+- `gen_capped(10x10, max_len=5)`: first layout in **~8 ms**, longest entry **5 letters**.
+
+Cap-driven search + fill from cw 2..max_len (40 layout seeds, 10 fill seeds/bar):
+- **10x10, max_len=5:** 40/40 layouts found, median layout search **5.6 ms** (max ~140 ms);
+  fill **10/10** at bars 50/60/70/75, **38 entries**, median **~180 ms** (up to ~205 ms at 75).
+- **12x12, max_len=5:** 40/40 layouts, median **34 ms** (max ~800 ms); fill **10/10** at every
+  bar, **44 entries**, median **~250 ms** (up to ~305 ms at 75).
+
+So a capped big mini is *easily* fillable — the cap keeps every slot in the well-stocked
+3–5 buckets, so the lexicon is not the ceiling here (unlike the 5x5 top-tier squeeze). An
+example 10x10 at bar>=70: `SUN/IDEA/TALC/PROOF/LIMB/IHOP/POET/OVAL/…`.
+
+Two honest edges (both in D24's follow-ups):
+- **Density.** The free-count search over-blackens under uniform randomization: black cells
+  ran **22–52%** of the 10x10 (34–70% at 12x12). A `num_black` target of ~18 (via
+  `generate 10 10 18 …`) gives clean ~18%, real-crossword-like grids; a black-density
+  objective is the natural next knob.
+- **Scaling.** Connectivity is checked only at the leaf, so the search backtracks heavily at
+  13x13+ (white-first ~465 ms at 13x13; a 15x15 does not finish). 10x10–12x12 are comfortable;
+  incremental connectivity/symmetry pruning is the "pruning before 15x15" follow-up.
+
+Completeness is preserved for *existence*: an odd `num_black` on a symmetric 10x10 (no centre
+cell) yields an empty generator — a proof, the direct echo of D13's odd-count 5x5 proof. But a
+*fill* miss under a pattern/node budget is exhaustion, not a theorem (the capped layout space is
+astronomically large), and is worded that way.
+
 ## Structural difficulty — open crossings (D21, scripts/difficulty.py)
 
 `app.difficulty.analyze` scores each crossing against the *full* solving vocabulary

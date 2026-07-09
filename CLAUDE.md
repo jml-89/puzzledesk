@@ -109,7 +109,9 @@ uv run pytest           # tests: invariants + ground truth + DI (see below)
 uv run scripts/mini.py 5 70 3          # a tool: three distinct 5x5 minis, every word >= 70
 uv run mini 5 70 3                     # ...same, via the console entry point
 uv run --extra clue puzzle --reveal    # a tool: a whole clued puzzle as plain text (D20; needs a key)
+uv run generate 10 10 0 60 3 --max-len 5   # a tool: 10x10 minis, entries capped at 5 (D24)
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
+uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
 ```
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the

@@ -898,3 +898,88 @@ Alternatives considered:
 Reversal: additive and default-off. When solve logs arrive, the `Difficulty` preset enum
 becomes buildable (calibrate `gimme`/`min_hard_gets` per weekday), and best-of-budget
 could join as an explicit mode; neither changes the seam.
+
+## D24. Large minis: cap the entry length, don't grow the word lists — a cap-driven layout search
+
+Context: every grid so far is <= 5x5, and the word data is lengths 2..5. The next
+product step is a bigger mini — a 10x10. The naive reading ("a 10x10 needs 6..15-length
+word lists") is both a data problem we don't have and, more importantly, *not what a good
+big mini is*. A 10x10 packed with ten-letter words would be a themeless monster of obscure
+long entries — exactly the hard-to-fill, hard-to-solve fills the whole system avoids. The
+real desideratum, stated by the user, is the opposite: **tactically placed black cells so
+the maximum entry length is controlled** — a big grid built out of short, familiar words.
+That reframing is also the data-feasibility win: cap every entry at `max_len <= 5` and the
+grid fills from the lists we *already have*, no length-6+ data needed.
+
+The count-driven layout generator (D13, `gen_patterns`) cannot express this. It chooses
+black *orbits* and validates a whole layout at the leaf with a `min_len`-only fully-checked
+test; there is no maximum-length notion, and — because it enumerates orbit subsets in an
+arbitrary order — a run-length bound cannot prune until a layout is already complete.
+Measured: `gen_patterns(10x10, 20 black)` takes ~2.7 s to yield its first layout, and that
+layout has a **10-letter run**; a post-hoc `max_len` filter finds nothing in any reasonable
+budget (the sparse-black layouts it reaches first are all giant-run).
+
+Decision: add a **cap-driven sibling**, `patterns.gen_capped` (+ the `fill_capped`
+composite), rather than warp `gen_patterns`. The governing parameter is the *maximum* run
+length; the black-cell count is *derived* from it (pass `num_black` to also pin the count).
+Legality is otherwise identical to D13 — 180°-symmetric (toggleable), fully checked, white
+cells 4-connected — plus the new upper bound: every entry length in `[min_len, max_len]`.
+
+- **Row-major search with incremental run pruning.** The search runs cell-by-cell in
+  reading order and prunes each partial row/column the moment a run is too long or too
+  short (`_cell_ok`): a white that would push its across/down run past `max_len`, or a
+  black that would close a run of length `1..min_len-1`, can never become legal, so the
+  branch dies immediately. This is what the orbit/leaf model structurally cannot do, and it
+  is why a capped 10x10 is found in ~8 ms instead of never. Symmetry is handled by forcing
+  each cell from its already-decided 180° partner; connectivity and the final bottom-edge
+  column runs are checked at the leaf.
+- **A strict generalization, cross-tested for completeness.** With `max_len=None` and a
+  fixed `num_black`, `gen_capped` enumerates the *exact same set* `gen_patterns` does
+  (asserted in `tests/test_patterns.py`), and where the cap bites it equals brute force
+  over all black-cell subsets. So the completeness discipline is intact: an empty generator
+  is a proof no legal capped layout exists (e.g. an odd `num_black` on a symmetric 10x10 has
+  no centre cell to carry it — a theorem, the direct echo of D13's odd-count proof).
+- **Invariant 0 preserved; fill unchanged.** `gen_capped` yields plain `BlockedGrid`s that
+  `fill.solve` fills with no change (MRV backtracking, grid-wide distinctness). Only the
+  layout *search* is new. Threaded up as `BlockedGenerateService.fill_capped_once` and a
+  `generate --max-len K` flag; the service loads the multi-lexicon over `range(min_len,
+  max_len+1)` only, so nothing beyond length 5 is ever asked for.
+
+Findings (this container, `scripts/largemini.py`; numbers in notes.md): a `max_len=5` 10x10
+fills **10/10 seeds** from the cw 2..5 lists at bars 50–75 (~180 ms, 38 entries); a 12x12
+likewise (44 entries, ~250 ms). The cap is precisely what makes a big mini *data-feasible*.
+The completeness epistemics survive for *existence* (the odd-count proof above), but a fill
+miss under a pattern/`node_budget` bound is **budget exhaustion, not a UNSAT theorem** — the
+capped layout space at 10x10 is astronomically large (unlike the 5x5 orbit space D13 can
+exhaust), so `fill_capped`'s `None` under a bound is worded as exhaustion, the same honesty
+D23 draws for difficulty selection.
+
+Alternatives considered:
+- **Warp `gen_patterns` to be run-aware (one generator):** rejected for the spike. Its
+  orbit-subset/leaf-validated model cannot prune a run bound, so making it cap-capable means
+  replacing its search order wholesale — and it carries a passing brute-force ground-truth
+  contract (D13) worth not disturbing. This is the exact D12->D13 precedent: a genuinely new
+  regime gets a new, coexisting search rather than a warp of the proven one. Unifying the two
+  once the row-major search is shown to subsume the count-first path is recorded as a
+  follow-up (open-questions), not done here.
+- **Generate 6..15-length word lists and *not* cap:** rejected. It is the data problem we
+  don't have *and* the wrong product — long entries are the obscure, hard-to-fill ones; the
+  user explicitly does not want a grid full of ten-letter words. Capping is both the ask and
+  the feasibility win, so it is strictly better than sourcing longer lists here.
+- **A stochastic layout sampler for the larger space:** rejected for the same reason as
+  D7/D13 — small/hard/constrained search wants completeness, and the row-major pruning makes
+  the complete search fast enough at 10x10.
+- **Keep the fixed black *count* as the primary knob (D13's interface):** rejected as the
+  primary. At 10x10 the count needed to hold `max_len` is a *consequence* of the cap, not a
+  natural input; making the cap primary and the count an optional target matches how the
+  object is actually specified ("no entry longer than five").
+
+Reversal / follow-ups (open-questions): (i) **unify** `gen_capped` and `gen_patterns` if the
+row-major run-aware search is shown to fully subsume the count-first path; (ii) **density
+control** — the free-count search over-blackens under uniform randomization (22–52% at 10x10;
+a `num_black` target of ~18 gives clean ~18% grids), so a black-density objective is the next
+knob; (iii) **scaling past ~12x12** — connectivity is checked only at the leaf, so the search
+backtracks heavily at 13x13+ (a 15x15 does not finish), which is the pre-existing "pruning
+before 15x15" open-question made concrete (incremental connectivity/symmetry pruning is the
+fix). None of these change the model; `gen_capped` and `fill_capped` are additive and the
+layers contract is untouched.

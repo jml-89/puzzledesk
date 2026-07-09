@@ -300,6 +300,31 @@ square/blocked split (invariant 0) is intact. `scripts/generate.py` is the demo:
 a small-grid property check (enumerate all layouts, assert the invariants) then
 minis generated from a black-cell count.
 
+### Cap-driven layouts for large minis (D24)
+
+`gen_patterns` above is *count-driven*: you fix the number of blacks and it caps only
+the *minimum* entry length. A mini bigger than 5x5 wants the opposite knob — a cap on the
+*maximum* entry length, so tactically placed black cells hold every entry short (a 10x10
+built from 3–5-letter words, not ten-letter monsters). That cap is also what makes a big
+grid fillable from the length-2..5 data we already have — no length-6+ lists needed.
+
+- `gen_capped(rows, cols, *, rng, min_len=3, max_len=None, symmetric=True, num_black=None,
+  randomize=True)` yields every legal layout whose entries all have length in `[min_len,
+  max_len]`. The *cap* is the governing parameter; the black count is derived (`num_black`
+  optionally pins it). It searches **row-major** and prunes each partial row/column the
+  instant a run is too long or too short (`_cell_ok`) — the run-aware pruning `gen_patterns`'
+  orbit/leaf model structurally cannot do, and why a 10x10 is found in ~8 ms rather than
+  never. Same legality otherwise (symmetric, fully checked, connected) and same completeness:
+  an empty generator is a proof (an odd `num_black` on a symmetric 10x10 has no centre cell).
+  With `max_len=None` + a fixed count it enumerates the *identical set* `gen_patterns` does
+  (cross-tested) — a strict generalization.
+- `fill_capped(rows, cols, mlex, *, max_len, ...)` is the cap-driven analogue of
+  `fill_by_count`: first `gen_capped` layout that admits a distinct fill. Both searches are
+  complete, but the capped layout space at 10x10 is astronomically large, so a `None` under
+  a `max_patterns`/`node_budget` bound is *budget exhaustion, not a UNSAT theorem* (existence
+  — e.g. the odd-count proof — is still exact). `scripts/largemini.py` is the measurement
+  driver; `BlockedGenerateService.fill_capped_once` and `generate --max-len K` expose it.
+
 ## Invariants — do not break
 
 0. TWO GRID MODELS COEXIST. The square (square.py: induced columns, invariants
@@ -364,6 +389,9 @@ Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle}.py` are shi
 - generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
   rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
+  With `--max-len K` it switches to the cap-driven path (D24): entries capped at K by
+  black cells, so a grid bigger than the word data fills — e.g. `generate 10 10 0 60 3
+  --max-len 5` (num_black `0` = let the cap choose the count).
 - puzzle.py: a whole *clued* puzzle as plain text to solve (grid + Across/Down clues).
   All **named flags**, not positional (D20): `puzzle --rows 5 --cols 5 --black 4
   --min-score 75 --difficulty wednesday [--no-symmetric] [--reveal]`. Clue generation
@@ -378,6 +406,9 @@ and uses the injected `lexicon`/`rng_factory` adapters):
   encoded in `tests/test_ground_truth.py`.)
 - blackcells.py: blocked-grid fill — tiny-grid ground truth, filled grids from the
   curated list, and a quality ceiling (shortest slot's list runs dry first).
+- largemini.py: the large capped-mini spike (D24) — why the count-driven search cannot
+  cap entry length, the cap-driven search's black-count/timing, and fill rate from the
+  cw 2..5 lists at 10x10 and 12x12.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
