@@ -51,6 +51,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="quality bar for the fill (default: 75)",
     )
     p.add_argument(
+        "--max-score",
+        type=float,
+        default=None,
+        metavar="SCORE",
+        help="upper bar: makes the fill an obscurity band [min, max] -- harder words so the "
+        "clues alone are insufficient and the grid carries the solve (default: none)",
+    )
+    p.add_argument(
         "--difficulty",
         choices=_DIFFICULTIES,
         default="wednesday",
@@ -115,6 +123,7 @@ def _run(c: Container, args: argparse.Namespace) -> None:
         cols=args.cols,
         num_black=args.black,
         min_score=args.min_score,
+        max_score=args.max_score,
         difficulty=Difficulty[args.difficulty.upper()],
         seed=args.seed,
         symmetric=args.symmetric,

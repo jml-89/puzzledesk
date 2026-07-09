@@ -33,6 +33,7 @@ def _parse_args(argv):
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     p.add_argument("--black", type=int, default=4)
     p.add_argument("--min-score", type=float, default=75.0)
+    p.add_argument("--max-score", type=float, default=None, help="obscurity-band upper bar")
     p.add_argument("--policy", default="none", choices=[p.value for p in FeedbackPolicy])
     p.add_argument("--model", default=None, help="solver model id (default: config's opus)")
     p.add_argument("--thinking", default=None, choices=["adaptive", "enabled", "off"])
@@ -64,6 +65,7 @@ def main(argv=None):
                 cols=5,
                 num_black=args.black,
                 min_score=args.min_score,
+                max_score=args.max_score,
                 difficulty=diff,
                 seed=seed,
             )

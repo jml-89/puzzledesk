@@ -37,20 +37,25 @@ class PuzzleService:
         cols: int = 5,
         num_black: int = 4,
         min_score: float = 75.0,
+        max_score: float | None = None,
         difficulty: Difficulty = Difficulty.WEDNESDAY,
         instructions: str = "",
         seed: int = 0,
         symmetric: bool = True,
         min_len: int = 3,
     ) -> CluedPuzzle | None:
-        """Fill a ``rows``x``cols`` grid with ``num_black`` black cells above
-        ``min_score``, then clue every entry at ``difficulty``. ``None`` when no fill
-        clears the bar (complete search -- a genuine UNSAT, not a timeout)."""
+        """Fill a ``rows``x``cols`` grid with ``num_black`` black cells drawing from the
+        score band ``[min_score, max_score]``, then clue every entry at ``difficulty``.
+        ``max_score`` (default None == a plain floor) turns the bar into an *obscurity
+        band* -- a harder fill whose clues alone are insufficient, so the grid must carry
+        the solve (D21/D24). ``None`` when no fill clears the band (complete search -- a
+        genuine UNSAT, not a timeout)."""
         grid = self._blocked.fill_grid_once(
             rows,
             cols,
             num_black,
             min_score=min_score,
+            max_score=max_score,
             seed=seed,
             symmetric=symmetric,
             min_len=min_len,

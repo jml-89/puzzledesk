@@ -43,6 +43,15 @@ def test_generate_propagates_none_when_nothing_fills() -> None:
     assert puzzle is None
 
 
+def test_generate_accepts_a_score_band() -> None:
+    # the obscurity band [min, max] threads through generate -> fill_grid_once -> _multi
+    # without disturbing the happy path (D24).
+    puzzle = _service(_FILLABLE).generate(
+        rows=2, cols=2, num_black=0, min_score=0.0, max_score=100.0, min_len=2
+    )
+    assert puzzle is not None
+
+
 def test_generate_threads_difficulty_to_the_provider() -> None:
     # the FakeClueProvider stamps the difficulty name into each clue, so a Saturday
     # ask must surface as SATURDAY in the chosen clues.

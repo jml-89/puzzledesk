@@ -241,6 +241,39 @@ Wednesday clues), Opus vs Haiku, both solved in one turn:
 (The Haiku *table* sweep over 6 puzzles timed out at 590 s — Haiku is slow/verbose; the
 head-to-head above is the cleaner read anyway.)
 
+**The lever, found: clue *ambiguity*, not word obscurity.** Threaded a two-sided score band
+`[min, max]` through the puzzle/blocked fill (`PuzzleService.generate(max_score=…)`,
+`--max-score`) to draw *obscure* fills, and re-ran the head-to-head. Three conditions, Opus,
+`--policy none`, thinking tokens:
+
+    condition                                              opus    haiku
+    common words (cw>=75), precise wednesday clues         1512     5737
+    obscure band [60,75], precise wednesday clues          1368     2915
+    obscure band [60,75], OBLIQUE saturday clues           2548      -
+
+- **Obscure words did *not* raise reasoning** (1368 < 1512) — because the clue writer (also
+  Claude) gives *precise definitions even for obscure words*: "Jordan's capital"→AMMAN,
+  "Alaskan city on the Bering Sea"→NOME, "Turkish word for forest"→ORMAN. A precise clue makes
+  any *known* word a one-shot lookup, however obscure; the crossings still never bind. Word
+  obscurity alone is not the difficulty lever.
+- **Oblique clues nearly doubled it** (1368→2548) *on the same grid*, and — the real tell —
+  **changed the solve method**. With precise clues Opus lists answers; with oblique clues
+  ("Certain flair for the dramatic", "Far northern spot on the map", "Turkish forest,
+  translated") it does genuine **constraint propagation**: anchor a few down-words, then derive
+  the acrosses from the accumulated crossing letters + the vague clue ("1A starts E … = ELAN →
+  gives 2D=L, 3D=A, 4D=N"; "6A starts O, O-R-?-A-? = ORMAN"). *This* is the grid carrying the
+  solve — the regime our `analyze`/`solve_order` structural model describes.
+
+Conclusion for the probe: the axis that makes reasoning-effort track structural difficulty is
+**clue under-determination** (the clue alone must not fix the answer), *not* word obscurity or
+the Mon..Sat *label*. It is controllable today via `ClueStyle.instructions`/`difficulty` (the
+oblique run used a free-text instruction). The genuine Saturday / Natick regime is the
+*conjunction* — obscure words **and** oblique clues, so the answer is reachable only through the
+crossings. Follow-ups: (i) make `difficulty` actually drive clue obliqueness in the clue prompt
+(today Saturday still wrote fairly precise clues until instructed); (ii) correlate the oblique-
+clue thinking-token spend against `solve_order`'s predicted hard-gets to close the
+analytical↔empirical loop.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed
