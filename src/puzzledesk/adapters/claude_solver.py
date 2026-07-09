@@ -166,7 +166,7 @@ class ClaudeSolverAgent:
         self,
         *,
         model: str = _DEFAULT_MODEL,
-        max_tokens: int = 32000,
+        max_tokens: int = 20000,
         thinking_mode: str = "adaptive",
         effort: str = "high",
         thinking_budget: int = 4096,
@@ -208,6 +208,12 @@ class ClaudeSolverAgent:
 
     def act(self, view: SolveView) -> SolverMove:
         prompt = _build_prompt(view)
+        # Non-streaming, capped just under the SDK's ~21.3k non-streaming ceiling
+        # (3600*max_tokens/128000 must stay < 600s). We stay non-streaming on purpose:
+        # only the non-streaming Message surfaces usage.output_tokens_details.thinking_tokens
+        # -- the pure difficulty metric (streaming drops it, leaving only output_tokens).
+        # 20k is 2.5x the budget that starved the answer (D24), so truncation is now rare
+        # and, when it happens, annotated below as its own signal.
         response = self._ensure_client().messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
