@@ -13,6 +13,9 @@
     --accent-ink: #7a1f2b;
     --accent-soft: rgba(143, 39, 52, 0.12);
     --good: #2f6b4f;
+    --sel-word: #e6f0fa;
+    --sel-cell: #cfe4f7;
+    --sel-line: #4a90d9;
     --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
     --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
     --sans: system-ui, -apple-system, "Segoe UI", Helvetica, sans-serif;
@@ -31,6 +34,9 @@
       --accent-ink: #e78a90;
       --accent-soft: rgba(221, 107, 116, 0.16);
       --good: #74c299;
+      --sel-word: #26333f;
+      --sel-cell: #33526b;
+      --sel-line: #6ba7dd;
     }
   }
   :root[data-theme="light"] {
@@ -38,12 +44,14 @@
     --muted: #6c665b; --faint: #928b7d; --line: #cec9bd; --line-strong: #2a2620;
     --accent: #8f2734; --accent-ink: #7a1f2b; --accent-soft: rgba(143,39,52,0.12);
     --good: #2f6b4f;
+    --sel-word: #e6f0fa; --sel-cell: #cfe4f7; --sel-line: #4a90d9;
   }
   :root[data-theme="dark"] {
     --bg: #131210; --surface: #1d1b16; --cell: #232019; --ink: #ece6d9;
     --muted: #9a9384; --faint: #726c5f; --line: #35312a; --line-strong: #b8b0a0;
     --accent: #dd6b74; --accent-ink: #e78a90; --accent-soft: rgba(221,107,116,0.16);
     --good: #74c299;
+    --sel-word: #26333f; --sel-cell: #33526b; --sel-line: #6ba7dd;
   }
 
   * { box-sizing: border-box; }
@@ -110,9 +118,8 @@
     text-transform: uppercase; caret-color: transparent; padding: 0;
   }
   .cell input:focus { outline: none; }
-  .cell.active { background: var(--accent-soft); }
-  .cell.inline { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); }
-  .cell.active { box-shadow: inset 0 0 0 2px var(--accent); }
+  .cell.inline { background: var(--sel-word); }
+  .cell.active { background: var(--sel-cell); box-shadow: inset 0 0 0 2px var(--sel-line); }
   .cell input.revealed { color: var(--accent); }
   .cell input.wrong { color: var(--accent); text-decoration: line-through; text-decoration-color: var(--accent); }
 
