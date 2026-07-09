@@ -20,6 +20,7 @@ import os
 from dataclasses import dataclass
 
 from ..adapters.claude_clue import ClaudeClueProvider
+from ..adapters.claude_solver import ClaudeSolverAgent
 from ..adapters.file_lexicon import FileLexicon
 from ..adapters.numpy_rng import NumpyRngFactory
 from ..adapters.writer import StreamWriter
@@ -29,6 +30,8 @@ from ..app.cluing import ClueService
 from ..app.mini import MiniService
 from ..app.ports import LexiconSource, Writer
 from ..app.puzzle_service import PuzzleService
+from ..app.solve_service import SolveService
+from ..app.solver import SolverAgent
 from ..core.rng import RngFactory
 from .config import Config
 from .container import Container
@@ -42,6 +45,7 @@ class _Adapters:
     lexicon: LexiconSource
     writer: Writer
     clue_provider: ClueProvider
+    solver_agent: SolverAgent
 
 
 def _stage_config(config: Config | None) -> Config:
@@ -71,6 +75,11 @@ def _stage_adapters(config: Config) -> _Adapters:
         clue_provider=ClaudeClueProvider(
             model=config.clue_model, api_key=_resolve_api_key(config.clue_api_key_env)
         ),
+        # The second LLM adapter (D24): same key/env wiring as the clue provider, and
+        # likewise imported lazily -- the container builds without the SDK or a key.
+        solver_agent=ClaudeSolverAgent(
+            model=config.solve_model, api_key=_resolve_api_key(config.clue_api_key_env)
+        ),
     )
 
 
@@ -79,6 +88,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
     blocked = BlockedGenerateService(adapters.lexicon, adapters.rng_factory)
     clue = ClueService(adapters.clue_provider)
     puzzle = PuzzleService(blocked, clue)
+    solve = SolveService(adapters.solver_agent, max_turns=config.solve_max_turns)
     return Container(
         config=config,
         rng_factory=adapters.rng_factory,
@@ -88,6 +98,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
         blocked=blocked,
         clue=clue,
         puzzle=puzzle,
+        solve=solve,
     )
 
 

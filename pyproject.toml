@@ -25,6 +25,7 @@ clue = ["anthropic>=0.40"]
 mini = "puzzledesk.cli.mini:main"
 generate = "puzzledesk.cli.generate:main"
 puzzle = "puzzledesk.cli.puzzle:main"
+solve = "puzzledesk.cli.solve:main"
 
 [dependency-groups]
 dev = [

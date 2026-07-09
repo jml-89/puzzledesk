@@ -11,6 +11,8 @@ from ..app.cluing import CluedPuzzle
 from ..app.ports import Writer
 from ..app.puzzle import FilledGrid
 from ..app.results import BlockedResult, MiniBatch, MiniResult
+from ..app.solve import SolveView
+from ..app.solve_service import SolveReport, SolveTurn
 
 
 def mini_batch(batch: MiniBatch, writer: Writer) -> None:
@@ -120,6 +122,81 @@ def _grid_lines(grid: FilledGrid, numbering: dict[tuple[int, int], int]) -> list
         lines.append("|" + "|".join(cells) + "|")
         lines.append(border)
     return lines
+
+
+# --- Solve transcript: the agent's attempt, for inspecting its thinking -----------
+#
+# The difficulty artifact of the solving spike (D24). Renders whether the agent
+# completed the grid, how many turns it took, and -- the point -- the per-turn
+# reasoning it worked through. A budget miss is reported honestly as "not solved in N
+# turns", never as a proof of unsolvability.
+
+
+def board(view: SolveView, writer: Writer) -> None:
+    """Render the current solve board: the grid with the solver's letters filled in
+    (blank white cells as ``.``), black cells as ``#``."""
+    grid = view.letter_grid()
+    for row in grid:
+        writer.line(" ".join("#" if ch is None else (ch.upper() if ch else ".") for ch in row))
+
+
+def solve_report(report: SolveReport, writer: Writer) -> None:
+    """Render a whole solve attempt: the outcome, then each turn's reasoning, moves,
+    and feedback, then the final board."""
+    if report.solved:
+        outcome = f"SOLVED in {report.n_turns} turn(s)"
+    elif report.gave_up:
+        outcome = f"gave up after {report.n_turns} turn(s)"
+    else:
+        # Honest epistemics: a budget miss is not a proof (cf. D23). Never "impossible".
+        outcome = (
+            f"not solved in the {report.max_turns}-turn budget "
+            "(budget exhausted -- not a proof the puzzle is unsolvable)"
+        )
+    writer.line(f"Solver result: {outcome}, policy={report.policy.value}")
+    writer.line(f"Wrong guesses along the way: {report.wrong_guesses}")
+    writer.line()
+    for turn in report.turns:
+        _solve_turn(turn, writer)
+    writer.line("Final board:")
+    board(report.final.view(report.policy), writer)
+
+
+def _solve_turn(turn: SolveTurn, writer: Writer) -> None:
+    writer.line(f"--- Turn {turn.index + 1} ---")
+    if turn.reasoning.strip():
+        writer.line("Reasoning:")
+        for line in turn.reasoning.splitlines():
+            writer.line(f"  {line}")
+    moves = ", ".join(
+        f"{p.number}{p.direction}={p.word.upper() or '(erase)'}" for p in turn.applied
+    )
+    writer.line(f"Played: {moves or '(nothing)'}")
+    if turn.rejected:
+        bad = ", ".join(f"{p.number}{p.direction}={p.word.upper()}" for p in turn.rejected)
+        writer.line(f"Rejected (bad ref/length): {bad}")
+    if turn.gave_up:
+        writer.line("Agent gave up.")
+    writer.line(f"Feedback: {_feedback_line(turn)}")
+    writer.line()
+
+
+def _feedback_line(turn: SolveTurn) -> str:
+    fb = turn.feedback
+    if fb.solved:
+        return "solved!"
+    bits = []
+    if fb.correct_cells:
+        bits.append(f"{len(fb.correct_cells)} cell(s) correct")
+    if fb.wrong_cells:
+        bits.append(f"{len(fb.wrong_cells)} cell(s) wrong")
+    if fb.correct_entries:
+        bits.append(f"{len(fb.correct_entries)} entry(ies) correct")
+    if fb.wrong_entries:
+        bits.append(f"{len(fb.wrong_entries)} entry(ies) wrong")
+    if fb.conflicts:
+        bits.append(f"conflicts at {sorted(fb.conflicts)}")
+    return ", ".join(bits) if bits else "(no check under this policy)"
 
 
 def _clue_block(

@@ -350,10 +350,44 @@ answer key is the separate `present.solution`. A `None` grid short-circuits to a
 puzzle *before* any clue call — the completeness epistemics (a UNSAT theorem, not a
 timeout) survive the compose. `cli.puzzle` is the entry point.
 
+## Data flow for "solve a puzzle" (`app.solve_service.SolveService`, D24)
+
+The empirical difficulty probe: put a *soft* solver (an LLM agent) in a feedback loop
+against a generated puzzle and record how it goes. The mirror of the clue path — a
+deterministic session with the model fenced behind a port — but pointed at *solving*
+rather than *cluing*, and used as a proxy for the human solve-time signal the difficulty
+work (D21/D22) is blocked on.
+
+- `app/solve.py` is the deterministic **session** (the environment). `Board.of(puzzle)`
+  extracts geometry + clues + the **answer key** from a `CluedPuzzle`; `SolveState` = board
+  + the solver's per-*entry* guesses. Cell letters (and thus **crossing conflicts** — two
+  crossing guesses disagreeing on a shared cell, a signal that needs *no* key) are **derived**
+  from the guesses, never stored. `is_solved` is **cell-based** (the grid is right), not
+  per-entry: filling the acrosses correctly already fills their crossing downs (the interlock).
+- Feedback is a `FeedbackPolicy` knob — `CELL` (per-cell check, the default; the NYT
+  autocheck button), `WORD` (whole-entry), `CROSSING` (conflicts only, key-free), `NONE`
+  (only the terminal solved bit). **This knob is the solver-skill dial** — the empirical twin
+  of `solve_order`'s `gimme` (D22); `CELL` is the most generous, so it compresses the signal
+  and the stricter policies are the sharper probes.
+- **Integrity invariant:** `SolveState.view(policy)` returns a `SolveView` that carries
+  geometry, clues, the solver's own current letters, and the policy feedback — and **never an
+  unguessed answer**. It is the solving-side anti-corruption boundary, the mirror of
+  `FilledGrid` for cluing. A solver that could read the key measures nothing.
+- `app/solver.py::SolverAgent` is the port (`act(view) -> SolverMove`, one-shot/stateless —
+  the view *is* the observable state); `SolverMove` carries the agent's **reasoning**, because
+  inspecting *how* it thought is the point. `app/solve_service.py::SolveService` is the harness
+  (build view → act → validate+apply → check → record → repeat) and returns a `SolveReport`
+  (the difficulty artifact). **A turn-budget miss is `exhausted`, never a proof** — the
+  completeness epistemics (D23) restated on the solving side; only the fill engines prove UNSAT.
+- `adapters/claude_solver.py` is the live agent behind the port (the *second* LLM consumer,
+  D16/D24; extended-thinking captured as the reasoning trace); `cli/solve.py` composes it end
+  to end (generate a clued puzzle, then solve it), `present.solve_report` renders the transcript.
+  Tests drive the whole loop with a `FakeSolverAgent` — no model, no network.
+
 ## Entry points
 
-Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle}.py` are shims;
-`mini`/`generate`/`puzzle` are also `[project.scripts]` console commands):
+Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle,solve}.py` are shims;
+`mini`/`generate`/`puzzle`/`solve` are also `[project.scripts]` console commands):
 
 - mini.py: the generator. `mini.py N min_score count [--max HI] [--hard K] [--gimme G]`.
   The positionals are unchanged (`mini 5 70 3` still means N=5, floor 70, 3 grids);
@@ -369,6 +403,11 @@ Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle}.py` are shi
   --min-score 75 --difficulty wednesday [--no-symmetric] [--reveal]`. Clue generation
   is the one live step (the `clue` extra + a key); the grid search has no LLM
   dependency, and the UNSAT paths short-circuit before any clue call.
+- solve.py: generate a clued puzzle, then have a Claude *agent* try to solve it and print
+  the attempt with its turn-by-turn reasoning (D24) — the empirical difficulty probe. Named
+  flags: `solve --difficulty saturday --policy crossing --max-turns 20 [--reveal]`. Two live
+  steps (clues + solving; the `clue` extra + a key); the fill is LLM-free. `--policy` is the
+  solver-skill knob (cell/word/crossing/none).
 
 Benchmark/demo drivers (`scripts/`, loose, ANN-exempt; each builds the container
 and uses the injected `lexicon`/`rng_factory` adapters):
