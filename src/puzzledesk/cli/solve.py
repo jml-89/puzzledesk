@@ -78,6 +78,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         choices=["low", "medium", "high"],
         help="adaptive-thinking effort for the solver (default: high)",
     )
+    p.add_argument(
+        "--thinking",
+        default=None,
+        choices=["adaptive", "enabled", "off"],
+        help="thinking mode: adaptive (Opus 4.x), enabled (Haiku 4.x), or off (default: adaptive)",
+    )
     p.add_argument("--seed", type=int, default=0, help="RNG seed for the fill (default: 0)")
     p.add_argument(
         "--symmetric",
@@ -98,6 +104,8 @@ def main(argv: list[str] | None = None) -> None:
         config = replace(config, solve_model=args.model)
     if args.effort is not None:
         config = replace(config, solve_effort=args.effort)
+    if args.thinking is not None:
+        config = replace(config, solve_thinking=args.thinking)
     _run(build(config), args)
 
 

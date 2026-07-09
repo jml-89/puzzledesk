@@ -35,6 +35,7 @@ def _parse_args(argv):
     p.add_argument("--min-score", type=float, default=75.0)
     p.add_argument("--policy", default="none", choices=[p.value for p in FeedbackPolicy])
     p.add_argument("--model", default=None, help="solver model id (default: config's opus)")
+    p.add_argument("--thinking", default=None, choices=["adaptive", "enabled", "off"])
     p.add_argument("--max-turns", type=int, default=8)
     return p.parse_args(argv)
 
@@ -44,6 +45,8 @@ def main(argv=None):
     config = Config.default()
     if args.model is not None:
         config = replace(config, solve_model=args.model)
+    if args.thinking is not None:
+        config = replace(config, solve_thinking=args.thinking)
     c = build(config)
     policy = FeedbackPolicy(args.policy)
 

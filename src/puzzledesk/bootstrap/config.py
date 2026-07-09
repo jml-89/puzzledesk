@@ -25,7 +25,13 @@ class Config:
     stream: TextIO | None = None
     clue_model: str = "claude-opus-4-8"  # the Claude model the clue adapter calls
     solve_model: str = "claude-opus-4-8"  # the Claude model the solver adapter calls (D24)
-    solve_effort: str = "high"  # adaptive-thinking effort for the solver (output_config.effort)
+    # How the solver model exposes thinking. Model families differ (verified live): Opus 4.8
+    # uses "adaptive" (+ effort); Haiku 4.5 uses "enabled" (+ a token budget); each 400s on
+    # the other. "off" disables thinking. This is what lets a weaker model be pitted on the
+    # same grid so reasoning-spend grades difficulty (D24).
+    solve_thinking: str = "adaptive"  # "adaptive" | "enabled" | "off"
+    solve_effort: str = "high"  # adaptive-thinking effort (output_config.effort)
+    solve_thinking_budget: int = 4096  # token budget for "enabled" thinking
     solve_max_turns: int = 12  # the solver harness's default turn budget (a budget, not a proof)
     # Which env var the composition root reads the clue API key from before injecting
     # the resolved value into the adapter. We deliberately name an *off-normal* var:

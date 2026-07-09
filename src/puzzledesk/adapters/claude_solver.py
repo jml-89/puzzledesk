@@ -166,14 +166,28 @@ class ClaudeSolverAgent:
         *,
         model: str = _DEFAULT_MODEL,
         max_tokens: int = 8192,
+        thinking_mode: str = "adaptive",
         effort: str = "high",
+        thinking_budget: int = 4096,
         api_key: str | None = None,
     ) -> None:
         self._model = model
         self._max_tokens = max_tokens
+        self._thinking_mode = thinking_mode
         self._effort = effort
+        self._thinking_budget = thinking_budget
         self._api_key = api_key
         self._client: Any = None
+
+    def _thinking_kwargs(self) -> dict[str, Any]:
+        """The thinking/effort request keys for this model's thinking mode. Opus-family
+        'adaptive' pairs with output_config.effort; Haiku-family 'enabled' takes a token
+        budget; 'off' disables thinking. See Config.solve_thinking (verified live)."""
+        if self._thinking_mode == "adaptive":
+            return {"thinking": {"type": "adaptive"}, "output_config": {"effort": self._effort}}
+        if self._thinking_mode == "enabled":
+            return {"thinking": {"type": "enabled", "budget_tokens": self._thinking_budget}}
+        return {}
 
     def _ensure_client(self) -> Any:
         if self._client is None:
@@ -196,9 +210,8 @@ class ClaudeSolverAgent:
         response = self._ensure_client().messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
-            thinking={"type": "adaptive"},
-            output_config={"effort": self._effort},
             messages=[{"role": "user", "content": prompt}],
+            **self._thinking_kwargs(),
         )
         text = "".join(block.text for block in response.content if block.type == "text")
         return _parse(text, _thinking_tokens(response.usage))
