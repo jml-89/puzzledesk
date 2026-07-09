@@ -1,14 +1,12 @@
-"""The Claude solver adapter's pure helpers -- prompt building, JSON parsing, and
-extended-thinking capture. No SDK, no key, no network (the ``anthropic`` import is
-lazy; only the live ``messages.create`` call touches it)."""
+"""The Claude solver adapter's pure helpers -- prompt building and free-form parsing
+(prose reasoning + a trailing JSON object). No SDK, no key, no network (the
+``anthropic`` import is lazy; only the live ``messages.create`` call touches it)."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from puzzledesk.adapters.claude_solver import (
     _build_prompt,
-    _extract_reasoning,
+    _extract_json,
     _parse,
     _render_grid,
 )
@@ -44,28 +42,31 @@ def test_prompt_carries_clues_but_no_answers() -> None:
         assert answer not in prompt  # the empty grid leaks no answer
 
 
-def test_parse_reads_placements_and_reasoning_from_schema() -> None:
+def test_extract_json_finds_trailing_object_after_prose() -> None:
     text = (
-        '{"reasoning": "1A is CAT", "placements": [{"number": 1, "direction": "A", "word": "cat"}]}'
+        'I reason that 1A is CAT.\n{"placements": [{"number": 1, "direction": "A", "word": "cat"}]}'
     )
-    move = _parse(text)
+    obj = _extract_json(text)
+    assert obj is not None and obj["placements"][0]["word"] == "cat"
+
+
+def test_parse_prose_is_reasoning_json_is_placements() -> None:
+    text = (
+        "Working the crossings, 1A = CAT.\n"
+        '{"placements": [{"number": 1, "direction": "A", "word": "cat"}]}'
+    )
+    move = _parse(text, reasoning_tokens=1234)
     assert len(move.placements) == 1
     p = move.placements[0]
     assert (p.number, p.direction, p.word) == (1, "A", "cat")
-    assert move.reasoning == "1A is CAT"
+    assert move.reasoning.startswith("Working the crossings")  # prose kept as reasoning
+    assert move.reasoning_tokens == 1234
     assert not move.give_up
-
-
-def test_parse_prepends_thinking_blocks_to_schema_reasoning() -> None:
-    text = '{"reasoning": "so it must be CAT", "placements": []}'
-    move = _parse(text, thinking="let me consider the crossings")
-    assert move.reasoning == "let me consider the crossings\nso it must be CAT"
 
 
 def test_parse_drops_malformed_items_and_reads_give_up() -> None:
     text = (
-        '{"reasoning": "stuck", '
-        '"placements": [{"number": 1, "direction": "X", "word": "no"}, '
+        'stuck.\n{"placements": [{"number": 1, "direction": "X", "word": "no"}, '
         '{"number": "bad", "direction": "A", "word": "no"}], "give_up": true}'
     )
     move = _parse(text)
@@ -74,15 +75,7 @@ def test_parse_drops_malformed_items_and_reads_give_up() -> None:
 
 
 def test_parse_survives_non_json() -> None:
-    move = _parse("not json at all", thinking="hmm")
-    assert move.placements == () and move.reasoning == "hmm"
-
-
-def test_extract_reasoning_concatenates_thinking_blocks() -> None:
-    @dataclass
-    class _Block:
-        type: str
-        thinking: str = ""
-
-    blocks = [_Block("thinking", "step one"), _Block("text"), _Block("thinking", "step two")]
-    assert _extract_reasoning(blocks) == "step one\nstep two"
+    move = _parse("not json at all", reasoning_tokens=7)
+    assert move.placements == ()
+    assert move.reasoning == "not json at all"
+    assert move.reasoning_tokens == 7

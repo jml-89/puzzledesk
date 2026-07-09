@@ -155,6 +155,9 @@ def solve_report(report: SolveReport, writer: Writer) -> None:
         )
     writer.line(f"Solver result: {outcome}, policy={report.policy.value}")
     writer.line(f"Wrong guesses along the way: {report.wrong_guesses}")
+    total = report.total_reasoning_tokens
+    if total is not None:
+        writer.line(f"Reasoning spent: {total} thinking tokens (the difficulty tell)")
     writer.line()
     for turn in report.turns:
         _solve_turn(turn, writer)
@@ -163,7 +166,8 @@ def solve_report(report: SolveReport, writer: Writer) -> None:
 
 
 def _solve_turn(turn: SolveTurn, writer: Writer) -> None:
-    writer.line(f"--- Turn {turn.index + 1} ---")
+    tokens = "" if turn.reasoning_tokens is None else f" ({turn.reasoning_tokens} thinking tokens)"
+    writer.line(f"--- Turn {turn.index + 1}{tokens} ---")
     if turn.reasoning.strip():
         writer.line("Reasoning:")
         for line in turn.reasoning.splitlines():

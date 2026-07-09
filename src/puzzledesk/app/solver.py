@@ -44,12 +44,15 @@ class Placement:
 
 @dataclass(frozen=True, slots=True)
 class SolverMove:
-    """One turn's output: the placements to apply, the reasoning behind them, and an
-    optional ``give_up`` when the agent judges itself stuck (the harness still decides
-    when the loop ends -- a give-up is a signal, not a proof of unsolvability)."""
+    """One turn's output: the placements to apply, the reasoning behind them, the
+    *amount* of reasoning the agent spent (``reasoning_tokens`` -- the difficulty tell,
+    D24; ``None`` when the agent cannot report it, e.g. the fake), and an optional
+    ``give_up`` when the agent judges itself stuck (the harness still decides when the
+    loop ends -- a give-up is a signal, not a proof of unsolvability)."""
 
     placements: tuple[Placement, ...] = ()
     reasoning: str = ""
+    reasoning_tokens: int | None = None
     give_up: bool = False
 
 

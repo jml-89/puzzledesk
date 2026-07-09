@@ -1,33 +1,25 @@
 """The Claude solver adapter -- the real (soft, generative) implementation of the
 ``app.solver.SolverAgent`` port.
 
-This is the *second* LLM consumer D16 anticipated ("a second consumer would justify a
-minimal, our-own seam... and only then"). We hold the line D16 drew: the LLM does not
-become an app-layer port. The app depends on ``SolverAgent`` (which speaks views and
-moves); the SDK, the credential, and the extended-thinking capture all live *here*,
-one layer down -- exactly where ``ClaudeClueProvider`` sits. A shared ``LanguageModel``
-seam between the two adapters is a reasonable next refactor, but two direct SDK callers
-is not yet enough duplication to force it (D24 records the call).
+This is the *second* LLM consumer D16 anticipated. We hold D16's line: the LLM does not
+become an app-layer port. The app depends on ``SolverAgent`` (views and moves); the SDK,
+the credential (resolved by the composition root from ``Config.clue_api_key_env`` and
+injected), and the reasoning capture all live *here*, beside ``ClaudeClueProvider``.
 
-The agent is prompted afresh each turn with the whole answer-free view (the port is
-stateless by design -- see ``app/solver.py``), asked to reason and then emit its
-placements. Reasoning capture is the point of the spike, so it is made **robust to how
-the model surfaces thinking**: the ``reasoning`` field is part of the structured
-**schema** (the model always articulates its deduction there), and any extended-thinking
-blocks the response *does* carry are prepended. Structured outputs + adaptive thinking
-suppress separate thinking blocks on current models, so the schema field is the reliable
-channel; the block capture is a future-proof supplement. As with the clue adapter, the
-pure helpers (render/prompt/parse) are unit-tested; the one untestable-in-CI part is the
-live ``messages.create`` call.
+**Reasoning is the measurement, so the call is shaped to expose it** (D24; verified live,
+see notes.md "Agent solve loop"). The solver runs with **adaptive thinking**
+(``thinking={"type":"adaptive"}`` + ``output_config={"effort":...}``) and, deliberately,
+*without* a forced JSON schema: structured output suppresses the extended-thinking pass and
+zeros ``thinking_tokens``, which is exactly the signal we are after -- for a model that
+solves every mini, *how much it had to think* is the graded difficulty tell, not whether it
+finished. So the model reasons freely in the text block (readable prose) and ends with a
+JSON object we parse leniently; ``SolverMove.reasoning_tokens`` carries the thinking-token
+count from ``usage``. (The thinking block itself is returned redacted/empty on current
+models, so the readable reasoning is the text block; the token *count* is the scalar.)
 
-Model note (verified live): ``claude-opus-4-8`` uses **adaptive** thinking
-(``thinking={"type": "adaptive"}`` + ``output_config={"effort": ...}``), not the older
-``{"type": "enabled", "budget_tokens": ...}`` form (which 400s on this model).
-
-``anthropic`` is the optional ``clue`` extra, imported lazily; the container builds
-without it and only a live solve needs the SDK and a key (resolved by the composition
-root from ``Config.clue_api_key_env`` and injected, so this adapter stays a pure
-value-taker).
+``anthropic`` is the optional ``clue`` extra, imported lazily; the container builds without
+it and only a live solve needs the SDK and a key. The pure helpers (render/prompt/parse) are
+unit-tested; the one untestable-in-CI part is the live ``messages.create`` call.
 """
 
 from __future__ import annotations
@@ -99,76 +91,75 @@ def _build_prompt(view: SolveView) -> str:
             "What you just learned:",
             _render_feedback(view),
             "",
-            "Think through the crossings, then give your next placements. You may revise "
-            "earlier guesses. Use an empty word to erase an entry. Put your chain of "
-            "deduction (which clues you got, how the crossings constrained the rest, what "
-            "you are unsure of) in the 'reasoning' field -- it is read to judge how the "
-            "puzzle solves. Set give_up true only if you are truly stuck.",
+            "Work through the clues and crossings. You may revise earlier guesses; use an "
+            "empty word to erase an entry.",
+            "When you are done reasoning, end your reply with a single JSON object on its own:",
+            '{"placements": [{"number": <n>, "direction": "A"|"D", "word": "<letters>"}, ...], '
+            '"give_up": false}',
+            "Set give_up true only if you are truly stuck.",
         ]
     )
 
 
-def _schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            "reasoning": {"type": "string"},
-            "placements": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "number": {"type": "integer"},
-                        "direction": {"type": "string", "enum": ["A", "D"]},
-                        "word": {"type": "string"},
-                    },
-                    "required": ["number", "direction", "word"],
-                    "additionalProperties": False,
-                },
-            },
-            "give_up": {"type": "boolean"},
-        },
-        "required": ["reasoning", "placements"],
-        "additionalProperties": False,
-    }
+def _extract_json(text: str) -> dict[str, Any] | None:
+    """The move object in ``text`` (the model reasons in prose, then emits the object).
+    Tries every ``{`` start and returns the first parseable object that carries
+    ``placements`` -- so a *nested* placement item (also valid JSON) is not mistaken for
+    the whole move -- falling back to the first parseable object. Tolerant of prose, code
+    fences, or trailing text around it."""
+    decoder = json.JSONDecoder()
+    fallback: dict[str, Any] | None = None
+    for i, ch in enumerate(text):
+        if ch != "{":
+            continue
+        try:
+            obj, _ = decoder.raw_decode(text[i:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            if "placements" in obj:
+                return obj
+            if fallback is None:
+                fallback = obj
+    return fallback
 
 
-def _parse(text: str, thinking: str = "") -> SolverMove:
-    """Turn the JSON response into a :class:`SolverMove`, combining any extended-thinking
-    text with the schema's ``reasoning`` field. Malformed placement items are dropped (the
-    harness would reject them anyway); a whole-response parse failure yields an empty move
-    rather than raising, keeping the port total."""
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return SolverMove(reasoning=thinking)
+def _parse(text: str, reasoning_tokens: int | None = None) -> SolverMove:
+    """Turn the free-form response into a :class:`SolverMove`: the prose is the readable
+    reasoning, the trailing JSON gives the placements. Malformed items are dropped (the
+    harness would reject them anyway); no JSON at all yields an empty move (the port stays
+    total). ``reasoning_tokens`` is the thinking-token count from ``usage`` -- the tell."""
+    reasoning = text.strip()
+    data = _extract_json(text)
+    if data is None:
+        return SolverMove(reasoning=reasoning, reasoning_tokens=reasoning_tokens)
     placements = []
     for item in data.get("placements", []):
+        if not isinstance(item, dict):
+            continue
         number = item.get("number")
         direction = item.get("direction")
         word = item.get("word", "")
         if isinstance(number, int) and direction in ("A", "D") and isinstance(word, str):
             placements.append(Placement(number=number, direction=direction, word=word))
-    reasoning = "\n".join(part for part in (thinking, str(data.get("reasoning", ""))) if part)
     return SolverMove(
         placements=tuple(placements),
         reasoning=reasoning,
+        reasoning_tokens=reasoning_tokens,
         give_up=bool(data.get("give_up", False)),
     )
 
 
-def _extract_reasoning(blocks: Any) -> str:
-    """Concatenate the extended-thinking blocks of a response into the reasoning trace."""
-    out = []
-    for block in blocks:
-        if getattr(block, "type", None) == "thinking":
-            out.append(getattr(block, "thinking", ""))
-    return "\n".join(t for t in out if t)
+def _thinking_tokens(usage: Any) -> int | None:
+    """The extended-thinking token count from a response's ``usage`` -- the amount of
+    reasoning spent. ``None`` if the SDK does not surface it."""
+    details = getattr(usage, "output_tokens_details", None)
+    return getattr(details, "thinking_tokens", None) if details is not None else None
 
 
 class ClaudeSolverAgent:
-    """``app.solver.SolverAgent`` backed by the Anthropic SDK, with extended thinking
-    captured as the move's reasoning."""
+    """``app.solver.SolverAgent`` backed by the Anthropic SDK, running with adaptive
+    thinking so the reasoning-token count (the difficulty tell) is exposed."""
 
     def __init__(
         self,
@@ -206,12 +197,8 @@ class ClaudeSolverAgent:
             model=self._model,
             max_tokens=self._max_tokens,
             thinking={"type": "adaptive"},
-            output_config={
-                "effort": self._effort,
-                "format": {"type": "json_schema", "schema": _schema()},
-            },
+            output_config={"effort": self._effort},
             messages=[{"role": "user", "content": prompt}],
         )
-        thinking = _extract_reasoning(response.content)
-        text = next(block.text for block in response.content if block.type == "text")
-        return _parse(text, thinking)
+        text = "".join(block.text for block in response.content if block.type == "text")
+        return _parse(text, _thinking_tokens(response.usage))

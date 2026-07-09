@@ -34,6 +34,7 @@ class SolveTurn:
     applied: tuple[Placement, ...]
     rejected: tuple[Placement, ...]
     feedback: Feedback
+    reasoning_tokens: int | None = None
     gave_up: bool = False
 
 
@@ -80,6 +81,14 @@ class SolveReport:
             total += len(fb.wrong_entries)
         return total
 
+    @property
+    def total_reasoning_tokens(self) -> int | None:
+        """Reasoning spent across the whole attempt -- **the difficulty tell** (D24): for
+        a model that solves everything, *how much it had to think* is the graded signal,
+        not whether it finished. ``None`` if no turn reported a count (e.g. the fake)."""
+        counts = [t.reasoning_tokens for t in self.turns if t.reasoning_tokens is not None]
+        return sum(counts) if counts else None
+
 
 class SolveService:
     """Run a solver agent against a clued puzzle and report how it went."""
@@ -120,6 +129,7 @@ class SolveService:
                     applied=applied,
                     rejected=rejected,
                     feedback=fb,
+                    reasoning_tokens=move.reasoning_tokens,
                     gave_up=move.give_up,
                 )
             )

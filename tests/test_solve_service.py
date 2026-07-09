@@ -57,6 +57,28 @@ def test_malformed_placements_are_rejected_not_stored() -> None:
     assert {(p.number, p.direction) for p in turn.rejected} == {(9, "A"), (1, "A")}
 
 
+def test_report_totals_reasoning_tokens() -> None:
+    puzzle = _clued2x2()
+    # spread the fill over three turns so all three token counts are summed (placing both
+    # acrosses would solve it via the derived downs and end the loop early)
+    script = [
+        SolverMove((Placement(1, "A", "ab"),), reasoning_tokens=100),
+        SolverMove((Placement(1, "D", "ac"),), reasoning_tokens=250),
+        SolverMove((Placement(3, "A", "cd"),), reasoning_tokens=40),
+    ]
+    report = SolveService(FakeSolverAgent(script=script), max_turns=5).solve(puzzle)
+    assert report.solved
+    assert report.n_turns == 3
+    assert report.total_reasoning_tokens == 390  # summed across turns
+
+
+def test_total_reasoning_tokens_is_none_when_unreported() -> None:
+    # the oracle fake does not report token counts -> None, not 0
+    puzzle = _clued2x2()
+    report = SolveService(FakeSolverAgent(oracle=puzzle), max_turns=8).solve(puzzle)
+    assert report.total_reasoning_tokens is None
+
+
 def test_give_up_ends_the_loop_early() -> None:
     puzzle = _clued2x2()
     quitter = FakeSolverAgent(script=[SolverMove(reasoning="stuck", give_up=True)])

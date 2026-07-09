@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 
 from ..app.clue import Difficulty
 from ..app.solve import FeedbackPolicy
-from ..bootstrap import Container, build
+from ..bootstrap import Config, Container, build
 from . import present
 
 _DIFFICULTIES = [d.name.lower() for d in Difficulty]
@@ -64,6 +65,19 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--max-turns", type=int, default=None, metavar="N", help="solver turn budget (default: 12)"
     )
+    p.add_argument(
+        "--model",
+        default=None,
+        metavar="ID",
+        help="solver model id (default: claude-opus-4-8) -- pit a weaker model to grade "
+        "difficulty by reasoning spent",
+    )
+    p.add_argument(
+        "--effort",
+        default=None,
+        choices=["low", "medium", "high"],
+        help="adaptive-thinking effort for the solver (default: high)",
+    )
     p.add_argument("--seed", type=int, default=0, help="RNG seed for the fill (default: 0)")
     p.add_argument(
         "--symmetric",
@@ -79,7 +93,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
-    _run(build(), args)
+    config = Config.default()
+    if args.model is not None:
+        config = replace(config, solve_model=args.model)
+    if args.effort is not None:
+        config = replace(config, solve_effort=args.effort)
+    _run(build(config), args)
 
 
 def _run(c: Container, args: argparse.Namespace) -> None:
