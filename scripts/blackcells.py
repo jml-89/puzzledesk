@@ -57,7 +57,7 @@ def ground_truth_check(container):
     print("\n=== ground truth (2x3 blocked, weak list) ===")
     print(
         f"brute force: {len(truth)} distinct fills | "
-        f"sampler-free solver: {solved}/60 solved, {bad} outside ground truth"
+        f"complete fill solver: {solved}/60 solved, {bad} outside ground truth"
     )
     assert bad == 0, "solver produced a fill not in the enumerated ground truth!"
 

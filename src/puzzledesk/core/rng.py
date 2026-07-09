@@ -6,9 +6,9 @@ fake stream under test" impossible. Here we name the two shapes the engines
 actually need and depend only on those:
 
   * :class:`Rng` -- a single random stream. The engines call ``shuffle`` (candidate
-    order for per-seed diversity), ``integers`` and ``choice`` (the sampler's
-    moves). ``numpy.random.Generator`` satisfies this structurally, so the default
-    adapter is just ``np.random.default_rng(seed)`` with no wrapper.
+    order for per-seed diversity); ``integers`` is the generic determinism probe the
+    port test uses. ``numpy.random.Generator`` satisfies this structurally, so the
+    default adapter is just ``np.random.default_rng(seed)`` with no wrapper.
   * :class:`RngFactory` -- makes a fresh stream from a seed. This is what preserves
     the reproducibility invariant: ``factory.create(seed)`` yields the identical
     stream every time, so a given ``(lists, seed)`` reproduces exactly, and a
@@ -28,13 +28,13 @@ from typing import Any, Protocol, runtime_checkable
 class Rng(Protocol):
     """One random stream. A subset of ``numpy.random.Generator``'s surface -- the
     operations the engines actually use -- so a real ``Generator`` is an ``Rng``
-    as-is (structural match) and a test double only has to implement these three.
+    as-is (structural match) and a test double only has to implement these two.
 
     Signatures use ``Any`` deliberately: the port abstracts a slice of numpy's
     dynamically-typed Generator (``shuffle`` mutates arrays *and* plain lists;
-    ``integers``/``choice`` return numpy scalars or arrays depending on args), and
-    pinning stricter types here would just fight the call sites. The kernel does
-    not even import numpy for these -- the concrete adapter lives in ``adapters``.
+    ``integers`` returns numpy scalars or arrays depending on args), and pinning
+    stricter types here would just fight the call sites. The kernel does not even
+    import numpy for these -- the concrete adapter lives in ``adapters``.
     """
 
     def shuffle(self, x: Any) -> None:
@@ -42,11 +42,7 @@ class Rng(Protocol):
         ...
 
     def integers(self, low: int, high: int | None = ..., size: int | None = ...) -> Any:
-        """Random integers in ``[0, low)`` or ``[low, high)`` (sampler moves)."""
-        ...
-
-    def choice(self, a: Any, size: Any = ..., replace: bool = ..., p: Any = ...) -> Any:
-        """Draw from ``a`` (or ``range(a)``), optionally weighted by ``p``."""
+        """Random integers in ``[0, low)`` or ``[low, high)``."""
         ...
 
 

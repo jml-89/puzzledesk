@@ -1,8 +1,8 @@
 """Generate scored word lists: 'word<space>zipf' per line, for words above a
 mild frequency floor (drops pure junk like 'aalii'=0.0, keeps everything with a
-real usage signal). Quality is then a soft term in the energy, not a hard filter.
+real usage signal). The Zipf score is what `filtered(bar)` thresholds on.
 
-Run once to (re)generate data/scored_N.txt; the sampler needs only these files,
+Run once to (re)generate data/scored_N.txt; the solvers read only these files,
 not wordfreq itself.
 """
 

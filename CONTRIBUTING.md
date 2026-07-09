@@ -37,8 +37,8 @@ uv run pytest         # tests — invariants, ground truth, DI
 `lint-imports` fails on a forbidden cross-layer import (e.g. `app` reaching into
 `adapters`); `pytest` runs the invariant/ground-truth suite. For behaviour that a
 benchmark driver covers, also run it (e.g. `uv run scripts/demo.py` after touching
-the energy model or sampler; `uv run scripts/generate.py …` after touching layout
-generation).
+the square engine or ground-truth model; `uv run scripts/generate.py …` after
+touching layout generation).
 
 ## Commits
 

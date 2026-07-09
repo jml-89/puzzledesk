@@ -11,10 +11,9 @@ calls for, honoured by intent):
 
   * **tools** -- ``mini``, ``generate``, ``blackcells``: produce crossword
     artifacts, every emitted grid distinct and above the bar.
-  * **benchmarks/demos** -- ``bench``, ``ceiling``, ``frontier``, ``compare``,
-    ``samplers``, ``quality``, ``demo``: measure or check; they may be slow and
-    print numbers, not grids. ``gen_scored`` is a data-regeneration maintenance
-    tool (needs the optional ``wordfreq`` extra).
+  * **benchmarks/demos** -- ``ceiling``, ``demo``: measure or check; they may be
+    slow and print numbers, not grids. ``gen_scored`` is a data-regeneration
+    maintenance tool (needs the optional ``wordfreq`` extra).
 
 ``cli`` is the top of the import stack: it may import every lower layer; nothing
 imports it.

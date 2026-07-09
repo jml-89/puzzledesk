@@ -519,3 +519,59 @@ Alternatives considered:
 
 Reversal: drop the `forbidden` contract (and `include_external_packages`); the `layers`
 contract, the composition-root pattern, and all code are unaffected.
+
+## D19. Retire the sampler — a spike that was measured, lost, and is now recorded not kept
+
+Context: the stochastic sampler (`sampler.py`) was the *original* engine (D3): energy-based
+min-conflicts / annealed-Gibbs, chosen because the user wanted post-classical CSP methods and
+because the premise was a **soft** quality objective plus grid diversity. Two later decisions
+undercut that premise. D6 reframed quality as *feasibility on a threshold-filtered list* — a
+hard bar, no soft objective left to sample against. D7 then measured complete backtracking as
+64–450× faster on exactly the small/hard/filtered lists high bars produce, and made it primary.
+D11 taught the sampler distinctness so the two engines solved the *same* problem, and the
+head-to-head (`compare.py`, notes.md) was unambiguous: ~50–80× slower on the distinct problem,
+and its **solve-rate collapses** (3/10 at Zipf≥3.5) exactly where backtracking stays 10/10 and,
+being complete, can additionally *prove* UNSAT. The strategy study (`samplers.py`) further showed
+distinctness was never the sampler's bottleneck — reaching feasibility is — so even its own
+refinement bought only a marginal edge over the naive gate.
+
+So the hypothesis behind D3 — "a sampler may beat / complement simple backtracking here" — was
+tested and **falsified**. The sampler earned its place in the *arc* (it produced the acceptance
+test as a feedback signal, which is what corrected the objective), but it never earned an
+operational place in the shipped system. The lingering cost was real: five benchmark drivers that
+only exercised it (`compare`/`frontier`/`samplers`/`quality`/`bench`), one of which (`compare.py`)
+hung past a 300 s timeout on its own default config and would trip the next developer; plus dead
+kernel surface that existed solely for its quality move (`Lexicon.allowed_and_scores_at`) and
+solely for its moves (`Rng.choice`).
+
+Decision: **delete the artifact, keep the lesson.** Removed `core/engines/sampler.py`, the five
+sampler-only drivers, the N=2 sampler ground-truth test (its subject is gone; `bruteforce` remains
+the ground truth and `backtrack` has its own subset test), and the sampler-only kernel surface
+(`allowed_and_scores_at`, `Rng.choice`). `scripts/demo.py` was rewired onto the surviving
+backtracker (same N=2..4 correctness/diversity demo, now `backtrack ⊆ bruteforce`). The measured
+numbers that justify the verdict stay in `docs/notes.md`, the README "arc" keeps the origin story
+in past tense, and the open question "does the sampler earn its keep" is resolved *No* here.
+
+Rationale: for a **failed spike**, a decision record plus git history is a stronger form of memory
+than dead-but-runnable code. Code left in place rots silently, invites accidental use, taxes every
+`grep`/exploration with false weight ("there are two engines"), and — as the hang showed — ships
+foot-guns. This repo's doc discipline (this log, notes.md, open-questions.md, the README arc)
+carries the *why* more durably than the module ever did. Nothing is lost: the sampler is one
+`git show` away, and D3→D6→D7→D11→D19 is the full narrative of an idea that was worth trying and
+worth removing.
+
+Alternatives considered:
+- **Quarantine it (gate behind an opt-in flag, heavy "not great" banner, leave the code):**
+  rejected — pays the maintenance/attention tax *forever* in exchange for optionality we're
+  unlikely to exercise; the worst-of-both "tombstone in place".
+- **Keep a single minimal `sampler.py` as a runnable demo of the arc's step one** (delete only
+  the benchmarks): rejected — the numbers in D19/notes.md tell the origin story better than a slow
+  live run, and a live import is exactly the surface that rots.
+- **Delete with no record:** rejected — a spike deleted silently gets *re-attempted*; the whole
+  value of running it is the recorded verdict.
+
+Reversal: restore `sampler.py` and its port/lexicon surface from git if a **big-and-soft** regime
+returns — a large list with *genuine* soft preferences (themes, per-batch novelty; see
+open-questions "Grid variety"), which is also the only condition under which D3/D7 said stochastic
+or JAX parallel-chain sampling could retake primacy. That is a new spike with a new hypothesis, not
+a resurrection of this one.

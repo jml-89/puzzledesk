@@ -33,18 +33,25 @@ recurring, nor do we bias toward fresh/interesting fills. Open:
 - "Interesting" vs "merely acceptable" is not measured. The crossword score is
   enjoyment-ish but static; it does not know what you already used this batch.
 
-## Does the sampler earn its keep?
+## Does the sampler earn its keep? — RESOLVED: No (D19)
 
-`sampler.py` is the secondary engine and is ~50-80x slower than backtracking on
-distinct filtered lists (its solve-rate collapses on the small/hard ones). It NOW
-enforces distinctness (D11, `distinct=True`), so the "fix it" option is done; the
-strategy study (samplers.py) also showed distinctness is not its bottleneck, so
-the guided penalty barely beats the naive gate. It is retained for (a) genuinely
-soft preferences and (b) sample-distribution behaviour. Question narrows to: keep
-or delete? Resolution depends on whether soft preferences return (see variety,
-above). If they do, the sampler (or a JAX parallel-chain version) may retake
-primacy; the distinctness penalty is already in place, but would want vectorising
-harder (it currently rebuilds N*26 column strings per near-feasible step).
+Resolved by **deletion** (D19). The sampler was ~50-80x slower than backtracking on
+distinct filtered lists and its solve-rate collapsed on the small/hard ones; the
+strategy study (the former `samplers.py`) showed distinctness was never its
+bottleneck, so even the guided penalty barely beat the naive gate. Its stated
+reasons to exist — (a) genuinely soft preferences, (b) sample-distribution
+behaviour — are both *hypothetical future needs*, not current ones, so keeping the
+code was a standing maintenance/attention tax (one of its benchmark drivers even
+hung on its own defaults). We removed `sampler.py`, its five benchmark drivers, its
+N=2 ground-truth test, and the kernel surface that existed only for it
+(`allowed_and_scores_at`, `Rng.choice`); the measured verdict lives in D19 +
+notes.md.
+
+Re-opens only if a **big-and-soft** regime returns — a large list with genuine soft
+preferences (themes, per-batch novelty; see "Grid variety" above). That is the one
+condition under which D3/D7 said stochastic (or a JAX parallel-chain) sampling could
+retake primacy, and it would be a fresh spike with a new hypothesis, restoring the
+old code from git as a starting point rather than a resurrection.
 
 ## Puzzle quality beyond word-score
 

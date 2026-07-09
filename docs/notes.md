@@ -13,6 +13,12 @@ Packing is easy while the list is large:
 - 5x5 on the weak list at Zipf>=2.5 (~4550 words), NON-distinct: ~82 ms/run,
   40/40 solved, median 0 restarts. Interlock does not bite when the list is big.
 
+> The sampler engine was **removed** in D19. The numbers below are kept deliberately:
+> they are the measured evidence for that decision — the record of an idea that was
+> tried, measured, and retired. `compare.py`/`frontier.py`/`samplers.py`/`quality.py`/
+> `bench.py` (the drivers that produced them) are gone with it; recover from git if you
+> ever re-open the question.
+
 Sampler vs backtracking, 5x5, weak list, filtered, distinctness OFF (the ORIGINAL
 early comparison, before the sampler enforced distinctness), same acceptance bar:
 - T(Zipf)=3.0 (3130 words): sampler 2090 ms vs backtrack 33 ms  (64x)
@@ -117,9 +123,6 @@ Curated real list — `data/cw_N.txt`:
 - CRLF in the dwyl list (above).
 - Score scales differ per list; a threshold only means something against its own
   list. `ceiling.py` chooses default thresholds by list name for this reason.
-- The sampler enforces distinctness only with `distinct=True` (default off, so the
-  raw-packing scripts bench.py/quality.py are unchanged). With it off it can emit
-  a degenerate square; validate output if you use that path.
 - Empty-repo default-branch behaviour (above).
 - Brute-force enumeration is only viable at N=2; at N=3+ on a permissive list the
   count is huge — do not enumerate the full list.
@@ -144,8 +147,8 @@ Curated real list — `data/cw_N.txt`:
 ## Repo status at end of spike
 
 - On `origin/main` at the spike HEAD (8 commits). Working tree clean.
-- Engine: complete backtracking primary, sampler secondary. Distinctness enforced
-  in backtrack + validate + sampler (distinct=True). Curated list wired via
-  `from_scored_file`.
+- Engine: complete backtracking (the sampler, once secondary, was retired in D19).
+  Distinctness enforced in backtrack + validate (+ fill for blocked grids). Curated
+  list wired via `from_scored_file`.
 - Deliverable: `scripts/mini.py` generates distinct minis above a quality bar.
 - Not started: clue generation, cross-batch variety, JAX, black-cell grids.
