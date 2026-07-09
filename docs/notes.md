@@ -101,6 +101,39 @@ crossings that obscurity turns into Naticks. Openness is scored against the whol
 vocabulary and at maximal support (the rest of each word known), so an open crossing
 is unavoidably hard regardless of solve order — a conservative signal (D20).
 
+**What openness is really driven by: word length, not crossing count.** The intuition
+"a mini is hard because it is densely crossed" is only half right. Split "density" into
+(i) *coverage* — are all cells crossed? — and (ii) *support per crossing* — how much
+does a crossing pin the shared letter? A cell is open iff *neither* word forces it, and
+a word forces it only when its *stem* (the length-(L−1) remainder) is constraining. So
+support scales with word length, and the open *rate* falls sharply with size even
+though every grid below is maximally dense (all cells crossed), cw>=60, 5 grids each:
+
+    3x3: 9 crossings, open  9/9  (100%), max ambiguity 8–18
+    4x4: 16 crossings, open 6–15 (~65%), max ambiguity 7–14
+    5x5: 25 crossings, open 8–10 (~38%), max ambiguity 3–6
+
+A 3-letter entry blanked at an edge leaves a 2-letter affix (`_at` → bat/cat/eat/…, ~18
+completions), so a 3x3 is *maximally dense yet 100% open* — the crossings barely
+disambiguate and it is nearly pure vocabulary recall. A 5-letter stem (`_ATER`) has few
+completions, so ambiguity collapses to 3–6. Counter-intuitive upshot: **bigger
+fully-checked minis are fairer per cell** — longer words check each other better;
+density (coverage) is necessary but not sufficient.
+
+**Black cells = local short-slot pockets.** `scripts/difficulty.py blocked R C K …`
+runs the same metric on `patterns.fill_by_count` grids (projected via
+`filled_from_blocked`). Bucketing every crossing by its *shorter* (weak-side) entry
+length reproduces the size curve *within one grid* (5x5, cw>=60, 5 grids):
+
+    shorter len 3: ~78% open      shorter len 4: ~50% open      shorter len 5: ~24% open
+
+i.e. Naticks concentrate at the 3-letter slots black cells create — a local "3x3
+regime" inside a bigger grid. The len-3 rate (78%) sits *below* a pure 3x3 (100%)
+because a 3-slot's 4-/5-letter crossing neighbours sometimes pin the letter from their
+(longer, stronger) side. So the whole size story is one mechanism seen two ways:
+shorten the grid, or shorten a slot with a block — either way the weak side's stem is
+what sets openness.
+
 Reproducibility note: `mini 5 70 1` is unchanged by the band work
 (`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
 to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.

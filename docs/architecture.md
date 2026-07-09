@@ -343,7 +343,9 @@ and uses the injected `lexicon`/`rng_factory` adapters):
 - difficulty.py: structural checkability of generated minis — solves at a score band
   and reports each grid's *open* crossings (Natick risk) via `app.difficulty.analyze`,
   cross-referenced with word obscurity (D20). `difficulty.py N listname min [max]
-  [obscure_below]`.
+  [obscure_below]` for squares; `difficulty.py blocked R C K [min] [obscure_below]` for
+  blocked grids (open rate bucketed by the weak side's slot length). Both paths share
+  one reporter over `FilledGrid.runs()`, so the metric is model-agnostic.
 - gen_scored.py: regenerate `scored_N.txt` from `words_N.txt` via wordfreq. Only
   needed if you change the weak list; requires the wordfreq package.
 
