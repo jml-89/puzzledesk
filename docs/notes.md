@@ -282,10 +282,54 @@ clues and the reasoning:
                 heavy" / "It might be prime, or panic"
 
 2.6x the reasoning on an identical grid, purely from the label — the clue axis is now a real
-knob (previously the label moved nothing; §"clue-difficulty sweep" above). Remaining follow-up:
-(ii) correlate the oblique-clue thinking-token spend against `solve_order`'s predicted hard-gets
-to close the analytical↔empirical loop — and, per the composition-of-difficulty framing, split
-`solve_order`'s single `gimme` into two per-entry inputs (word recognizability, clue precision).
+knob (previously the label moved nothing; §"clue-difficulty sweep" above).
+
+## 2D difficulty probe: word obscurity x clue obliqueness (D24)
+
+The composition experiment: sweep the two axes (fill obscurity band x Mon/Sat clue obliqueness),
+Opus solver, `--policy none`, measure thinking tokens. **Clean matrix** (n=4 seeds/cell; every run
+solved in 1 turn, 0 wrong — so completion/turns saturate and thinking-tokens is the only live signal):
+
+    thinking tokens   Monday                     Saturday
+    common  (>=75)    1909 1954 1682 1673 (u1805) 2761 3006 2516 7605 (u3972)
+    obscure [60,75]   1115 1584 3466 1942 (u2027) 1647 2256 6386 4057 (u3587)
+
+Read carefully, because it **overturns the min-over-routes guess**:
+
+- **Clue obliqueness is the dominant lever** — Monday->Saturday roughly doubles reasoning
+  (~1900 -> ~3800) at *both* word levels. Robust.
+- **Word obscurity is nearly inert** — common vs obscure is within noise at each clue level
+  (Monday 1805 vs 2027; Saturday 3972 vs 3587 — obscure is even *lower*). There is **no
+  obscure x Saturday spike**.
+- Why: an LLM solver *knows the whole vocabulary*, so word rarity does not block the recall
+  route — obscurity only ever bit *through* the clue's precision, which is the obliqueness axis.
+  For a strong LLM the "two axes" the design imagined **collapse to one**: clue under-determination.
+  This is IRT's point made concrete — item difficulty `b` is relative to solver ability `theta`;
+  word-obscurity's contribution is ~0 when `theta` (vocabulary) is effectively unbounded.
+- Variance is grid-specific, not band-specific: the two high cells (7605 common/Sat seed3, 6386
+  obscure/Sat seed2) are single hard *layouts*, not a word-difficulty effect.
+
+**MEASUREMENT ARTIFACT CORRECTED (important).** An earlier version of this matrix showed a huge
+obscure x Saturday "spike/phase transition" (30k-65k tokens, 4-8 turns, one *failure*). Reading
+the captured transcripts showed it was **100% an artifact of `max_tokens=8192`**: that is the
+*total* output budget (thinking + answer), and on a hard mini the adaptive-thinking pass alone
+consumed it, so the model never emitted its move -> the harness looped on empty placements and
+"failed". Raising the budget to 20k (non-streaming, to keep `thinking_tokens`; §fix in
+`Config.solve_max_tokens`) made the "8-turn failure" (obscure/Sat seed 3) solve in **one clean
+turn**. The reasoning was genuine constraint propagation throughout ("6D=RES -> gives first
+letters of 6A/7A/8A as R,E,S"); it was being *truncated mid-thought*, not hitting a wall. Lesson
+recorded: with adaptive thinking, the output budget must dwarf the thinking spend, and a
+`stop_reason==max_tokens` empty move must be surfaced (now annotated), never looped on silently.
+
+Implications for the composition-of-difficulty framing:
+- For a **strong** solver, difficulty is set by clue obliqueness alone; the word axis is dormant.
+  To reactivate it, the solver's vocabulary must be genuinely limited -- a **weaker model** (Haiku),
+  or a human. The 2x2 only has a live second axis *relative to a bounded-ability solver*. That is
+  the next experiment (obscure words the solver does not reliably know), and the honest statement of
+  what `solve_order`'s two per-entry inputs (word recognizability, clue precision) mean: recognizability
+  is `theta`-relative, precision is not.
+- Follow-up still open: correlate per-grid thinking-token spend against `solve_order`'s predicted
+  hard-gets (the analytical<->empirical loop), controlling for the grid-specific variance seen here.
 
 ## Environment quirks (dev container)
 
