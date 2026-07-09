@@ -44,19 +44,28 @@ def test_prompt_carries_clues_but_no_answers() -> None:
         assert answer not in prompt  # the empty grid leaks no answer
 
 
-def test_parse_reads_placements_and_reasoning() -> None:
-    text = '{"placements": [{"number": 1, "direction": "A", "word": "cat"}]}'
-    move = _parse(text, reasoning="I think 1A is CAT")
+def test_parse_reads_placements_and_reasoning_from_schema() -> None:
+    text = (
+        '{"reasoning": "1A is CAT", "placements": [{"number": 1, "direction": "A", "word": "cat"}]}'
+    )
+    move = _parse(text)
     assert len(move.placements) == 1
     p = move.placements[0]
     assert (p.number, p.direction, p.word) == (1, "A", "cat")
-    assert move.reasoning == "I think 1A is CAT"
+    assert move.reasoning == "1A is CAT"
     assert not move.give_up
+
+
+def test_parse_prepends_thinking_blocks_to_schema_reasoning() -> None:
+    text = '{"reasoning": "so it must be CAT", "placements": []}'
+    move = _parse(text, thinking="let me consider the crossings")
+    assert move.reasoning == "let me consider the crossings\nso it must be CAT"
 
 
 def test_parse_drops_malformed_items_and_reads_give_up() -> None:
     text = (
-        '{"placements": [{"number": 1, "direction": "X", "word": "no"}, '
+        '{"reasoning": "stuck", '
+        '"placements": [{"number": 1, "direction": "X", "word": "no"}, '
         '{"number": "bad", "direction": "A", "word": "no"}], "give_up": true}'
     )
     move = _parse(text)
@@ -65,7 +74,7 @@ def test_parse_drops_malformed_items_and_reads_give_up() -> None:
 
 
 def test_parse_survives_non_json() -> None:
-    move = _parse("not json at all", reasoning="hmm")
+    move = _parse("not json at all", thinking="hmm")
     assert move.placements == () and move.reasoning == "hmm"
 
 

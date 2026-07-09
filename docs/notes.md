@@ -182,6 +182,33 @@ Reproducibility note: `mini 5 70 1` is unchanged by the band work
 (`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
 to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.
 
+## Agent solve loop (D24, cli.solve) — live check + first finding
+
+The solving spike was exercised **live** end to end (`uv run --extra clue solve`), against
+`api.anthropic.com` with the `ANTHROPIC_API_KEY_TWO` key the container carries. Both stages
+work: clue generation, then a Claude agent (`claude-opus-4-8`) solving through the feedback
+loop. Two API-shape facts learned live (both now encoded in `adapters/claude_solver.py`):
+
+- Structured outputs (`output_config={"format":{"type":"json_schema","schema":…}}`) work as
+  the clue adapter already used them.
+- Opus 4.8 uses **adaptive** thinking: `thinking={"type":"adaptive"}` + `output_config.effort`.
+  The older `thinking={"type":"enabled","budget_tokens":…}` **400s** on this model. And with
+  structured output on, *separate thinking blocks are not returned* — so the solver captures
+  its reasoning via a `reasoning` field baked into the **schema** (the block capture is kept
+  as a future-proof supplement). That schema field is the reliable reasoning channel.
+
+First finding, and it is a real one: **a 5x5 mini is a one-shot for Opus 4.8, even with
+`--policy none` (zero feedback).** The default seed-0 4-black grid
+(`HEW/MIXIN/ETUDE/LURED/PBR × HITUP/EXURB/WIDER/MEL/NED`) is solved in a single turn under
+every policy tried (cell, none). The reasoning is worth reading even so — the agent noted
+5D's clue ("Hank Schrader") did not match, and *trusted the crossings* to write NED anyway,
+which is exactly the checkability signal `difficulty.analyze`/`solve_order` model. Implication
+for the probe: at mini scale the *completion* bit saturates (always solved), so the discriminating
+signal is the **reasoning transcript**, not turns-to-solve. The turn-count/feedback loop only
+earns its keep on harder or **larger** grids (needs the 6..15-length word lists, still unbuilt)
+or against a **weaker** solver model (swap `Config.solve_model`) — both are the natural next
+steps to make this a graded difficulty instrument rather than a pass/fail one.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed

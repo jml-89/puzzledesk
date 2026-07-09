@@ -78,7 +78,9 @@ def _stage_adapters(config: Config) -> _Adapters:
         # The second LLM adapter (D24): same key/env wiring as the clue provider, and
         # likewise imported lazily -- the container builds without the SDK or a key.
         solver_agent=ClaudeSolverAgent(
-            model=config.solve_model, api_key=_resolve_api_key(config.clue_api_key_env)
+            model=config.solve_model,
+            effort=config.solve_effort,
+            api_key=_resolve_api_key(config.clue_api_key_env),
         ),
     )
 

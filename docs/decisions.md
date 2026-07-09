@@ -955,12 +955,22 @@ half behind a port (as D16 put the model in the adapter). Four pieces:
   LLM consumer D16 anticipated** ("a second consumer would justify a minimal, our-own seam…
   and only then"). We hold D16's line: the LLM does *not* become an app-layer port; the app
   depends on `SolverAgent` (which speaks views and moves), and the SDK, the credential
-  (same `Config.clue_api_key_env` wiring), and the **extended-thinking capture** all live in
-  the adapter, one level down beside `ClaudeClueProvider`. Extended thinking is captured into
-  `SolverMove.reasoning` — that trace is the difficulty signal. `cli/solve.py` composes the
+  (same `Config.clue_api_key_env` wiring), and the reasoning capture all live in the adapter,
+  one level down beside `ClaudeClueProvider`. **Reasoning is captured via a `reasoning` field
+  in the structured schema** (the model articulates its deduction there), with any
+  extended-thinking blocks prepended — chosen because, verified live, Opus 4.8 uses *adaptive*
+  thinking and suppresses separate thinking blocks under structured output, so the schema
+  field is the reliable channel (see notes.md "Agent solve loop"). `cli/solve.py` composes the
   live path end to end: generate a clued puzzle (`PuzzleService`), then solve it and print
   the attempt (`present.solve_report`). Two live steps (clues + solving); the grid *fill*
   stays LLM-free.
+
+**Live check (done).** The whole path was run against the real API in-container: the agent
+generated and then solved a 5x5 mini, reasoning captured per turn. First finding: at mini
+scale Opus 4.8 **one-shots the grid even with `--policy none` (no feedback)**, so the
+*completion* bit saturates and the **reasoning transcript** is the discriminating signal, not
+turns-to-solve. Making completion/turns a *graded* signal wants harder or larger grids (the
+6..15 word lists, still unbuilt) or a weaker solver model — the natural next steps.
 
 Scope held tight for a spike. Tests drive the whole loop with a deterministic
 `FakeSolverAgent` (oracle + scripted modes) — no model, no network — so the session,
