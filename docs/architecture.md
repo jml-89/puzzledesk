@@ -282,15 +282,33 @@ factory.create(seed), distinct=True)` per seed -> validate (assert ok) -> shape 
 grid is distinct-words and every word >= min_score by construction of the filter.
 `cli.generate` + `BlockedGenerateService` are the blocked analogue.
 
+## Data flow for "generate a whole puzzle" (`app.puzzle_service.PuzzleService`)
+
+The end-to-end compose (D20): `BlockedGenerateService.fill_grid_once(...)` runs the
+same layout+fill search as `generate`, but projects the result into the model-agnostic
+`FilledGrid` (`app.puzzle`, invariant-0 anti-corruption layer) instead of a scored
+`BlockedResult` -> `ClueService.clue(grid, style)` clues every entry through the
+`ClueProvider` port (the one soft stage) -> a `CluedPuzzle`. `cli.present.playable`
+renders it as a plain-text *solving* view: a blank numbered grid (numbering derived on
+demand by `FilledGrid.numbering()`, never stored) plus Across/Down clue lists; the
+answer key is the separate `present.solution`. A `None` grid short-circuits to a `None`
+puzzle *before* any clue call — the completeness epistemics (a UNSAT theorem, not a
+timeout) survive the compose. `cli.puzzle` is the entry point.
+
 ## Entry points
 
-Tools (`cli/`, typed, over services; `scripts/{mini,generate}.py` are shims;
-`mini`/`generate` are also `[project.scripts]` console commands):
+Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle}.py` are shims;
+`mini`/`generate`/`puzzle` are also `[project.scripts]` console commands):
 
 - mini.py: the generator. `mini.py N min_score count`.
 - generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
   rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
+- puzzle.py: a whole *clued* puzzle as plain text to solve (grid + Across/Down clues).
+  All **named flags**, not positional (D20): `puzzle --rows 5 --cols 5 --black 4
+  --min-score 75 --difficulty wednesday [--no-symmetric] [--reveal]`. Clue generation
+  is the one live step (the `clue` extra + a key); the grid search has no LLM
+  dependency, and the UNSAT paths short-circuit before any clue call.
 
 Benchmark/demo drivers (`scripts/`, loose, ANN-exempt; each builds the container
 and uses the injected `lexicon`/`rng_factory` adapters):

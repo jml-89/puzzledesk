@@ -117,6 +117,12 @@ Curated real list — `data/cw_N.txt`:
       xwordlist.dict | sort -t' ' -k2,2nr -k1,1 > data/cw_$n.txt
 - Provenance/licenses also recorded in data/SOURCES.md.
 - Only the DERIVED length lists are committed; the raw dumps are not.
+- QA finding (D20): for *generating* clean puzzles the practical floor is ~75, not
+  the list's "60+ solid" convention. At `min_score 60`, a 5x5 fill admitted `LEDON`
+  (a non-word the list rates 60); `min_score 75` produced only real words across
+  seeds. So `puzzle` defaults to 75. This is a data property of `cw_N.txt` (the
+  border of "solid" is soft, and 60 lets a few junk entries through), not an engine
+  bug — the fill faithfully placed a word the list rated acceptable.
 
 ## Gotchas that cost time
 

@@ -18,6 +18,7 @@ from ..core.engines import fill, patterns
 from ..core.lexicon import MultiLexicon
 from ..core.rng import RngFactory
 from .ports import LexiconSource
+from .puzzle import FilledGrid, filled_from_blocked
 from .results import BlockedResult, Entry
 
 
@@ -55,6 +56,64 @@ class BlockedGenerateService:
     ) -> BlockedResult | None:
         """One layout+fill attempt for ``seed``: the first legal layout that admits
         a distinct fill above the bar, or None (complete, so None settles it)."""
+        found = self._fill(
+            rows,
+            cols,
+            num_black,
+            min_score=min_score,
+            seed=seed,
+            symmetric=symmetric,
+            min_len=min_len,
+        )
+        if found is None:
+            return None
+        mlex, (grid, assign) = found
+        return result_of(grid, mlex, assign)
+
+    def fill_grid_once(
+        self,
+        rows: int,
+        cols: int,
+        num_black: int,
+        *,
+        min_score: float,
+        seed: int = 0,
+        symmetric: bool = True,
+        min_len: int = 3,
+    ) -> FilledGrid | None:
+        """Same search as :meth:`fill_once`, projected into the model-agnostic
+        :class:`~puzzledesk.app.puzzle.FilledGrid` the cluing context speaks -- the
+        shape the puzzle service hands to :class:`~puzzledesk.app.cluing.ClueService`.
+        None (unfillable at the bar) settles it, exactly as ``fill_once``'s does."""
+        found = self._fill(
+            rows,
+            cols,
+            num_black,
+            min_score=min_score,
+            seed=seed,
+            symmetric=symmetric,
+            min_len=min_len,
+        )
+        if found is None:
+            return None
+        _, (grid, assign) = found
+        return filled_from_blocked(grid, assign)
+
+    def _fill(
+        self,
+        rows: int,
+        cols: int,
+        num_black: int,
+        *,
+        min_score: float,
+        seed: int,
+        symmetric: bool,
+        min_len: int,
+    ) -> tuple[MultiLexicon, tuple[BlockedGrid, dict[int, str]]] | None:
+        """The shared layout+fill search behind both ``fill_once`` (which wants the
+        scored result) and ``fill_grid_once`` (which wants the geometry). Returns the
+        lexicon alongside the raw ``(grid, assign)`` so each caller shapes its own
+        output; None when nothing fills above the bar."""
         mlex = self._multi(rows, cols, min_score, min_len)
         found = patterns.fill_by_count(
             rows,
@@ -67,10 +126,7 @@ class BlockedGenerateService:
             min_len=min_len,
             distinct=True,
         )
-        if found is None:
-            return None
-        grid, assign = found
-        return result_of(grid, mlex, assign)
+        return None if found is None else (mlex, found)
 
     def _multi(self, rows: int, cols: int, min_score: float, min_len: int) -> MultiLexicon:
         lengths = range(min_len, max(rows, cols) + 1)

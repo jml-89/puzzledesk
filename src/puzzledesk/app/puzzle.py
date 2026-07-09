@@ -131,6 +131,23 @@ class FilledGrid:
                     out.append(Crossing(across, down, cell))
         return tuple(out)
 
+    def numbering(self) -> dict[Cell, int]:
+        """Standard crossword numbering, derived from the geometry: scan cells in
+        reading order (row-major) and give the next integer to each cell that starts
+        an across or a down run. A cell that starts both (an across *and* a down)
+        takes a single shared number, exactly as a printed grid does. Returned as
+        ``start cell -> number`` so a presenter can look up an entry by its first
+        cell (``Target.cells[0]``)."""
+        starts = {t.cells[0] for t in self.runs()}
+        out: dict[Cell, int] = {}
+        n = 0
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if (r, c) in starts:
+                    n += 1
+                    out[(r, c)] = n
+        return out
+
 
 def filled_from_square(sq: DoubleSquare, state: np.ndarray) -> FilledGrid:
     """Project a solved double word square into a FilledGrid (no black cells)."""

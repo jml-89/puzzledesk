@@ -24,6 +24,7 @@ clue = ["anthropic>=0.40"]
 # alongside the documented `uv run scripts/mini.py 5 70 3` shim.
 mini = "puzzledesk.cli.mini:main"
 generate = "puzzledesk.cli.generate:main"
+puzzle = "puzzledesk.cli.puzzle:main"
 
 [dependency-groups]
 dev = [
