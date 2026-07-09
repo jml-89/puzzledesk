@@ -128,11 +128,14 @@ grid vs brute-force ground truth. What that spike deliberately left open:
     the same set as `gen_patterns(K)` (cross-tested), so the row-major run-aware search
     likely *subsumes* the count-driven orbit search. Merging them (one generator, cap
     and/or count) is a cleanup once that equivalence is trusted in anger.
-  - **Black-cell density control.** The free-count search over-blackens under uniform
-    randomization (22–52% at 10x10); a `num_black` target restores ~18%. A first-class
-    density objective (target %, spread-not-clustered blacks) is the "which legal
-    layout" control D13 also left open, now the binding constraint (fillability rarely
-    is — the cap-search can always retreat to small white pockets).
+  - **Black-cell density control — DONE (D25).** A `max_black` ceiling (complete over
+    "<= K blacks") plus a white-biased search order, defaulting to ~22% of the cells,
+    replaced D24's over-black uniform search: a 10x10 now defaults to **16–22% black**,
+    spread as short breaking-walls, filling 10/10 (was 22–52%, blobby). A layout
+    `node_budget` keeps a tight cap from running away. Left open: an explicit
+    *spread/anti-cluster* objective (residual clustering ~0.85 is acceptable but not
+    tuned), and tight density at 12x12+ (near its feasibility minimum → low yield, wants
+    the scaling search below).
   - **Scaling past ~12x12.** Connectivity checked only at the leaf makes the search
     backtrack heavily at 13x13+ (a 15x15 does not finish) — the "pruning before 15x15"
     item below, now concrete. Incremental connectivity/symmetry pruning is the fix.

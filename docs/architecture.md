@@ -309,15 +309,22 @@ built from 3–5-letter words, not ten-letter monsters). That cap is also what m
 grid fillable from the length-2..5 data we already have — no length-6+ lists needed.
 
 - `gen_capped(rows, cols, *, rng, min_len=3, max_len=None, symmetric=True, num_black=None,
-  randomize=True)` yields every legal layout whose entries all have length in `[min_len,
-  max_len]`. The *cap* is the governing parameter; the black count is derived (`num_black`
-  optionally pins it). It searches **row-major** and prunes each partial row/column the
-  instant a run is too long or too short (`_cell_ok`) — the run-aware pruning `gen_patterns`'
-  orbit/leaf model structurally cannot do, and why a 10x10 is found in ~8 ms rather than
-  never. Same legality otherwise (symmetric, fully checked, connected) and same completeness:
-  an empty generator is a proof (an odd `num_black` on a symmetric 10x10 has no centre cell).
-  With `max_len=None` + a fixed count it enumerates the *identical set* `gen_patterns` does
+  max_black=None, node_budget=None, randomize=True)` yields every legal layout whose entries
+  all have length in `[min_len, max_len]`. The *cap* is the governing parameter; the black
+  count is derived. It searches **row-major** and prunes each partial row/column the instant a
+  run is too long or too short (`_cell_ok`) — the run-aware pruning `gen_patterns`' orbit/leaf
+  model structurally cannot do, and why a 10x10 is found in ~5 ms rather than never. Same
+  legality otherwise (symmetric, fully checked, connected) and same completeness: an empty
+  generator is a proof (an odd `num_black` on a symmetric 10x10 has no centre cell). With
+  `max_len=None` + a fixed count it enumerates the *identical set* `gen_patterns` does
   (cross-tested) — a strict generalization.
+  - **Density (D25).** `num_black` pins the count exactly; `max_black` bounds it above (still
+    complete over "<= K blacks" — below the feasibility minimum it is a provable empty). The
+    randomized order is **white-biased** (black-first only `_BLACK_FIRST_PCT` of the time) so
+    the search prefers few, spread-out blacks; this only reorders which layout appears first.
+    `node_budget` (like `fill.solve`'s) bails a search that a tight cap makes backtrack away —
+    a *budgeted* empty is exhaustion, not a proof. The service defaults `max_black` to ~22% of
+    the cells (`DEFAULT_BLACK_FRACTION`) so a capped mini reads like a real crossword.
 - `fill_capped(rows, cols, mlex, *, max_len, ...)` is the cap-driven analogue of
   `fill_by_count`: first `gen_capped` layout that admits a distinct fill. Both searches are
   complete, but the capped layout space at 10x10 is astronomically large, so a `None` under

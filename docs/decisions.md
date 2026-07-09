@@ -983,3 +983,73 @@ backtracks heavily at 13x13+ (a 15x15 does not finish), which is the pre-existin
 before 15x15" open-question made concrete (incremental connectivity/symmetry pruning is the
 fix). None of these change the model; `gen_capped` and `fill_capped` are additive and the
 layers contract is untouched.
+
+## D25. Density control for capped layouts: a white-biased search + a black-cell ceiling
+
+Context: D24 shipped the cap-driven generator, but its free-count search chose black/white
+uniformly (50/50) and returned the first legal layout it stumbled into. On a 10x10 that
+over-blackened badly -- **22-52% black cells, clustered** (a touching-neighbour fraction of
+~0.95): blobby, dense, nothing like a real crossword. For a first expansion the *density*
+and *spread* of the black cells is the single biggest quality lever (a 10x10 wants ~16-22%
+black, spread as short breaking-walls), so this is the follow-up D24 flagged, taken now.
+
+Measured the design space (`scripts/`, folded into notes.md), 10x10 max_len=5, 20 seeds:
+uniform-50/50 gave 22-50% (cluster 0.95); a plain white-first order dropped the *median* but
+left a fat tail (some seeds still 48%); a hard black ceiling *at* the feasibility minimum
+(20 blacks, min+4) held 16-20% but made the search **backtrack pathologically** (a 312 ms
+spike at 10x10; a 12x12 at a tight cap did not finish at all); a ceiling with a little slack
+(22 blacks) held **16-22% black, 20 distinct / 40, cluster ~0.85, ~5 ms** to find. So the
+lever is a *ceiling with slack*, plus an order that prefers few blacks.
+
+Decision: two **completeness-safe** additions to `gen_capped`, plus a good default and a
+runaway guard.
+
+- **White-biased choice order.** When ``randomize``, each free cell is tried white-first,
+  black-first only ``_BLACK_FIRST_PCT`` (15%) of the time, so the search prefers *fewer,
+  less-clustered* black cells. This only reorders which layout appears first per seed -- the
+  reachable set (and completeness) is untouched, exactly as D24's uniform shuffle was. A
+  white-first order alone is not enough (the 48% tail), which is why the ceiling below is the
+  guarantee and the bias is the *preference*.
+- **A `max_black` ceiling.** An upper bound on the count, pruned early. ``{layouts with <=
+  max_black blacks}`` is a well-defined set, so the search stays complete over it: an empty
+  generator is still a proof (a ceiling *below the minimum feasible count* -- e.g. < 16 on a
+  10x10 -- is provably empty, the same epistemics as an infeasible exact count). ``num_black``
+  (exact) still exists; ``max_black`` is the softer density knob.
+- **Default density.** When the caller pins neither count, `fill_capped_once` sets ``max_black
+  = round(DEFAULT_BLACK_FRACTION * cells)`` with ``DEFAULT_BLACK_FRACTION = 0.22`` -- the
+  measured slack point. The result: `generate 10 10 0 60 3 --max-len 5` now yields clean,
+  real-crossword-like grids by default instead of the D24 over-black mess. `--max-black K`
+  overrides for a specific density.
+- **A layout `node_budget` (runaway guard).** A ceiling near the feasibility minimum makes
+  the search backtrack hard, and on a bigger grid (12x12) that runs away. So `gen_capped`
+  gains a ``node_budget`` mirroring `fill.solve`'s: the *generation* path (`fill_capped_once`)
+  passes one so a pathological seed bails and the per-seed loop moves on; the *proof* path
+  (`capped_layout_exists`) runs unbudgeted, so "no layout exists" stays a theorem. A budgeted
+  empty result is exhaustion, not UNSAT -- stated in the docstring and covered by a test.
+
+Result (notes.md): 10x10 default density fell from **22-52% to 16-22%** black, 20 distinct /
+40 seeds, fills 10/10 at bars 50-75 -- real grids (`GLASS/UNITY/BYLAW/IGLOO`,
+`ICON/BROWN/CHASE/TESLA/LOCKE`). The four forces -- density, diversity, search cost, grid
+size -- trade against each other: tightening the cap toward the minimum buys density at the
+cost of search time. 10x10 sits comfortably in the slack; a 12x12 at the same *fraction* is
+near its own minimum, so its yield is low (the node budget bails most seeds) -- the frontier,
+consistent with D24's scaling follow-up (a smarter layout search with incremental
+connectivity/symmetry pruning is what buys tight density at 12x12+).
+
+Alternatives considered:
+- **Exact-count default (pin `num_black` at ~18%):** rejected as the default. It gives precise
+  density but markedly less diversity (measured 6/20 distinct at a fixed count vs 13-20/20 for
+  the ceiling) and needs per-(size, cap) tuning to stay feasible; the ceiling is one knob that
+  degrades gracefully. Exact count remains available for callers who want it.
+- **White-bias alone, no ceiling:** rejected -- the 48% tail means no density *guarantee*; the
+  ceiling is what makes "at most this black" true.
+- **Ceiling at the true minimum (tightest density):** rejected -- pathological backtracking
+  (the 312 ms spike / 12x12 hang). Slack is cheaper than the marginal density.
+- **An anti-cluster / spread objective now:** deferred. Count control is the dominant lever and
+  already lands the density in range; the residual clustering (~0.85, short black walls) is a
+  normal crossword texture, and a spread metric is a further-refinement knob, not this spike.
+
+Reversal: additive and tunable. ``DEFAULT_BLACK_FRACTION`` and ``_BLACK_FIRST_PCT`` are
+one-line constants; drop ``max_black``/``node_budget`` and the bias to return to D24's search
+exactly. When the D24-scaling layout search lands, the ceiling's slack requirement relaxes and
+tighter default density at 12x12+ becomes cheap.

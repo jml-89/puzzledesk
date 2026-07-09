@@ -17,6 +17,7 @@ Run: uv run scripts/largemini.py
 import time
 from collections import Counter
 
+from puzzledesk.app.blocked import default_black_ceiling
 from puzzledesk.bootstrap import build
 from puzzledesk.cli import present
 from puzzledesk.core.engines import patterns
@@ -46,28 +47,63 @@ def motivation(container):
     )
 
 
+def _clustered(g, rows, cols):
+    """Fraction of black cells touching another black cell (0 = spread, 1 = blobby)."""
+    blk = g.block
+    blacks = [(r, c) for r in range(rows) for c in range(cols) if blk[r][c]]
+    if not blacks:
+        return 0.0
+    touch = sum(
+        any(
+            0 <= r + dr < rows and 0 <= c + dc < cols and blk[r + dr][c + dc]
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1))
+        )
+        for r, c in blacks
+    )
+    return touch / len(blacks)
+
+
 def layout_stats(container, rows, cols, max_len, n=40):
-    """Black-count distribution and timing for the diversified capped search."""
-    print(f"\n=== capped layouts {rows}x{cols}, max_len={max_len} ({n} seeds) ===")
-    counts, times, bad = Counter(), [], 0
+    """Black-count distribution, diversity, clustering and timing at the DEFAULT
+    density (the ~22% ceiling users actually get, D25)."""
+    ceiling = default_black_ceiling(rows, cols)
+    print(
+        f"\n=== capped layouts {rows}x{cols}, max_len={max_len}, "
+        f"default <= {ceiling} black ({n} seeds) ==="
+    )
+    counts, times, clus, seen, bad = Counter(), [], [], set(), 0
     for seed in range(n):
         t0 = time.perf_counter()
         rng = container.rng_factory.create(seed)
-        g = next(patterns.gen_capped(rows, cols, rng=rng, max_len=max_len), None)
+        g = next(
+            patterns.gen_capped(
+                rows, cols, rng=rng, max_len=max_len, max_black=ceiling, node_budget=300_000
+            ),
+            None,
+        )
         times.append(time.perf_counter() - t0)
         if g is None:
             bad += 1
             continue
         nb = sum(g.block[r][c] for r in range(rows) for c in range(cols))
         counts[nb] += 1
+        clus.append(_clustered(g, rows, cols))
+        seen.add(tuple(tuple(row) for row in g.block))
         assert not g.orphans and _max_run(g) <= max_len  # fully checked, capped
     med = sorted(times)[len(times) // 2] * 1e3
+    cells = rows * cols
+    if not counts:
+        print(f"  0/{n} found within the node budget (a tight cap near the minimum -- D25)")
+        return
     lo, hi = min(counts), max(counts)
-    print(f"  {n - bad}/{n} found; black cells range {lo}..{hi} ({lo}-{hi}% of the grid)")
+    print(
+        f"  {n - bad}/{n} found, {len(seen)} distinct; black {lo}..{hi} "
+        f"({100 * lo // cells}-{100 * hi // cells}%), avg clustering {sum(clus) / len(clus):.2f}"
+    )
     print(f"  layout search: median {med:.1f} ms, max {max(times) * 1e3:.1f} ms")
 
 
-def fill_rate(container, rows, cols, max_len, bars=(50, 60, 70, 75), seeds=10):
+def fill_rate(container, rows, cols, max_len, bars=(50, 60, 70, 75), seeds=6):
     """Fill rate + timing from cw 2..max_len across quality bars."""
     print(f"\n=== fill rate {rows}x{cols}, max_len={max_len}, cw list ===")
     for bar in bars:
@@ -100,13 +136,14 @@ def example(container, rows, cols, max_len, bar):
 def main():
     container = build()
     motivation(container)
-    # 10x10 is the target and 12x12 still comfortable; 13x13+ is the frontier
-    # (the leaf-only connectivity check makes the layout search backtrack heavily
-    # -- the "pruning before 15x15" follow-up in docs/open-questions).
-    for rows, cols, ml in ((10, 10, 5), (12, 12, 5)):
-        layout_stats(container, rows, cols, ml)
-        fill_rate(container, rows, cols, ml)
+    # 10x10 is the target: clean ~22% density, diverse, fills 10/10.
+    layout_stats(container, 10, 10, 5)
+    fill_rate(container, 10, 10, 5)
     example(container, 10, 10, 5, 70)
+    # 12x12 is the frontier: at the default (tight) cap the layout search is near its
+    # feasibility minimum and backtracks hard, so the node budget bails most seeds --
+    # loosen the cap (--max-black) or invest in smarter layout pruning (D25 scaling).
+    layout_stats(container, 12, 12, 5, n=12)
 
 
 if __name__ == "__main__":

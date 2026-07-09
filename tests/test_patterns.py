@@ -161,3 +161,53 @@ def test_capped_symmetric_even_grid_rejects_odd_count() -> None:
     # No centre cell on a 10x10, so an odd black count is impossible -- a proof,
     # exactly as gen_patterns rejects an odd count on the 5x5's even-parity orbits.
     assert next(patterns.gen_capped(10, 10, rng=_rng(0), max_len=5, num_black=17), None) is None
+
+
+# --- density control: max_black ceiling + white-biased order (D25) ---------------
+
+
+def test_max_black_bounds_the_count_and_is_complete() -> None:
+    # A ceiling yields exactly the layouts at or below it: the union up to K.
+    for K in range(0, 12):
+        bounded: set = set()
+        for g in patterns.gen_capped(
+            5, 5, rng=_rng(0), min_len=3, max_len=4, max_black=K, randomize=False
+        ):
+            bounded.add(tuple(tuple(row) for row in g.block))
+        union: set = set()
+        for nb in range(K + 1):
+            union |= _capped_set(5, 5, nb, True, 3, 4)
+        assert bounded == union
+
+
+def test_max_black_respected_on_10x10() -> None:
+    # Every generated 10x10 layout has at most the ceiling many black cells.
+    for seed in range(8):
+        g = next(
+            patterns.gen_capped(
+                10, 10, rng=_rng(seed), max_len=5, max_black=22, node_budget=300_000
+            ),
+            None,
+        )
+        assert g is not None
+        nb = sum(g.block[r][c] for r in range(10) for c in range(10))
+        assert nb <= 22
+
+
+def test_ceiling_below_minimum_is_empty() -> None:
+    # A 10x10 capped at max_len=5 needs >= 16 blacks; a ceiling under that is a proof
+    # of impossibility (empty generator), just like an infeasible exact count.
+    assert next(patterns.gen_capped(10, 10, rng=_rng(0), max_len=5, max_black=14), None) is None
+
+
+def test_node_budget_bails_without_claiming_a_proof() -> None:
+    # With a tiny node budget the search stops early: a legal layout certainly exists
+    # (a generous run finds one), but the budgeted run yields nothing -- exhaustion,
+    # not UNSAT. The two must not be conflated.
+    generous = next(patterns.gen_capped(10, 10, rng=_rng(0), max_len=5, max_black=22), None)
+    assert generous is not None
+    budgeted = next(
+        patterns.gen_capped(10, 10, rng=_rng(0), max_len=5, max_black=22, node_budget=5),
+        None,
+    )
+    assert budgeted is None  # bailed, not a proof

@@ -100,19 +100,41 @@ So a capped big mini is *easily* fillable — the cap keeps every slot in the we
 3–5 buckets, so the lexicon is not the ceiling here (unlike the 5x5 top-tier squeeze). An
 example 10x10 at bar>=70: `SUN/IDEA/TALC/PROOF/LIMB/IHOP/POET/OVAL/…`.
 
-Two honest edges (both in D24's follow-ups):
-- **Density.** The free-count search over-blackens under uniform randomization: black cells
-  ran **22–52%** of the 10x10 (34–70% at 12x12). A `num_black` target of ~18 (via
-  `generate 10 10 18 …`) gives clean ~18%, real-crossword-like grids; a black-density
-  objective is the natural next knob.
-- **Scaling.** Connectivity is checked only at the leaf, so the search backtracks heavily at
-  13x13+ (white-first ~465 ms at 13x13; a 15x15 does not finish). 10x10–12x12 are comfortable;
-  incremental connectivity/symmetry pruning is the "pruning before 15x15" follow-up.
+Scaling edge: connectivity is checked only at the leaf, so the search backtracks heavily at
+13x13+ (white-first ~465 ms at 13x13; a 15x15 does not finish). 10x10 is comfortable;
+incremental connectivity/symmetry pruning is the "pruning before 15x15" follow-up.
 
 Completeness is preserved for *existence*: an odd `num_black` on a symmetric 10x10 (no centre
 cell) yields an empty generator — a proof, the direct echo of D13's odd-count 5x5 proof. But a
 *fill* miss under a pattern/node budget is exhaustion, not a theorem (the capped layout space is
 astronomically large), and is worded that way.
+
+### Density control (D25)
+
+The D24 free-count search over-blackened: uniform 50/50 choice order gave **22–52%** black on a
+10x10, clustered (touching-neighbour fraction ~0.95) — blobby, unlike a real crossword. Design
+space measured (10x10, max_len=5, 20 seeds):
+
+    uniform 50/50 (D24)         black 22–50%, distinct 20/20, cluster 0.95   -- too black
+    white-first only (no cap)   black 16–48%, distinct 11/20, cluster ~0.8   -- fat 48% tail
+    white-bias + ceiling 20     black 16–20%, distinct 11/20, cluster 0.79   -- 312 ms spike
+    white-bias + ceiling 22     black 16–22%, distinct 11/20, cluster 0.79   -- clean, ~5 ms
+
+So the lever is a **black ceiling with a little slack** plus a **white-biased order** (D25):
+`max_black` bounds the count (complete over "<= K blacks"; below the 10x10 minimum of 16 it is a
+provable empty), and the search tries white-first, black-first only 15% of the time. Default
+`max_black = round(0.22 * cells)`. Result at the default on a 10x10 (40 seeds):
+
+    black 16–22%, 20 distinct/40, cluster ~0.85, layout search median ~5 ms; fills 10/10 at
+    bars 50–75 (~240–440 ms). Example (bar>=70): MALTA/UNION/STERN/HORSE/EXURB/GLIDE/ATLAS.
+
+The tension is four-way — density × diversity × search cost × grid size. A ceiling *at* the
+feasibility minimum backtracks pathologically (the 20-ceiling spike; a 12x12 at a tight cap
+hangs), so a **layout `node_budget`** (mirroring `fill.solve`'s) bails a runaway seed and the
+per-seed loop moves on — the *generation* path budgets, the *existence-proof* path
+(`capped_layout_exists`) does not, so "no layout exists" stays a theorem. 12x12 at the default
+22% fraction sits near its own minimum, so yield is low (2/12; node budget bailing) — the
+frontier, wanting the D24-scaling layout search. `--max-black K` overrides the default density.
 
 ## Structural difficulty — open crossings (D21, scripts/difficulty.py)
 
