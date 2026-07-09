@@ -83,7 +83,16 @@ ones are built, the two *soft* ones are recorded and blocked on data:
 - **C. Batch difficulty distribution — deferred.** A bell curve of difficulty is a
   *batch* property (schedule mostly-medium, few extreme), needing a per-puzzle
   difficulty number to schedule against. This is the difficulty face of "Grid variety
-  and curation across a batch" (below).
+  and curation across a batch" (below). D22 gives the per-puzzle number (`hard_gets`);
+  what is missing is the scheduler that shapes a batch to a target distribution.
+
+**Generate-to-a-difficulty — BUILT (D22), with a caveat.** `MiniService.generate(...,
+min_hard_gets=K, gimme=G)` selects grids by `solve_order` and returns them
+hardest-first (`mini --hard K --gimme G`). Two open edges: (i) selection is
+best-of-a-seed-budget over a *soft* score — a short return is budget exhaustion, never a
+proof, and there is no completeness here (unlike the fill); (ii) the target is two raw
+knobs (`min_hard_gets`, `gimme`), not a calibrated Mon–Sat preset — building the preset
+is the same "needs solve logs" blocker as layer B.
 
 The one thing that would unblock B and C, and grow A′ into the trajectory model, is a
 **human solve-time signal** (playtesting or logged solves) to calibrate IRT `θ`/`b`

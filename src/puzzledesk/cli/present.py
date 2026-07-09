@@ -18,12 +18,23 @@ def mini_batch(batch: MiniBatch, writer: Writer) -> None:
         if batch.max_score is None
         else f"in [{batch.min_score:.0f}, {batch.max_score:.0f}]"
     )
+    target = (
+        f", targeting >= {batch.min_hard_gets} hard gets (gimme {batch.gimme:.0f})"
+        if batch.min_hard_gets > 0
+        else ""
+    )
     writer.line(
-        f"{batch.n}x{batch.n} minis, every word score {bar} (from {batch.eligible} eligible words)"
+        f"{batch.n}x{batch.n} minis, every word score {bar} "
+        f"(from {batch.eligible} eligible words){target}"
     )
     writer.line()
     if not batch.results:
-        writer.line("no grid at this bar (try a lower min_score)")
+        writer.line(
+            "no grid met the difficulty target in the seed budget "
+            "(try a higher gimme or an obscurer band)"
+            if batch.min_hard_gets > 0
+            else "no grid at this bar (try a lower min_score)"
+        )
         return
     for r in batch.results:
         _mini(r, writer)
@@ -35,6 +46,14 @@ def _mini(r: MiniResult, writer: Writer) -> None:
     writer.line("  across: " + ", ".join(f"{a.word}({a.score:.0f})" for a in r.across))
     writer.line("  down:   " + ", ".join(f"{d.word}({d.score:.0f})" for d in r.down))
     writer.line(f"  weakest word: {r.weakest.word} ({r.weakest.score:.0f})")
+    if r.difficulty is not None:
+        d = r.difficulty
+        bn = (
+            f"; bottleneck {d.bottleneck_word} ({d.bottleneck_fits} fits)"
+            if d.bottleneck_word
+            else ""
+        )
+        writer.line(f"  difficulty: {d.hard_gets} hard gets under gimme {d.gimme:.0f}{bn}")
     writer.line()
 
 

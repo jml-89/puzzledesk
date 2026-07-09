@@ -763,3 +763,60 @@ or service change). The next step, when solve logs exist, is to calibrate `gimme
 bucket thresholds against real times and to widen the single greedy order into a
 distribution — at which point the `candidates` seam is where BP marginals would slot
 in, the same seam D20 named for `analyze`.
+
+## D22. Generate to a difficulty: select on solve order in the service — and say it is not a proof
+
+Context: D20/D21 built difficulty as *analysis* — you generate a grid, then measure how
+hard it is. The natural product move is to invert it: ask the generator for a *target*
+difficulty and have it hand back grids that hit it ("give me a Saturday"). The
+machinery is all present (`solve_order` scores a grid; `MiniService` already loops
+seeds); D22 is the wiring, plus the one thing that must stay explicit — this selection
+is **not** the complete/provable kind of answer the rest of the system trades in.
+
+Decision: `MiniService.generate` grows two optional knobs, `min_hard_gets` (default 0,
+== today's behaviour) and `gimme` (default 80). When `min_hard_gets > 0` the service
+loads the **full** vocabulary (for the difficulty read, D21), generates over the band as
+before, and for each solved grid runs `solve_order` (wired to the new
+`Lexicon.n_candidates` primitive and the full-list score); it keeps a grid only if it
+needs at least `min_hard_gets` hard gets, dedupes by fill, and returns the survivors
+**hardest-first** with a `SolveDifficulty` attached (`hard_gets`, `bottleneck_word`,
+`bottleneck_fits`, `gimme`). `cli.mini` exposes it as `--hard K [--gimme G]`.
+
+The load-bearing distinction, stated in the docstring and the presenter's empty-result
+message: **a short return is budget exhaustion, not UNSAT.** A backtracker `None` is a
+theorem — the tree is exhausted, no grid exists (invariant: "None is a proof"). Difficulty
+selection is best-of-a-seed-budget over a *soft, uncalibrated* score (`gimme` is D20 layer
+B); returning fewer than `count` means "not found in the seeds tried", never "impossible".
+Conflating the two would be the exact epistemic error the whole design is careful to avoid,
+so the code never calls a difficulty miss a proof, and the message says "not found in the
+seed budget" and suggests loosening (`higher gimme`, obscurer band), not "impossible".
+
+Why *threshold-first*, not *global-hardest*: the service stops at the first `count` grids
+clearing the bar (then sorts those), rather than scanning the whole budget for the
+absolute hardest. The target is "at least this hard" — a Saturday, not *the* hardest
+possible grid — and first-past-the-bar is faster and matches the ask. The budget is
+`count * 40` when targeting (vs `* 20`), since target-meeting grids are rarer; still a
+budget, still honest about it.
+
+Kept clean: `n_candidates` is the mirror of `n_letters_at` (a `core` primitive; the
+solve-order analogue of the checkability one), so the service wires `solve_order` with
+core primitives exactly as the driver does — no new coupling, the layers contract holds.
+Backward compatible: `min_hard_gets=0` skips all of it (no full-vocab load, no
+`solve_order`, `difficulty=None`), so `mini 5 70 3` is byte-identical.
+
+Alternatives considered:
+- **Scan the full budget, return the N hardest (best-of):** rejected as the default —
+  always burns the whole budget and answers a different question ("the hardest you can
+  find") than the target ("hard enough"). The hardest-first sort of the threshold
+  survivors gives most of the benefit at a fraction of the cost.
+- **A `Difficulty`/Mon–Sat preset enum mapping to `(gimme, min_hard_gets)`:** deferred —
+  tempting, but the mapping *is* the calibration that D20/D21 say needs solve data. Baking
+  presets now would dress an uncalibrated guess as a named label. Two honest knobs until
+  there are real times to fit the presets to.
+- **Compute difficulty for every grid always (drop the `min_hard_gets>0` gate):** rejected
+  — `solve_order` over the full 20k-word vocabulary is real work; making the default
+  `mini` pay it for a field it did not ask for is a silent tax. Opt-in via the target.
+
+Reversal: additive and default-off. When solve logs arrive, the `Difficulty` preset enum
+becomes buildable (calibrate `gimme`/`min_hard_gets` per weekday), and best-of-budget
+could join as an explicit mode; neither changes the seam.

@@ -145,3 +145,29 @@ def test_all_obscure_needs_one_cold_ice_breaker_then_cascades() -> None:
     assert traj.hard_gets[0].order == 0
     assert traj.bottleneck is not None and traj.bottleneck.order == 0
     assert [s.kind for s in traj.steps[1:]] == ["forced", "forced", "forced"]
+
+
+# --- D22. difficulty-targeted generation -----------------------------------------
+
+
+def test_generate_targets_a_difficulty() -> None:
+    # Under a gimme above every score, this 2x2 needs one hard get (a cold ice-breaker),
+    # so a min_hard_gets=1 target is met and the difficulty is attached, hardest-first.
+    batch = _service(_SCORED).generate(2, min_score=0.0, count=1, min_hard_gets=1, gimme=100.0)
+    assert batch.min_hard_gets == 1 and batch.gimme == 100.0
+    assert batch.results
+    d = batch.results[0].difficulty
+    assert d is not None and d.hard_gets >= 1 and d.gimme == 100.0
+
+
+def test_unmeetable_target_returns_nothing_and_is_not_a_proof() -> None:
+    # The 2x2 tops out at one hard get; asking for three finds none in the seed budget.
+    # That is budget exhaustion, NOT a UNSAT proof (unlike a backtracker None) -- D22.
+    batch = _service(_SCORED).generate(2, min_score=0.0, count=1, min_hard_gets=3, gimme=100.0)
+    assert batch.results == []
+
+
+def test_untargeted_generation_leaves_difficulty_unset() -> None:
+    batch = _service(_SCORED).generate(2, min_score=0.0, count=1)
+    assert batch.min_hard_gets == 0
+    assert batch.results and batch.results[0].difficulty is None

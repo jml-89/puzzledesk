@@ -18,8 +18,10 @@ from ..core.engines import backtrack
 from ..core.rng import RngFactory
 from ..core.square import DoubleSquare
 from ..core.validate import Verdict, score_of, validate
+from .difficulty import solve_order
 from .ports import LexiconSource
-from .results import MiniBatch, MiniResult, WordScore
+from .puzzle import filled_from_square
+from .results import MiniBatch, MiniResult, SolveDifficulty, WordScore
 
 
 class MiniService:
@@ -39,31 +41,85 @@ class MiniService:
         min_score: float = 70.0,
         max_score: float | None = None,
         count: int = 3,
+        min_hard_gets: int = 0,
+        gimme: float = 80.0,
     ) -> MiniBatch:
         """Up to ``count`` distinct minis of order ``n`` with every word scoring in
         ``[min_score, max_score]`` (``max_score=None`` == an open floor, the plain
         quality bar; a two-sided band is the difficulty knob, D20). Backtracking is
         complete, so a seed that returns None simply found no grid on its randomised
         path; we try more seeds up to a budget and stop at ``count`` grids (or when the
-        budget is spent)."""
-        lex = self._lexicon.load(self._list_name, n, min_score=min_score, max_score=max_score)
+        budget is spent).
+
+        With ``min_hard_gets > 0`` the service *targets a difficulty* (D22): each solved
+        grid is scored by ``solve_order`` (against the full vocabulary, under ``gimme``)
+        and kept only if it needs at least ``min_hard_gets`` hard gets; the survivors are
+        returned hardest-first with a :class:`SolveDifficulty` attached. This selection
+        is best-of-budget, **not** a proof: returning fewer than ``count`` means "not
+        found in the seed budget", never "impossible" (unlike a backtracker ``None``).
+        Pair a high ``min_hard_gets`` with a high ``gimme`` and/or an obscure band, or the
+        target is rare and the budget is spent finding it."""
+        full = self._lexicon.load(self._list_name, n)  # full solving vocabulary (D21)
+        lex = full.filtered(min_score, max_score)  # the generation band
         sq = DoubleSquare(lex)
+        targeting = min_hard_gets > 0
+
+        def score(w: str) -> float:
+            return full.score_map.get(w, 0.0)
+
         results: list[MiniResult] = []
-        for seed in range(count * 20):
+        seen: set[tuple[str, ...]] = set()
+        for seed in range(count * (40 if targeting else 20)):
             state = backtrack.solve(sq, rng=self._rng.create(seed), distinct=True)
             if state is None:
                 continue
             v = validate(sq, state, min_score)
             assert v.ok, v  # filtered list + distinct=True guarantee this
-            results.append(_to_result(sq, state, v))
+            difficulty = None
+            if targeting:
+                words = tuple(sq.rows.words[i] for i in state)
+                if words in seen:
+                    continue
+                traj = solve_order(
+                    filled_from_square(sq, state), full.n_candidates, score, gimme=gimme
+                )
+                if len(traj.hard_gets) < min_hard_gets:
+                    continue
+                seen.add(words)
+                b = traj.bottleneck
+                difficulty = SolveDifficulty(
+                    hard_gets=len(traj.hard_gets),
+                    bottleneck_word=b.answer if b else None,
+                    bottleneck_fits=b.candidates if b else 0,
+                    gimme=gimme,
+                )
+            results.append(_to_result(sq, state, v, difficulty))
             if len(results) >= count:
                 break
+        if targeting:
+            results.sort(
+                key=lambda r: (r.difficulty.hard_gets, r.difficulty.bottleneck_fits),  # type: ignore[union-attr]
+                reverse=True,
+            )
         return MiniBatch(
-            n=n, min_score=min_score, max_score=max_score, eligible=len(lex), results=results
+            n=n,
+            min_score=min_score,
+            max_score=max_score,
+            eligible=len(lex),
+            results=results,
+            min_hard_gets=min_hard_gets,
+            gimme=gimme,
         )
 
 
-def _to_result(sq: DoubleSquare, state: np.ndarray, v: Verdict) -> MiniResult:
+def _to_result(
+    sq: DoubleSquare, state: np.ndarray, v: Verdict, difficulty: SolveDifficulty | None = None
+) -> MiniResult:
     across = [WordScore(sq.rows.words[i], float(sq.rows.scores[i])) for i in state]
     down = [WordScore(w, score_of(sq.cols, w)) for w in sq.column_strings(state)]
-    return MiniResult(across=across, down=down, weakest=WordScore(v.weakest[0], v.weakest[1]))
+    return MiniResult(
+        across=across,
+        down=down,
+        weakest=WordScore(v.weakest[0], v.weakest[1]),
+        difficulty=difficulty,
+    )

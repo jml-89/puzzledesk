@@ -324,22 +324,30 @@ minis generated from a black-cell count.
 
 ## Data flow for "generate a mini" (`app.mini.MiniService`)
 
-`FileLexicon.load("cw", N, min_score)` (reads `cw_N.txt`, parses via
-`Lexicon.from_scored_text`, filters) -> DoubleSquare -> `backtrack.solve(rng=
-factory.create(seed), distinct=True)` per seed -> validate (assert ok) -> shape a
-`MiniResult`. The `cli.mini` entry point + `cli.present` render it. Every emitted
-grid is distinct-words and every word >= min_score by construction of the filter.
+`FileLexicon.load("cw", N)` (reads `cw_N.txt`, parses via `Lexicon.from_scored_text`)
+-> `full.filtered(min, max)` (the generation band) -> DoubleSquare ->
+`backtrack.solve(rng=factory.create(seed), distinct=True)` per seed -> validate (assert
+ok) -> shape a `MiniResult`. The `cli.mini` entry point + `cli.present` render it. Every
+emitted grid is distinct-words and every word in the band by construction of the filter.
 `cli.generate` + `BlockedGenerateService` are the blocked analogue.
+
+**Difficulty targeting (D22).** With `min_hard_gets > 0`, each solved grid is scored by
+`solve_order` (against the *full* vocabulary, under `gimme`) and kept only if it needs
+that many hard gets; survivors return hardest-first with a `SolveDifficulty` attached.
+This is best-of-a-seed-budget over a soft score, **not** a proof: a short return means
+"not found in the budget", never "impossible" (unlike a backtracker `None`).
 
 ## Entry points
 
 Tools (`cli/`, typed, over services; `scripts/{mini,generate}.py` are shims;
 `mini`/`generate` are also `[project.scripts]` console commands):
 
-- mini.py: the generator. `mini.py N min_score count [--max HI]`. The positionals are
-  unchanged (`mini 5 70 3` still means N=5, floor 70, 3 grids); `--max HI` turns the
-  floor into a difficulty *band* `[min_score, HI]` (D20), drawing from the obscure band
-  instead of merely lowering the floor.
+- mini.py: the generator. `mini.py N min_score count [--max HI] [--hard K] [--gimme G]`.
+  The positionals are unchanged (`mini 5 70 3` still means N=5, floor 70, 3 grids);
+  `--max HI` turns the floor into a difficulty *band* `[min_score, HI]` (D20); `--hard K`
+  *targets a difficulty* (D22) — keep only grids the solve-order model says need >= K hard
+  gets, read under clue-difficulty `--gimme G` (default 80), returned hardest-first. E.g.
+  `mini 5 60 3 --max 90 --hard 6 --gimme 88` emits Saturdays.
 - generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
   rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)

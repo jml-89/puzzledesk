@@ -161,6 +161,23 @@ forced entry cold, so *ignition requires the gimme signal* — a logic-only solv
 even start, which is itself the finding. `gimme` is uncalibrated (D20 layer B): vary it
 to bracket solver skill, not to claim a Monday/Saturday label.
 
+## Generate-to-a-difficulty (D22, cli.mini --hard)
+
+`mini 5 60 3 --max 90 --hard 6 --gimme 88` — draw fills from the `[60,90]` band, keep
+only grids the solve-order model says need ≥6 hard gets under Saturday cluing, return
+hardest-first. Deterministic (seeds 0..); this container yields, in order:
+
+    SLOAN/CORGI/USAIN/BELLE/ASSES × SCUBA/LOSES/ORALS/AGILE/NINES  — 7 hard, bottleneck SLOAN
+    EARLE/PLAIT/OPRAH/CHINO/HANES × EPOCH/ALPHA/RARIN/LIANE/ETHOS  — 6 hard, bottleneck OPRAH
+    DUMPS/USURP/PETAL/LOTTA/ONSET × DUPLO/USEON/MUTTS/PRATE/SPLAT  — 6 hard, bottleneck ONSET
+
+Real, cluable fills (CORGI, USAIN Bolt, SCUBA, OPRAH, ETHOS) — the band floor of 60
+keeps them solid, the cap at 90 forces below-gimme crunch. The same decoupling as the
+hand-picked `DUETO/DORIC/UHURA…` Saturday (`site/saturday-mini.html`): identical grids
+are Saturdays only under high `gimme`; drop `gimme` to 80 and most collapse to a hard-get
+or two. The threshold is best-of-budget, not a proof — asking `--hard 9` returns nothing
+(no such grid found in `count*40` seeds), which is exhaustion, not UNSAT (D22).
+
 Reproducibility note: `mini 5 70 1` is unchanged by the band work
 (`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
 to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.

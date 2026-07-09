@@ -119,6 +119,20 @@ class Lexicon:
         idx = self.matching(pattern)
         return int(np.unique(self.letters[idx, pos]).size)
 
+    def n_candidates(self, word: str, known: Iterable[int]) -> int:
+        """How many words fit ``word``'s pattern when the positions in ``known`` are
+        pinned to its letters and the rest are blank. ``1`` == the pattern forces
+        ``word`` (its crossings so far leave no other option). The primitive behind the
+        solve-order model (``app.difficulty.solve_order``): a solver's support for an
+        entry is exactly which of its cells the already-solved crossings have filled.
+        Scored against the *full* solving vocabulary, like ``n_letters_at`` (D21).
+        """
+        fixed = set(known)
+        pattern: list[int | None] = [
+            int(c) if i in fixed else None for i, c in enumerate(encode(word))
+        ]
+        return int(self.matching(pattern).size)
+
     def is_word(self, s: str) -> bool:
         return s in self.wordset
 
@@ -170,6 +184,9 @@ class _EmptyLexicon:
 
     def n_letters_at(self, word: str, pos: int) -> int:
         return 0  # no words of this length => nothing admitted here
+
+    def n_candidates(self, word: str, known: Iterable[int]) -> int:
+        return 0  # no words of this length => nothing fits
 
 
 class MultiLexicon:
