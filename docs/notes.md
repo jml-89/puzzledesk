@@ -189,25 +189,57 @@ The solving spike was exercised **live** end to end (`uv run --extra clue solve`
 work: clue generation, then a Claude agent (`claude-opus-4-8`) solving through the feedback
 loop. Two API-shape facts learned live (both now encoded in `adapters/claude_solver.py`):
 
-- Structured outputs (`output_config={"format":{"type":"json_schema","schema":…}}`) work as
-  the clue adapter already used them.
-- Opus 4.8 uses **adaptive** thinking: `thinking={"type":"adaptive"}` + `output_config.effort`.
-  The older `thinking={"type":"enabled","budget_tokens":…}` **400s** on this model. And with
-  structured output on, *separate thinking blocks are not returned* — so the solver captures
-  its reasoning via a `reasoning` field baked into the **schema** (the block capture is kept
-  as a future-proof supplement). That schema field is the reliable reasoning channel.
+- Structured outputs (`output_config={"format":{"type":"json_schema","schema":…}}`) work for
+  the *clue* adapter (it keeps them).
+- Thinking APIs differ by **model family**: Opus 4.8 uses **adaptive**
+  (`thinking={"type":"adaptive"}` + `output_config.effort`); Haiku 4.5 uses the older
+  **enabled** (`thinking={"type":"enabled","budget_tokens":N}`). Each **400s** on the other
+  (`Config.solve_thinking` = `adaptive`/`enabled`/`off` selects it).
+- **Reasoning volume is the measurement, so the solver runs *free-form* (no forced schema).**
+  Forcing a JSON schema *suppresses the thinking pass and zeros `thinking_tokens`* — the very
+  signal we want. Free-form, the model reasons in prose (readable) and ends with a JSON object
+  parsed leniently; `usage.output_tokens_details.thinking_tokens` is the effort scalar (the
+  thinking *block* itself comes back redacted/empty). Trivial prompt → **0** thinking tokens;
+  a mini → **thousands**, so the signal is real and difficulty-responsive.
 
-First finding, and it is a real one: **a 5x5 mini is a one-shot for Opus 4.8, even with
-`--policy none` (zero feedback).** The default seed-0 4-black grid
-(`HEW/MIXIN/ETUDE/LURED/PBR × HITUP/EXURB/WIDER/MEL/NED`) is solved in a single turn under
-every policy tried (cell, none). The reasoning is worth reading even so — the agent noted
-5D's clue ("Hank Schrader") did not match, and *trusted the crossings* to write NED anyway,
-which is exactly the checkability signal `difficulty.analyze`/`solve_order` model. Implication
-for the probe: at mini scale the *completion* bit saturates (always solved), so the discriminating
-signal is the **reasoning transcript**, not turns-to-solve. The turn-count/feedback loop only
-earns its keep on harder or **larger** grids (needs the 6..15-length word lists, still unbuilt)
-or against a **weaker** solver model (swap `Config.solve_model`) — both are the natural next
-steps to make this a graded difficulty instrument rather than a pass/fail one.
+First finding: **a 5x5 mini is a one-shot for Opus 4.8, even under `--policy none` (no
+feedback).** The completion bit saturates (always solved in 1 turn), so the graded tell is
+**reasoning-token spend**, not turns.
+
+Clue-difficulty sweep (`scripts/solve_effort.py`, Opus, `--policy none`, thinking tokens; the
+fill is identical per seed across difficulties, only the clues differ):
+
+    difficulty  seed0  seed1  seed2
+    monday       6585   1697   1028
+    saturday     1735   1421   1394
+
+Read: **clue difficulty barely moves reasoning**, and on seed 0's *identical grid* Monday cost
+*more* than Saturday. Single-run variance is large (6585 vs 1028), so counts need averaging.
+
+**What the transcripts reveal (the important finding).** Head-to-head on one puzzle (seed 1,
+Wednesday clues), Opus vs Haiku, both solved in one turn:
+- Both solve the mini as **ten independent trivia clues**, not as a constraint puzzle. Every
+  entry (SIP, SELES, INDY, PASS, ARENA, HOLDS, OBEYS, YES, AHOY, ROBE) is gettable from its
+  clue alone; the interlock is a *formality they confirm*, not the *means*. Opus even says it —
+  "ARENA (crosses give _ _ E N A)" — using crossings only to check. This is why clue difficulty
+  does not bite: if the model already knows the word, the crossings never become load-bearing.
+- **More tokens ≠ more/better reasoning.** Haiku spent **5737** tokens vs Opus's **1512** (3.8×)
+  for the *same* answers — but its extra reasoning is verbose and **partly confabulated**: it
+  "verified crossings" with hand-wave ✓s and drew a grid (`IPEAO/NALHB/…`) that does **not**
+  match its own (correct) placements. It got the answer because the clues were individually
+  easy, not because its interlock reasoning was sound. Since the real thinking block is
+  redacted, the prose is a *separate, post-hoc articulation* and can diverge from what happened
+  — trust the token **count** as effort, treat the prose as a lossy narrative.
+- **Reframing.** Our analytical difficulty (`analyze`/`solve_order`) lives entirely in the grid
+  *structure* (open crossings, Naticks). On a mini of common words the models **bypass that
+  structure**, so thinking-tokens measure trivia recall + verbosity, not structural difficulty,
+  and will not correlate with the model until the puzzle *forces* crossing inference. The
+  discriminating lever is therefore **word obscurity** (make the clues insufficient so the grid
+  must carry the solve) — the two-sided band the mini path has (`--max`) but the puzzle/blocked
+  fill does not expose yet — more than clue wording or model choice.
+
+(The Haiku *table* sweep over 6 puzzles timed out at 590 s — Haiku is slow/verbose; the
+head-to-head above is the cleaner read anyway.)
 
 ## Environment quirks (dev container)
 
