@@ -1,4 +1,4 @@
-"""Difficulty contracts (D20/D21): score band, structural checkability, solve order.
+"""Difficulty contracts (D21/D22): score band, structural checkability, solve order.
 
 These slices are deterministic, so they get tests (not benchmarks): the band filter
 keeps exactly the in-range words, ``analyze`` flags a crossing *open* iff neither word
@@ -110,7 +110,7 @@ def test_analyze_wired_to_a_real_lexicon() -> None:
     assert diff.hardest is not None and diff.hardest.cell == (0, 0)
 
 
-# --- D21. solve order: the dynamic reading ---------------------------------------
+# --- D22. solve order: the dynamic reading ---------------------------------------
 
 
 def test_solve_order_all_common_is_a_monday() -> None:
@@ -147,7 +147,7 @@ def test_all_obscure_needs_one_cold_ice_breaker_then_cascades() -> None:
     assert [s.kind for s in traj.steps[1:]] == ["forced", "forced", "forced"]
 
 
-# --- D22. difficulty-targeted generation -----------------------------------------
+# --- D23. difficulty-targeted generation -----------------------------------------
 
 
 def test_generate_targets_a_difficulty() -> None:
@@ -162,7 +162,7 @@ def test_generate_targets_a_difficulty() -> None:
 
 def test_unmeetable_target_returns_nothing_and_is_not_a_proof() -> None:
     # The 2x2 tops out at one hard get; asking for three finds none in the seed budget.
-    # That is budget exhaustion, NOT a UNSAT proof (unlike a backtracker None) -- D22.
+    # That is budget exhaustion, NOT a UNSAT proof (unlike a backtracker None) -- D23.
     batch = _service(_SCORED).generate(2, min_score=0.0, count=1, min_hard_gets=3, gimme=100.0)
     assert batch.results == []
 

@@ -28,6 +28,7 @@ from ..app.clue import ClueProvider
 from ..app.cluing import ClueService
 from ..app.mini import MiniService
 from ..app.ports import LexiconSource, Writer
+from ..app.puzzle_service import PuzzleService
 from ..core.rng import RngFactory
 from .config import Config
 from .container import Container
@@ -77,6 +78,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
     mini = MiniService(adapters.lexicon, adapters.rng_factory)
     blocked = BlockedGenerateService(adapters.lexicon, adapters.rng_factory)
     clue = ClueService(adapters.clue_provider)
+    puzzle = PuzzleService(blocked, clue)
     return Container(
         config=config,
         rng_factory=adapters.rng_factory,
@@ -85,6 +87,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
         mini=mini,
         blocked=blocked,
         clue=clue,
+        puzzle=puzzle,
     )
 
 

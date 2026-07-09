@@ -20,12 +20,12 @@ class WordScore:
 
 @dataclass(frozen=True, slots=True)
 class SolveDifficulty:
-    """A grid's dynamic difficulty, from ``app.difficulty.solve_order`` (D21/D22).
+    """A grid's dynamic difficulty, from ``app.difficulty.solve_order`` (D22/D23).
 
     ``hard_gets`` is how many entries the easiest-first solver had to work obscure and
     still-open (0 == it fell to gimmes + forcing, a Monday); ``bottleneck`` is the
     hardest such entry (most fits to disambiguate). Both are read under ``gimme`` -- the
-    clue-difficulty assumption, an input, not a measured label (D20 layer B)."""
+    clue-difficulty assumption, an input, not a measured label (D21 layer B)."""
 
     hard_gets: int
     bottleneck_word: str | None
@@ -54,8 +54,8 @@ class MiniBatch:
     min_score: float
     eligible: int
     results: list[MiniResult]
-    max_score: float | None = None  # set == a difficulty band [min, max] (D20)
-    min_hard_gets: int = 0  # >0 == grids were selected to a difficulty target (D22)
+    max_score: float | None = None  # set == a difficulty band [min, max] (D21)
+    min_hard_gets: int = 0  # >0 == grids were selected to a difficulty target (D23)
     gimme: float = 80.0  # the clue-difficulty assumption the target was read under
 
 

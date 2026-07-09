@@ -76,7 +76,7 @@ ground truth, solver output a strict subset over 60 seeds. Data covers lengths
 2..5, so demos use slots <= 5; the curated list has no 2-letter entry above any
 real bar (length-2 slots are UNSAT on it).
 
-## Structural difficulty — open crossings (D20, scripts/difficulty.py)
+## Structural difficulty — open crossings (D21, scripts/difficulty.py)
 
 `app.difficulty.analyze` scores each crossing against the *full* solving vocabulary
 (cw 5-letter list, 20,292 words) — a cell is *open* if neither crossing word alone
@@ -99,7 +99,7 @@ obscurity term. So the checkability metric (layer A′) and the band (layer A) a
 complementary: the band decides how obscure the fill is, the metric shows which
 crossings that obscurity turns into Naticks. Openness is scored against the whole
 vocabulary and at maximal support (the rest of each word known), so an open crossing
-is unavoidably hard regardless of solve order — a conservative signal (D20).
+is unavoidably hard regardless of solve order — a conservative signal (D21).
 
 **What openness is really driven by: word length, not crossing count.** The intuition
 "a mini is hard because it is densely crossed" is only half right. Split "density" into
@@ -134,7 +134,7 @@ because a 3-slot's 4-/5-letter crossing neighbours sometimes pin the letter from
 shorten the grid, or shorten a slot with a block — either way the weak side's stem is
 what sets openness.
 
-## Solve-order difficulty (D21, scripts/difficulty.py)
+## Solve-order difficulty (D22, scripts/difficulty.py)
 
 `solve_order` replays the fill easiest-first (forced → gimme[score>=80] → hard get) and
 reports the trajectory as a kind-string plus the bottleneck. Measured on 5x5 cw minis
@@ -154,14 +154,14 @@ static openness reading cannot:
 
 The ignition knob: on the same [50,58] grids, lowering `gimme` 80→55 (assume the solver
 *knows* those words) drops hard-gets 9→7 and the bottleneck from ~20,292 fits to ~140 —
-anchoring quantified. Two modelling choices matter (D21): the hard-get order is
+anchoring quantified. Two modelling choices matter (D22): the hard-get order is
 support-first (`(-fits, score)`) so the cascade flows through crossings (score-first
 picked multiple cold ice-breakers, understating it); and a fully-checked grid has no
 forced entry cold, so *ignition requires the gimme signal* — a logic-only solver can't
-even start, which is itself the finding. `gimme` is uncalibrated (D20 layer B): vary it
+even start, which is itself the finding. `gimme` is uncalibrated (D21 layer B): vary it
 to bracket solver skill, not to claim a Monday/Saturday label.
 
-## Generate-to-a-difficulty (D22, cli.mini --hard)
+## Generate-to-a-difficulty (D23, cli.mini --hard)
 
 `mini 5 60 3 --max 90 --hard 6 --gimme 88` — draw fills from the `[60,90]` band, keep
 only grids the solve-order model says need ≥6 hard gets under Saturday cluing, return
@@ -176,7 +176,7 @@ keeps them solid, the cap at 90 forces below-gimme crunch. The same decoupling a
 hand-picked `DUETO/DORIC/UHURA…` Saturday (`site/saturday-mini.html`): identical grids
 are Saturdays only under high `gimme`; drop `gimme` to 80 and most collapse to a hard-get
 or two. The threshold is best-of-budget, not a proof — asking `--hard 9` returns nothing
-(no such grid found in `count*40` seeds), which is exhaustion, not UNSAT (D22).
+(no such grid found in `count*40` seeds), which is exhaustion, not UNSAT (D23).
 
 Reproducibility note: `mini 5 70 1` is unchanged by the band work
 (`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
@@ -223,6 +223,12 @@ Curated real list — `data/cw_N.txt`:
       xwordlist.dict | sort -t' ' -k2,2nr -k1,1 > data/cw_$n.txt
 - Provenance/licenses also recorded in data/SOURCES.md.
 - Only the DERIVED length lists are committed; the raw dumps are not.
+- QA finding (D20): for *generating* clean puzzles the practical floor is ~75, not
+  the list's "60+ solid" convention. At `min_score 60`, a 5x5 fill admitted `LEDON`
+  (a non-word the list rates 60); `min_score 75` produced only real words across
+  seeds. So `puzzle` defaults to 75. This is a data property of `cw_N.txt` (the
+  border of "solid" is soft, and 60 lets a few junk entries through), not an engine
+  bug — the fill faithfully placed a word the list rated acceptable.
 
 ## Gotchas that cost time
 

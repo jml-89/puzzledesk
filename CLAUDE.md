@@ -108,6 +108,7 @@ uv run lint-imports     # architecture: the hexagonal layers contract (import-li
 uv run pytest           # tests: invariants + ground truth + DI (see below)
 uv run scripts/mini.py 5 70 3          # a tool: three distinct 5x5 minis, every word >= 70
 uv run mini 5 70 3                     # ...same, via the console entry point
+uv run --extra clue puzzle --reveal    # a tool: a whole clued puzzle as plain text (D20; needs a key)
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 ```
 

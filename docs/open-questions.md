@@ -53,9 +53,9 @@ condition under which D3/D7 said stochastic (or a JAX parallel-chain) sampling c
 retake primacy, and it would be a fresh spike with a new hypothesis, restoring the
 old code from git as a starting point rather than a resurrection.
 
-## Difficulty — partially modelled (D20)
+## Difficulty — partially modelled (D21)
 
-Difficulty is decomposed into four layers (D20); the two *complete/deterministic*
+Difficulty is decomposed into four layers (D21); the two *complete/deterministic*
 ones are built, the two *soft* ones are recorded and blocked on data:
 
 - **A. Word prior — BUILT.** Obscurity band `[lo, hi]` via `Lexicon.filtered(min,
@@ -66,7 +66,7 @@ ones are built, the two *soft* ones are recorded and blocked on data:
   (distinct from crowd-enjoyment score) is worth sourcing.
 - **A′. Structural checkability — BUILT (static + dynamic).** `app/difficulty.analyze`
   flags *open* crossings (Natick risk) at maximal support, no solve data.
-  `app/difficulty.solve_order` (D21) adds the **order-dependent cascade**: replay the
+  `app/difficulty.solve_order` (D22) adds the **order-dependent cascade**: replay the
   fill easiest-first (forced → gimme → hard get) so an obscure entry its crossings
   *force* by the time you reach it is not a Natick — the distinction the static reading
   cannot make. Open follow-ups: (i) it is one greedy order with a deterministic
@@ -83,10 +83,10 @@ ones are built, the two *soft* ones are recorded and blocked on data:
 - **C. Batch difficulty distribution — deferred.** A bell curve of difficulty is a
   *batch* property (schedule mostly-medium, few extreme), needing a per-puzzle
   difficulty number to schedule against. This is the difficulty face of "Grid variety
-  and curation across a batch" (below). D22 gives the per-puzzle number (`hard_gets`);
+  and curation across a batch" (below). D23 gives the per-puzzle number (`hard_gets`);
   what is missing is the scheduler that shapes a batch to a target distribution.
 
-**Generate-to-a-difficulty — BUILT (D22), with a caveat.** `MiniService.generate(...,
+**Generate-to-a-difficulty — BUILT (D23), with a caveat.** `MiniService.generate(...,
 min_hard_gets=K, gimme=G)` selects grids by `solve_order` and returns them
 hardest-first (`mini --hard K --gimme G`). Two open edges: (i) selection is
 best-of-a-seed-budget over a *soft* score — a short return is budget exhaustion, never a

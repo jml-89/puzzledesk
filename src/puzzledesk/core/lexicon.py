@@ -94,7 +94,7 @@ class Lexicon:
 
         A one-sided floor applies a *quality* bar -- filtering at the acceptance bar
         turns quality into feasibility on a smaller list (D6). A two-sided *band*
-        applies a *difficulty* bar (D20): "harder" draws from the obscure band rather
+        applies a *difficulty* bar (D21): "harder" draws from the obscure band rather
         than merely lowering the floor, and a banded run still proves a difficulty
         ceiling because the search stays complete.
         """
@@ -112,7 +112,7 @@ class Lexicon:
         ``1`` means ``word`` alone forces the letter there (a self-checking crossing);
         ``>1`` means the word does not pin it. The primitive behind structural
         checkability (``app.difficulty``); scored against the *full* solving vocabulary,
-        not a bar-filtered list (a solver knows every word). See D20.
+        not a bar-filtered list (a solver knows every word). See D21.
         """
         pattern: list[int | None] = [int(c) for c in encode(word)]
         pattern[pos] = None
@@ -125,7 +125,7 @@ class Lexicon:
         ``word`` (its crossings so far leave no other option). The primitive behind the
         solve-order model (``app.difficulty.solve_order``): a solver's support for an
         entry is exactly which of its cells the already-solved crossings have filled.
-        Scored against the *full* solving vocabulary, like ``n_letters_at`` (D21).
+        Scored against the *full* solving vocabulary, like ``n_letters_at`` (D22).
         """
         fixed = set(known)
         pattern: list[int | None] = [

@@ -46,12 +46,12 @@ class MiniService:
     ) -> MiniBatch:
         """Up to ``count`` distinct minis of order ``n`` with every word scoring in
         ``[min_score, max_score]`` (``max_score=None`` == an open floor, the plain
-        quality bar; a two-sided band is the difficulty knob, D20). Backtracking is
+        quality bar; a two-sided band is the difficulty knob, D21). Backtracking is
         complete, so a seed that returns None simply found no grid on its randomised
         path; we try more seeds up to a budget and stop at ``count`` grids (or when the
         budget is spent).
 
-        With ``min_hard_gets > 0`` the service *targets a difficulty* (D22): each solved
+        With ``min_hard_gets > 0`` the service *targets a difficulty* (D23): each solved
         grid is scored by ``solve_order`` (against the full vocabulary, under ``gimme``)
         and kept only if it needs at least ``min_hard_gets`` hard gets; the survivors are
         returned hardest-first with a :class:`SolveDifficulty` attached. This selection
@@ -59,7 +59,7 @@ class MiniService:
         found in the seed budget", never "impossible" (unlike a backtracker ``None``).
         Pair a high ``min_hard_gets`` with a high ``gimme`` and/or an obscure band, or the
         target is rare and the budget is spent finding it."""
-        full = self._lexicon.load(self._list_name, n)  # full solving vocabulary (D21)
+        full = self._lexicon.load(self._list_name, n)  # full solving vocabulary (D22)
         lex = full.filtered(min_score, max_score)  # the generation band
         sq = DoubleSquare(lex)
         targeting = min_hard_gets > 0

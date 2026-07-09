@@ -6,8 +6,8 @@
     uv run mini 5 60 3 --max 90 --hard 6 --gimme 88   # a Saturday: >= 6 hard gets
 
 Thin: parse argv, build the container, run :class:`MiniService`, present. ``--max``
-turns the floor into a two-sided difficulty band (D20). ``--hard K`` *targets a
-difficulty* (D22): only grids the solve-order model says need >= K hard gets (read
+turns the floor into a two-sided difficulty band (D21). ``--hard K`` *targets a
+difficulty* (D23): only grids the solve-order model says need >= K hard gets (read
 under clue-difficulty ``--gimme G``, default 80) are kept, returned hardest-first. That
 selection is best-of-budget, not a proof -- fewer than ``count`` means "not found in
 the budget", so pair a high ``--hard`` with a high ``--gimme`` and/or a bounded band.
