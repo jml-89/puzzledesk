@@ -18,6 +18,7 @@ from ..app.blocked import BlockedGenerateService
 from ..app.cluing import ClueService
 from ..app.mini import MiniService
 from ..app.ports import LexiconSource, Writer
+from ..app.puzzle_service import PuzzleService
 from ..core.rng import RngFactory
 from .config import Config
 
@@ -31,3 +32,4 @@ class Container:
     mini: MiniService
     blocked: BlockedGenerateService
     clue: ClueService
+    puzzle: PuzzleService

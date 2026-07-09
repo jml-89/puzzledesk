@@ -575,3 +575,81 @@ returns — a large list with *genuine* soft preferences (themes, per-batch nove
 open-questions "Grid variety"), which is also the only condition under which D3/D7 said stochastic
 or JAX parallel-chain sampling could retake primacy. That is a new spike with a new hypothesis, not
 a resurrection of this one.
+
+## D20. The whole-puzzle path: a `PuzzleService` compose + a plain-text solving view
+
+Context: a QA round exposed a seam. Every piece of "generate a complete, solvable puzzle"
+existed — `BlockedGenerateService` fills a grid, `ClueService` clues one through the
+`ClueProvider` port (D15/D16), `FilledGrid` (D15) is the model-agnostic aggregate the
+cluing context speaks, and its `runs()`/`crossings()` derive the entry structure — but
+*nothing composed them*, and no presenter emitted a **solver-facing** view. Producing a
+playable puzzle meant hand-stitching three steps (generate, clue, hand-number a blank
+grid). The existing presenters (`mini_batch`, `blocked_result`) render the *answer key*
+(letters visible); there was no blank-grid-plus-clues surface at all.
+
+Decision: close the seam with a thin compose and a plain-text presenter — no new
+mechanism, just wiring the existing complete/soft halves together.
+
+- **`app.puzzle_service.PuzzleService`** — pure orchestration over the two existing
+  services: `fill_grid_once` -> `ClueService.clue` -> `CluedPuzzle`. It owns no I/O and
+  no provider of its own. Crucially a `None` grid propagates as a `None` puzzle *before*
+  any clue call, so the completeness epistemics (invariant "None is a proof") survive the
+  compose — "no puzzle" still means "no acceptable fill exists at this bar", never "gave
+  up". To feed it, `BlockedGenerateService` grew `fill_grid_once` (the same search as
+  `fill_once`, projected into a `FilledGrid` instead of a scored `BlockedResult`); the
+  shared search is factored into one private `_fill`, so the scored and geometry views
+  never drift.
+- **`cli.present.playable`** — the solver-facing view: a blank numbered grid + Across/Down
+  clue lists (with answer lengths), pure ASCII (`+ - | #` and digits) so it renders
+  identically in any terminal or text box. Answers are never shown; `present.solution` is
+  the separate reveal (and `--reveal`'s implementation). Clue **numbering** is a new
+  `FilledGrid.numbering()` derivation — reading-order over run-start cells, computed on
+  demand, never stored (the D15 "derive views at the point of use" rule; it agrees with
+  `BlockedGrid`'s own slot numbers by construction).
+- **`cli.puzzle`** — the entry point, and the first tool to take **named flags, not
+  positional args**. `mini`/`generate` are positional (`mini 5 70 3`) and that is already
+  a legibility cost; `puzzle` has more knobs of *more distinct kinds* (a dimension, a
+  black-cell count, a score bar, a difficulty, a symmetry toggle). Positional order works
+  when arguments share a semantic (`add(a, b)`); here they do not, so `puzzle 5 5 4 75
+  wednesday` reads as line noise. `--black` / `--min-score` / `--difficulty` say what they
+  mean at the call site, and argparse yields `--help`, validation, and `--no-symmetric`
+  for free. This is deliberately *not* retrofitted onto `mini`/`generate` here — their
+  documented positional invocations and shims stay working; the named-flag convention
+  starts with the tool that needs it and is the recommended shape for new tools.
+
+This is the **quick, developer-facing** front end. The richer, solver-facing surface will
+be a web server with its own entry point; keeping this one a thin plain-text path is
+intentional, not a stopgap that wants growing into a UI.
+
+Rationale: the compose is the smallest change that turns a manual QA ritual into `uv run
+puzzle`, and it adds no new architectural surface — `PuzzleService` sits in `app` beside
+the services it holds, the presenter in `cli` beside the ones it joins, and both stay
+testable with the in-memory `LexiconSource` and `FakeClueProvider` (no model, no files):
+the presenter's exact layout is pinned as a string contract, and the service's `None`
+propagation is a test, not a hope. The import-linter layers contract is unchanged (all new
+edges point downward).
+
+QA finding, recorded alongside (see notes.md): the clean-grid **min-score floor for the cw
+list is ~75, not 60**. At `--min-score 60` the fill admitted `LEDON` (a non-word scoring 60);
+75 produced only real words across several seeds. 75 is now the `puzzle` default. This is a
+data-quality property of `cw_5.txt`, not an engine bug — the solver faithfully placed a word
+the *list* rated acceptable — so the fix is the recommended floor, not a code change.
+
+Alternatives considered:
+- **Compose in the CLI instead of a service:** rejected — it would inline generation +
+  cluing into an entry point, exactly the orchestration the `app` layer exists to hold, and
+  would not be testable without stdout capture. The CLI stays thin (argv -> build -> run ->
+  present) like `mini`/`generate`.
+- **Reuse `blocked_result` / render the answer key:** rejected — that is the *setter's*
+  view (letters visible); a puzzle you can *solve* needs the blank grid, which is a genuinely
+  different presenter. They share nothing but the `Writer`.
+- **Add `numbering` as a stored field on a result object:** rejected — numbering is a pure
+  function of the geometry (D15); storing it would be a second source of truth that can drift
+  from the grid. Derive at the point of use.
+- **Positional args for consistency with `mini`/`generate`:** rejected — consistency with a
+  known legibility cost is not a virtue; the named-flag form is where new tools should head.
+
+Reversal: the plain-text path is additive and self-contained. If the web front end
+subsumes it, `cli.puzzle` + `present.playable` can be dropped without touching
+`PuzzleService` (which the web entry point would reuse) or any lower layer. Raising the cw
+list's own quality would retire the 75-floor note independently.
