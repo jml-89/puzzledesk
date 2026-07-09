@@ -32,6 +32,12 @@ class Config:
     solve_thinking: str = "adaptive"  # "adaptive" | "enabled" | "off"
     solve_effort: str = "high"  # adaptive-thinking effort (output_config.effort)
     solve_thinking_budget: int = 4096  # token budget for "enabled" thinking
+    # Total output budget per solver turn. MUST comfortably exceed the thinking spend or the
+    # thinking pass starves the answer: on a hard mini, adaptive thinking alone can consume an
+    # 8k budget and the model never emits its move -- the harness then loops/fails on nothing
+    # (a measurement artifact, not a solver wall; caught by reading the transcripts). 32k gives
+    # ample headroom over any single-mini thinking spend seen so far.
+    solve_max_tokens: int = 32000
     solve_max_turns: int = 12  # the solver harness's default turn budget (a budget, not a proof)
     # Which env var the composition root reads the clue API key from before injecting
     # the resolved value into the adapter. We deliberately name an *off-normal* var:

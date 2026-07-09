@@ -25,6 +25,7 @@ unit-tested; the one untestable-in-CI part is the live ``messages.create`` call.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Any
 
 from ..app.solve import SolveView
@@ -165,7 +166,7 @@ class ClaudeSolverAgent:
         self,
         *,
         model: str = _DEFAULT_MODEL,
-        max_tokens: int = 8192,
+        max_tokens: int = 32000,
         thinking_mode: str = "adaptive",
         effort: str = "high",
         thinking_budget: int = 4096,
@@ -214,4 +215,11 @@ class ClaudeSolverAgent:
             **self._thinking_kwargs(),
         )
         text = "".join(block.text for block in response.content if block.type == "text")
-        return _parse(text, _thinking_tokens(response.usage))
+        move = _parse(text, _thinking_tokens(response.usage))
+        # If the output budget ran out during the thinking pass, the model never emits its
+        # move -- surface that as reasoning rather than returning a silent empty move the
+        # harness would loop on (the artifact that inflated the obscure x Saturday cell, D24).
+        if getattr(response, "stop_reason", None) == "max_tokens" and not move.placements:
+            note = "[truncated: hit max_tokens before emitting a move; raise solve_max_tokens]"
+            move = replace(move, reasoning=(move.reasoning + "\n" + note).strip())
+        return move

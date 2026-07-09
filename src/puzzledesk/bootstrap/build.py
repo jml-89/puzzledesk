@@ -79,6 +79,7 @@ def _stage_adapters(config: Config) -> _Adapters:
         # likewise imported lazily -- the container builds without the SDK or a key.
         solver_agent=ClaudeSolverAgent(
             model=config.solve_model,
+            max_tokens=config.solve_max_tokens,
             thinking_mode=config.solve_thinking,
             effort=config.solve_effort,
             thinking_budget=config.solve_thinking_budget,
