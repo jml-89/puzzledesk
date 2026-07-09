@@ -53,6 +53,11 @@ condition under which D3/D7 said stochastic (or a JAX parallel-chain) sampling c
 retake primacy, and it would be a fresh spike with a new hypothesis, restoring the
 old code from git as a starting point rather than a resurrection.
 
+The strongest candidate for that regime has since come into view: **black-cell layout
+generation**, a soft, local, translation-invariant field problem — see "Layout
+generation is a soft, local field" below. That is where a sampler would earn its keep,
+not the fill.
+
 ## Difficulty — partially modelled (D21)
 
 Difficulty is decomposed into four layers (D21); the two *complete/deterministic*
@@ -155,6 +160,105 @@ grid vs brute-force ground truth. What that spike deliberately left open:
   the soft objective (and a reason to sample) genuinely returns.
 - Larger word SQUARES (the no-black case): order 8+ gets rare fast in English;
   feasibility/timing for 6x6, 7x7 on the curated list is still unmeasured.
+
+## Layout generation is a soft, local field — the sampler's real home (not the fill)
+
+A thesis worth recording before anyone reflexively reaches for a bigger backtracker
+at 15x15. **The black-cell LAYOUT problem and the word FILL problem are opposite
+regimes**, and we have (so far) attacked both with the same tool.
+
+- **Fill** (assign words to slots) is a discrete, hard-bar CSP on a small filtered
+  list. That is the regime where complete propagation-backtracking beat the
+  stochastic sampler decisively (D7) and the sampler was retired (D19). Backtracking
+  is *right* there; keep it.
+- **Layout** (place the black cells) is the reverse: a **translation-invariant grid**
+  with **local run-length legality** and a **soft, statistical objective** (density,
+  spread, no 2x2 blocks, eventually theme-shaped architecture). And it *stiffens near
+  a critical density* — the runaway backtracking we hit as `max_black` approached the
+  feasibility minimum (D25, the reason a `node_budget` was needed) is textbook
+  SAT/UNSAT **phase-transition** hardness: complete solvers choke near the threshold,
+  and "few blacks, tightly packed" is literally the *jamming* end of that transition.
+
+**The tell.** Every density knob D25 added — a per-cell white bias, a neighbour-count
+anti-cluster penalty, a black-fraction target, "no 2x2 black block" — is a *local
+kernel applied uniformly across the grid*. When your patches are all convolution-
+shaped, the object is a **field with local factors** (a Markov random field / an
+energy model), not something to hand-tune inside a systematic search. This is exactly
+the **"big-and-soft" regime D19 explicitly reserved** as the one condition under which
+sampling / message-passing / convolutional methods retake primacy. D3's original
+post-classical instinct was not wrong; it was aimed at the wrong layer. It belongs to
+the *geometry*, not the *packing* — and note the pleasing symmetry with D21, where
+message-passing, evicted from generation, returned for solver *difficulty*: soft
+problems keep wanting the soft tool.
+
+**The honest boundary — where it stops being local.** Two constraints are global:
+- **180° symmetry** — global, but *free*: generate one half and reflect. Not a problem.
+- **Connectivity** (all white cells form one region) — global and *topological*. A
+  convolution / local factor genuinely cannot express it, and it is precisely the
+  leaf check that made our backtracker blow up. This is the real obstacle, and it is
+  the same for everyone.
+
+So the shape is **local-soft-legality (field-shaped) + one global topological
+constraint (not)**. Knowing which is which is the actual payoff: a field/energy model
+buys run-length + density + spread + aesthetics almost for free; connectivity you bolt
+on as a separate global check or bake into the sampler's moves.
+
+### What the field actually does (surveyed, to guide a future spike)
+
+- **Wave Function Collapse** (Gumin, 2016; huge in procedural content generation). A
+  grid of cells, each a *superposition* of allowed states; repeatedly collapse the
+  **minimum-entropy** cell and propagate local adjacency constraints to neighbours.
+  This is our layout problem's exact discrete-constraint-propagation shape — and its
+  min-entropy rule *is* MRV, the very heuristic `fill.py` already uses. Caveat: vanilla
+  WFC has no notion of global connectivity (same boundary as above).
+- **Answer Set Programming for PCG** (Smith & Mateas, "design space" approach). A
+  declarative constraint language whose solvers encode **reachability/connectivity in
+  cyclic graphs in linear space** — the thing SAT/local models struggle with. This is
+  the natural home for the *global* half (connectivity, min word-count, symmetry) while
+  a field handles the local/soft half. A strong candidate if we want declarative,
+  provable layout generation with connectivity first-class.
+- **MRF / Ising–Potts / Gibbs sampling / energy-based models / diffusion.** A binary
+  (black/white) or categorical grid with local factors *is* an Ising/Potts field;
+  Gibbs "layout sampling" and, lately, diffusion models are how you draw from it. The
+  energy is just `local legality + soft aesthetic penalties (density, anti-cluster,
+  symmetry-by-construction)` — sample it, reject on the connectivity check. This is the
+  D3 sampler's actual conceptual home, correctly placed at the *layout* layer this
+  time. (Its return would be a fresh spike with a new hypothesis, per D19's reversal
+  clause — not a resurrection of the fill sampler.)
+- **CSP phase transitions** (random k-SAT satisfiability threshold; jamming
+  universality). Grounds the D25 runaway: hardness for *complete* methods peaks at the
+  SAT/UNSAT boundary, i.e. exactly where we push `max_black` toward the minimum. Our
+  `node_budget` is a symptom-management patch on that; local/probabilistic methods are
+  built for that landscape.
+- **Real-world practice — the pragmatic shortcut.** Professional constructors mostly do
+  *not* generate grids from scratch. They either start blank and add blocks by hand
+  (NYT / Mark Berry) or, more often, **pick from a curated grid-template library** (500+
+  American-style patterns, all 180°-symmetric, no 1–2-letter words, fully interlocked),
+  chosen by theme-entry lengths; the automated hard part is the *fill* (NP-complete),
+  which is the half we already do well. So a near-term, low-risk option that sidesteps
+  the whole generation question: ship a small **curated template library per (size,
+  cap)** and reserve field-based generation for when we want *novel / parameterised /
+  themed* black architectures a fixed library can't cover.
+
+### The shape of the spike, if taken
+
+An energy/Gibbs (or WFC-style) sampler over the black-cell field — local factors for
+run-length legality, density, and anti-cluster; symmetry by construction (fold the
+grid) — with connectivity enforced as a global reject/repair (BFS or union-find), or
+the whole thing expressed in ASP with reachability native. Keep `fill.py`'s complete
+backtracker for the words untouched. The system then has a clean, honest seam:
+**a soft field for the blacks, a complete CSP for the words** — the same complete-vs-
+soft split the architecture already draws at D21 (difficulty) and D15 (the clue port),
+now surfacing in the geometry. Until then, 10x10 backtracking (D24/D25) is a fine
+stopgap and the template-library route is the cheap way to more sizes.
+
+References (surveyed 2026-07): Gumin, *WaveFunctionCollapse* (2016,
+github.com/mxgmn/WaveFunctionCollapse); Smith & Mateas, "Answer Set Programming for
+Procedural Content Generation: A Design Space Approach" (IEEE TCIAIG 2011,
+adamsmith.as/papers/tciaig-asp4pcg.pdf); random-CSP satisfiability/phase-transition and
+jamming-threshold literature (e.g. arXiv:1702.06919); MRF/Gibbs and energy-based/diffusion
+layout sampling; crossword-construction practice and grid-template libraries
+(communicrossings.com, Crossword Compiler grid libraries).
 
 ## Performance / completeness follow-ups
 
