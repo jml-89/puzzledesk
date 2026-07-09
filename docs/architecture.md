@@ -113,8 +113,14 @@ read lives in the `FileLexicon` adapter, see "Layered architecture"):
 - `from_words_text(text, length)`: parse a plain word-per-line body, scores 0.
 - `from_scored_text(text, length)`: parse a "word score" per-line body. BOTH data
   list families use this (see score-scale gotcha below).
-- `filtered(min_score)`: sub-lexicon of words with score >= min_score. This is
-  how a quality bar is applied: filter, then solve feasibility.
+- `filtered(min_score, max_score=None)`: sub-lexicon of words with score in
+  `[min_score, max_score]` (`max_score=None` == an open upper bound, the plain quality
+  bar). A one-sided floor applies a quality bar (filter, then solve feasibility); a
+  two-sided *band* applies a difficulty bar — "harder" draws from the obscure band, and
+  a banded run still proves a difficulty ceiling because search stays complete (D21).
+- `n_letters_at(word, pos)`: how many distinct letters this lexicon still admits at
+  `pos` if that cell of `word` were blanked and the rest held fixed. `1` means the word
+  alone forces the letter there. The primitive behind structural checkability (below).
 - `words_matching(allowed)`: allowed is a length-N list of 26-bool masks; returns
   indices of words whose letter at every position is permitted. The bitset-style
   intersection the backtracker uses to get legal row words directly.
@@ -184,6 +190,49 @@ reversal note and open-questions "Grid variety".
 `Verdict` fields: `ok, min_score, weakest, distinct, n_distinct, words`. This is
 the feedback signal the whole design optimises against. `score_of` falls back to
 0.0 for words not in the lexicon's score_map.
+
+## Difficulty: checkability + solve order (src/puzzledesk/app/difficulty.py)
+
+`validate` scores *quality* (per-word crowd score + distinctness). Difficulty is a
+separate, layered thing (D21); the *complete, deterministic* slices live here — a
+**static** snapshot (`analyze`) and a **dynamic** solve-order model (`solve_order`, D22).
+
+`analyze(grid, options)` reads a `FilledGrid` (invariant 0: either grid
+model projects into it) and reports, per crossing cell, whether the shared letter is
+**forced** (one of the two words alone pins it) or **open** (neither does, so the
+solver needs outside knowledge — the Natick pathology). `CrossingOpenness` carries
+`across_options`/`down_options` (distinct letters each word admits at that cell) with
+`forced`/`is_open`/`ambiguity`; `StructuralDifficulty` aggregates `open_crossings`,
+`max_ambiguity`, `hardest`.
+
+Two modelling choices (D21), both at the call site, not baked into the metric:
+- **Full vocabulary, not the filtered list.** `options` is wired against the
+  *unfiltered* lexicon — a solver knows every word, not only those above the
+  generation bar. `Lexicon.n_letters_at` is the primitive; the driver supplies
+  `options(answer, pos) = full_lex.n_letters_at(answer, pos)`.
+- **Maximal support (final state).** The rest of each word is assumed known, so an
+  open crossing is *unavoidably* hard regardless of solve order — a conservative
+  signal, not a solve-trajectory simulation (that trajectory/BP model is a deferred
+  spike, see open-questions "Difficulty").
+
+`solve_order(grid, candidates, score, *, gimme)` (D22) is the *dynamic* reading: it
+replays the known fill easiest-first and returns a `Trajectory` of `Step`s, each
+classified **forced** (only one word fits its pattern now), **gimme** (`score >=
+gimme` — known from the clue), or **hard** (stuck: obscure and still open). Solving an
+entry reveals its cells, which force/ease its crossings next iteration (the cascade);
+when stuck it attacks the most-supported entry first, so support drives the cascade.
+`Trajectory.bottleneck` is the hardest hard-get — what makes a grid a Saturday. This
+separates *obscure-but-forced* (fine) from *obscure-and-open* (a Natick), which
+`analyze`'s maximal-support snapshot cannot. `gimme` is the soft, uncalibrated
+clue-gettability knob (D21 layer B) — an input that lets the model bracket a solver,
+not a claim to be one.
+
+Both functions import nothing from `core` (they take the `options`/`candidates`/`score`
+callables), so they are representation-agnostic and fakeable with plain dicts.
+`scripts/difficulty.py` is the measurement driver: it solves minis (square or `blocked`),
+projects to `FilledGrid`, and reports the static openness (cross-referenced with
+per-word score, invariant 4, for the "unfair Natick" read) and the dynamic trajectory
+side by side.
 
 ## Blocked grids (src/puzzledesk/blocked.py, fill.py)
 
@@ -275,12 +324,18 @@ minis generated from a black-cell count.
 
 ## Data flow for "generate a mini" (`app.mini.MiniService`)
 
-`FileLexicon.load("cw", N, min_score)` (reads `cw_N.txt`, parses via
-`Lexicon.from_scored_text`, filters) -> DoubleSquare -> `backtrack.solve(rng=
-factory.create(seed), distinct=True)` per seed -> validate (assert ok) -> shape a
-`MiniResult`. The `cli.mini` entry point + `cli.present` render it. Every emitted
-grid is distinct-words and every word >= min_score by construction of the filter.
+`FileLexicon.load("cw", N)` (reads `cw_N.txt`, parses via `Lexicon.from_scored_text`)
+-> `full.filtered(min, max)` (the generation band) -> DoubleSquare ->
+`backtrack.solve(rng=factory.create(seed), distinct=True)` per seed -> validate (assert
+ok) -> shape a `MiniResult`. The `cli.mini` entry point + `cli.present` render it. Every
+emitted grid is distinct-words and every word in the band by construction of the filter.
 `cli.generate` + `BlockedGenerateService` are the blocked analogue.
+
+**Difficulty targeting (D23).** With `min_hard_gets > 0`, each solved grid is scored by
+`solve_order` (against the *full* vocabulary, under `gimme`) and kept only if it needs
+that many hard gets; survivors return hardest-first with a `SolveDifficulty` attached.
+This is best-of-a-seed-budget over a soft score, **not** a proof: a short return means
+"not found in the budget", never "impossible" (unlike a backtracker `None`).
 
 ## Data flow for "generate a whole puzzle" (`app.puzzle_service.PuzzleService`)
 
@@ -300,7 +355,12 @@ timeout) survive the compose. `cli.puzzle` is the entry point.
 Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle}.py` are shims;
 `mini`/`generate`/`puzzle` are also `[project.scripts]` console commands):
 
-- mini.py: the generator. `mini.py N min_score count`.
+- mini.py: the generator. `mini.py N min_score count [--max HI] [--hard K] [--gimme G]`.
+  The positionals are unchanged (`mini 5 70 3` still means N=5, floor 70, 3 grids);
+  `--max HI` turns the floor into a difficulty *band* `[min_score, HI]` (D21); `--hard K`
+  *targets a difficulty* (D23) — keep only grids the solve-order model says need >= K hard
+  gets, read under clue-difficulty `--gimme G` (default 80), returned hardest-first. E.g.
+  `mini 5 60 3 --max 90 --hard 6 --gimme 88` emits Saturdays.
 - generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
   rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
@@ -321,6 +381,12 @@ and uses the injected `lexicon`/`rng_factory` adapters):
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
+- difficulty.py: structural checkability of generated minis — solves at a score band
+  and reports each grid's *open* crossings (Natick risk) via `app.difficulty.analyze`,
+  cross-referenced with word obscurity (D21). `difficulty.py N listname min [max]
+  [obscure_below]` for squares; `difficulty.py blocked R C K [min] [obscure_below]` for
+  blocked grids (open rate bucketed by the weak side's slot length). Both paths share
+  one reporter over `FilledGrid.runs()`, so the metric is model-agnostic.
 - gen_scored.py: regenerate `scored_N.txt` from `words_N.txt` via wordfreq. Only
   needed if you change the weak list; requires the wordfreq package.
 

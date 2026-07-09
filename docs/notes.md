@@ -76,6 +76,112 @@ ground truth, solver output a strict subset over 60 seeds. Data covers lengths
 2..5, so demos use slots <= 5; the curated list has no 2-letter entry above any
 real bar (length-2 slots are UNSAT on it).
 
+## Structural difficulty — open crossings (D21, scripts/difficulty.py)
+
+`app.difficulty.analyze` scores each crossing against the *full* solving vocabulary
+(cw 5-letter list, 20,292 words) — a cell is *open* if neither crossing word alone
+pins the shared letter. Measured on 5 distinct 5x5 minis per bar (this container):
+
+- cw score>=90 (gen list 2384): **~12 open crossings/grid** (9–15), **0 unfair**,
+  max ambiguity 4–6. Dense minis are structurally under-constrained (a 5x5
+  fully-checked grid has 25 crossings and most cells admit several letters from one
+  side), but at the top tier every entry is a common word, so open ≠ hard.
+- cw score>=70 (gen list 4981): ~10 open/grid, 0 unfair.
+- cw band [50,58] (gen list 924, obscure crossword-ese): **9 open/grid, all 9
+  unfair** — with the cutoff at <60 ("below solid") both entries at every open
+  crossing are obscure, so each open cell is a genuine Natick (e.g.
+  `casas/useme/towit/inigo/tenon` — `towit x sewin` open 6/6).
+
+The finding: **open-crossing count is roughly bar-independent (~9–15)** — it is a
+property of the dense 5x5 geometry, not the word quality — while **unfairness =
+openness × obscurity**, and the score band (layer A) is the knob that controls the
+obscurity term. So the checkability metric (layer A′) and the band (layer A) are
+complementary: the band decides how obscure the fill is, the metric shows which
+crossings that obscurity turns into Naticks. Openness is scored against the whole
+vocabulary and at maximal support (the rest of each word known), so an open crossing
+is unavoidably hard regardless of solve order — a conservative signal (D21).
+
+**What openness is really driven by: word length, not crossing count.** The intuition
+"a mini is hard because it is densely crossed" is only half right. Split "density" into
+(i) *coverage* — are all cells crossed? — and (ii) *support per crossing* — how much
+does a crossing pin the shared letter? A cell is open iff *neither* word forces it, and
+a word forces it only when its *stem* (the length-(L−1) remainder) is constraining. So
+support scales with word length, and the open *rate* falls sharply with size even
+though every grid below is maximally dense (all cells crossed), cw>=60, 5 grids each:
+
+    3x3: 9 crossings, open  9/9  (100%), max ambiguity 8–18
+    4x4: 16 crossings, open 6–15 (~65%), max ambiguity 7–14
+    5x5: 25 crossings, open 8–10 (~38%), max ambiguity 3–6
+
+A 3-letter entry blanked at an edge leaves a 2-letter affix (`_at` → bat/cat/eat/…, ~18
+completions), so a 3x3 is *maximally dense yet 100% open* — the crossings barely
+disambiguate and it is nearly pure vocabulary recall. A 5-letter stem (`_ATER`) has few
+completions, so ambiguity collapses to 3–6. Counter-intuitive upshot: **bigger
+fully-checked minis are fairer per cell** — longer words check each other better;
+density (coverage) is necessary but not sufficient.
+
+**Black cells = local short-slot pockets.** `scripts/difficulty.py blocked R C K …`
+runs the same metric on `patterns.fill_by_count` grids (projected via
+`filled_from_blocked`). Bucketing every crossing by its *shorter* (weak-side) entry
+length reproduces the size curve *within one grid* (5x5, cw>=60, 5 grids):
+
+    shorter len 3: ~78% open      shorter len 4: ~50% open      shorter len 5: ~24% open
+
+i.e. Naticks concentrate at the 3-letter slots black cells create — a local "3x3
+regime" inside a bigger grid. The len-3 rate (78%) sits *below* a pure 3x3 (100%)
+because a 3-slot's 4-/5-letter crossing neighbours sometimes pin the letter from their
+(longer, stronger) side. So the whole size story is one mechanism seen two ways:
+shorten the grid, or shorten a slot with a block — either way the weak side's stem is
+what sets openness.
+
+## Solve-order difficulty (D22, scripts/difficulty.py)
+
+`solve_order` replays the fill easiest-first (forced → gimme[score>=80] → hard get) and
+reports the trajectory as a kind-string plus the bottleneck. Measured on 5x5 cw minis
+(this container), it separates *obscure-but-forced* from a real Natick — which the
+static openness reading cannot:
+
+- **cw>=90 (all common):** `GGGGFFGFFF` — 5 gimmes ignite, the other 5 cascade to
+  forced, **0 hard-gets**. A grid of common words is a Monday *however open* its
+  crossings (10–15 open/grid). This is the dynamic mechanism behind "openness ≠ hard
+  when words are common".
+- **cw>=68 (mixed):** still **0 hard-gets** despite 8–13 open crossings — obscure-ish
+  entries are *forced* by the time the solver reaches them. The payoff: static "open"
+  over-counts difficulty; the cascade shows most opens never bite.
+- **cw band [50,58] (all obscure):** `HHHHHHHHHF` — no gimmes, so one cold ice-breaker
+  (step0, ~20,292 fits = the bottleneck) then support cascades (fits fall
+  20292→482→…→4) but every entry stays *hard*: a genuine Saturday, 9 hard-gets/grid.
+
+The ignition knob: on the same [50,58] grids, lowering `gimme` 80→55 (assume the solver
+*knows* those words) drops hard-gets 9→7 and the bottleneck from ~20,292 fits to ~140 —
+anchoring quantified. Two modelling choices matter (D22): the hard-get order is
+support-first (`(-fits, score)`) so the cascade flows through crossings (score-first
+picked multiple cold ice-breakers, understating it); and a fully-checked grid has no
+forced entry cold, so *ignition requires the gimme signal* — a logic-only solver can't
+even start, which is itself the finding. `gimme` is uncalibrated (D21 layer B): vary it
+to bracket solver skill, not to claim a Monday/Saturday label.
+
+## Generate-to-a-difficulty (D23, cli.mini --hard)
+
+`mini 5 60 3 --max 90 --hard 6 --gimme 88` — draw fills from the `[60,90]` band, keep
+only grids the solve-order model says need ≥6 hard gets under Saturday cluing, return
+hardest-first. Deterministic (seeds 0..); this container yields, in order:
+
+    SLOAN/CORGI/USAIN/BELLE/ASSES × SCUBA/LOSES/ORALS/AGILE/NINES  — 7 hard, bottleneck SLOAN
+    EARLE/PLAIT/OPRAH/CHINO/HANES × EPOCH/ALPHA/RARIN/LIANE/ETHOS  — 6 hard, bottleneck OPRAH
+    DUMPS/USURP/PETAL/LOTTA/ONSET × DUPLO/USEON/MUTTS/PRATE/SPLAT  — 6 hard, bottleneck ONSET
+
+Real, cluable fills (CORGI, USAIN Bolt, SCUBA, OPRAH, ETHOS) — the band floor of 60
+keeps them solid, the cap at 90 forces below-gimme crunch. The same decoupling as the
+hand-picked `DUETO/DORIC/UHURA…` Saturday (`site/saturday-mini.html`): identical grids
+are Saturdays only under high `gimme`; drop `gimme` to 80 and most collapse to a hard-get
+or two. The threshold is best-of-budget, not a proof — asking `--hard 9` returns nothing
+(no such grid found in `count*40` seeds), which is exhaustion, not UNSAT (D23).
+
+Reproducibility note: `mini 5 70 1` is unchanged by the band work
+(`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
+to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed

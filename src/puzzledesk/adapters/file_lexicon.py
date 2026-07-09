@@ -30,19 +30,26 @@ class FileLexicon:
     def _text(self, name: str, length: int) -> str:
         return (self._dir / f"{name}_{length}.txt").read_text()
 
-    def load(self, name: str, length: int, *, min_score: float = 0.0) -> Lexicon:
+    def load(
+        self, name: str, length: int, *, min_score: float = 0.0, max_score: float | None = None
+    ) -> Lexicon:
         if name in _SCORED_LISTS:
             lex = Lexicon.from_scored_text(self._text(name, length), length=length)
         else:
             lex = Lexicon.from_words_text(self._text(name, length), length=length)
-        return lex.filtered(min_score)
+        return lex.filtered(min_score, max_score)
 
     def load_multi(
-        self, name: str, lengths: Iterable[int], *, min_score: float = 0.0
+        self,
+        name: str,
+        lengths: Iterable[int],
+        *,
+        min_score: float = 0.0,
+        max_score: float | None = None,
     ) -> MultiLexicon:
         # Blocked grids always draw from a scored list (cw/scored); a plain-words
         # multi-lexicon has no use case, so we route every name through the scored
         # parser here (the length bucket is empty if the file has no such words).
         return MultiLexicon.from_scored_texts(
-            lambda n: self._text(name, n), lengths, min_score=min_score
+            lambda n: self._text(name, n), lengths, min_score=min_score, max_score=max_score
         )

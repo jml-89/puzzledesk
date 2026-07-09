@@ -53,6 +53,51 @@ condition under which D3/D7 said stochastic (or a JAX parallel-chain) sampling c
 retake primacy, and it would be a fresh spike with a new hypothesis, restoring the
 old code from git as a starting point rather than a resurrection.
 
+## Difficulty — partially modelled (D21)
+
+Difficulty is decomposed into four layers (D21); the two *complete/deterministic*
+ones are built, the two *soft* ones are recorded and blocked on data:
+
+- **A. Word prior — BUILT.** Obscurity band `[lo, hi]` via `Lexicon.filtered(min,
+  max)`, threaded to `cli.mini` (`mini N min count --max HI`). A banded run still proves a
+  difficulty ceiling (complete search). Open follow-up: a *difficulty*-labelled sweep
+  driver analogous to `ceiling.py` (where does a band go UNSAT), and whether obscurity
+  band is the right proxy for "word difficulty" or whether a separate difficulty score
+  (distinct from crowd-enjoyment score) is worth sourcing.
+- **A′. Structural checkability — BUILT (static + dynamic).** `app/difficulty.analyze`
+  flags *open* crossings (Natick risk) at maximal support, no solve data.
+  `app/difficulty.solve_order` (D22) adds the **order-dependent cascade**: replay the
+  fill easiest-first (forced → gimme → hard get) so an obscure entry its crossings
+  *force* by the time you reach it is not a Natick — the distinction the static reading
+  cannot make. Open follow-ups: (i) it is one greedy order with a deterministic
+  tie-break, not a **distribution** over plausible solve paths, and `gimme` (the
+  clue-gettability knob) is uncalibrated — both want human solve logs; this is exactly
+  where a real belief-propagation/marginal computation would live (the `candidates`
+  seam; cf. D19 reversal); (ii) openness is still structural only — fusing it with
+  per-word obscurity into a single calibrated "Natick score" needs the score scale
+  settled (invariant 4).
+- **B. Clue difficulty — knob exists, calibration deferred.** The Mon..Sat
+  `Difficulty` enum behind `ClueProvider` (D15/D16) is the soft, sampled layer.
+  Proving a clue hits a target difficulty needs human solve logs this environment does
+  not have — same blocker as "solvability/fun" below.
+- **C. Batch difficulty distribution — deferred.** A bell curve of difficulty is a
+  *batch* property (schedule mostly-medium, few extreme), needing a per-puzzle
+  difficulty number to schedule against. This is the difficulty face of "Grid variety
+  and curation across a batch" (below). D23 gives the per-puzzle number (`hard_gets`);
+  what is missing is the scheduler that shapes a batch to a target distribution.
+
+**Generate-to-a-difficulty — BUILT (D23), with a caveat.** `MiniService.generate(...,
+min_hard_gets=K, gimme=G)` selects grids by `solve_order` and returns them
+hardest-first (`mini --hard K --gimme G`). Two open edges: (i) selection is
+best-of-a-seed-budget over a *soft* score — a short return is budget exhaustion, never a
+proof, and there is no completeness here (unlike the fill); (ii) the target is two raw
+knobs (`min_hard_gets`, `gimme`), not a calibrated Mon–Sat preset — building the preset
+is the same "needs solve logs" blocker as layer B.
+
+The one thing that would unblock B and C, and grow A′ into the trajectory model, is a
+**human solve-time signal** (playtesting or logged solves) to calibrate IRT `θ`/`b`
+against. Until then difficulty is what we can compute and prove, and no more.
+
 ## Puzzle quality beyond word-score
 
 The acceptance test scores fillability + per-word crowd score. It does NOT capture:

@@ -19,13 +19,30 @@ class WordScore:
 
 
 @dataclass(frozen=True, slots=True)
+class SolveDifficulty:
+    """A grid's dynamic difficulty, from ``app.difficulty.solve_order`` (D22/D23).
+
+    ``hard_gets`` is how many entries the easiest-first solver had to work obscure and
+    still-open (0 == it fell to gimmes + forcing, a Monday); ``bottleneck`` is the
+    hardest such entry (most fits to disambiguate). Both are read under ``gimme`` -- the
+    clue-difficulty assumption, an input, not a measured label (D21 layer B)."""
+
+    hard_gets: int
+    bottleneck_word: str | None
+    bottleneck_fits: int
+    gimme: float
+
+
+@dataclass(frozen=True, slots=True)
 class MiniResult:
     """A single solved double word square: the across words, the induced down
-    words, and the weakest of the 2N (the acceptance bottleneck)."""
+    words, and the weakest of the 2N (the acceptance bottleneck). ``difficulty`` is
+    attached only when generation targeted one (``min_hard_gets > 0``); else None."""
 
     across: list[WordScore]
     down: list[WordScore]
     weakest: WordScore
+    difficulty: SolveDifficulty | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +54,9 @@ class MiniBatch:
     min_score: float
     eligible: int
     results: list[MiniResult]
+    max_score: float | None = None  # set == a difficulty band [min, max] (D21)
+    min_hard_gets: int = 0  # >0 == grids were selected to a difficulty target (D23)
+    gimme: float = 80.0  # the clue-difficulty assumption the target was read under
 
 
 @dataclass(frozen=True, slots=True)

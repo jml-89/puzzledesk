@@ -653,3 +653,248 @@ Reversal: the plain-text path is additive and self-contained. If the web front e
 subsumes it, `cli.puzzle` + `present.playable` can be dropped without touching
 `PuzzleService` (which the web entry point would reuse) or any lower layer. Raising the cw
 list's own quality would retire the 75-floor note independently.
+
+## D21. Difficulty is a layered decomposition; build only the complete, deterministic slices
+
+Context: "how hard is a mini" had one knob — the clue `Difficulty` enum (D15, Mon..Sat)
+— and no model behind it. The question we actually asked: for a *dense* mini, what
+*is* difficulty, and which parts of it can this repo treat the way it treats
+everything else (a complete, provable signal) versus which parts are irreducibly soft
+(need human solve data we do not have)? Three literatures describe one phenomenon:
+**Item Response Theory** gives a per-entry logistic gettability `P = σ(θ − b)`
+(ability minus item difficulty); **flow theory** puts the fun at θ≈b; **queuing
+theory** explains the *effort* blow-up (time-to-solve scales like `1/(1−ρ)` as the
+puzzle's demand approaches the solver's capacity). The synthesis: IRT is the smooth
+per-entry primitive; the queuing/effort blow-up is what *emerges* when you compose
+per-entry gettability across an interlocked grid. The composition operator is the
+crossings — so difficulty is "the marriage of the word and its crossing support",
+and a mini solves as a **percolation/belief-propagation cascade**: get the gettable
+entries, they donate letters, neighbours' effective difficulty collapses, the grid
+unzips — unless a cluster of mutually-hard, weakly-supported entries stalls the
+cascade (the queuing blow-up: the solver is *stuck*).
+
+Decision: model difficulty as four layers, each landing on the layer of the hexagon
+where its regime already lives, and **implement only the two that are complete and
+deterministic** — filter-and-prove, the house style (D6/D7) — leaving the soft ones
+recorded but unbuilt until there is data to calibrate them.
+
+- **A. Word prior (complete, `core`, *built*).** A word's intrinsic gettability is
+  (inverse) obscurity = its score. Today `Lexicon.filtered` is a one-sided *floor*;
+  difficulty wants a two-sided **band** `[lo, hi]`, so "harder" means *drawing from
+  the obscure band*, not merely lowering the floor. `filtered(min_score, max_score)`
+  (and the `LexiconSource`/`MiniService`/`cli.mini` thread) makes an obscurity band a
+  first-class generation parameter. Because backtracking is complete, a banded run
+  still yields a **difficulty ceiling** as a theorem (a `None` = "no distinct mini
+  exists drawn from this band"), exactly parallel to the quality ceiling of
+  `ceiling.py`. This is a filter operation in the complete regime — *not* something to
+  sample.
+- **A′. Structural checkability (complete, `app`, *built*).** The mini-specific
+  pathology is the **Natick**: two obscure entries crossing at a letter neither word
+  pins, so the solver can only get it by *knowing* one word outright. That is a
+  low-support percolation stall at one cell, and it is *computable from the lexicon
+  with no solve data*: for each crossing cell, free that cell in the across word and
+  count the distinct letters the rest of the across word still admits
+  (`Lexicon.n_letters_at`), likewise for the down word; the cell is **forced** if
+  either count is 1 (one direction determines the letter) and **open** otherwise.
+  `app/difficulty.analyze` reports the open crossings of a `FilledGrid`. Two modelling
+  choices are load-bearing and documented at the call site: (i) openness is scored
+  against the solver's **full** vocabulary (the unfiltered list), not the
+  generation-filtered list — a solver knows all words, not only the ones above the
+  bar; (ii) it is the **final-state, maximal-support** reading (the rest of each word
+  is assumed known), so an open crossing is *unavoidably* hard regardless of solve
+  order — a sound, conservative signal, not a full solve-trajectory simulation. This
+  is a `core`-computable structural difficulty signal that word-score alone cannot
+  see (a grid of all-common words can still hide an open crossing; a grid of obscure
+  words can unzip cleanly). `analyze` couples to nothing in `core`: it takes an
+  `options(answer, pos) -> int` callable, so it is representation-agnostic (square or
+  blocked) and trivially fakeable.
+- **B. Clue transform (soft, `app`/adapter, *deferred — the knob exists, calibration
+  does not*).** The same answer is Monday or Saturday depending on the clue; the clue
+  *shifts* effective `b` for a fixed grid, which is why word- and clue-difficulty
+  *decouple and compensate* (hard word ↔ gentle clue). This already has a home: the
+  `Difficulty` enum behind `ClueProvider` (D15/D16), in the one regime with no
+  completeness. It stays soft and sampled (n candidates, rank); what is missing is
+  *calibration* — proving a clue is "Wednesday" needs human solve logs, which this
+  environment does not have (cf. open-questions "solvability/fun needs playtesting").
+- **C. Batch curation (scheduling, above the generator, *deferred*).** The "normal
+  distribution of difficulty" is a property of a *batch/week* (mostly medium, few
+  extreme), not of one grid — it is the open "Grid variety across a batch" problem,
+  needing a per-puzzle difficulty number to schedule against. Recorded, not built.
+
+Rationale: this is D6's move applied to a second axis. D6 turned *quality* into
+feasibility on a filtered list; difficulty's word-and-structure layers are likewise
+*complete* (filter, prove, measure) and belong in `core`/`app`, while its clue layer
+is *soft* and stays quarantined behind the existing port exactly as clue *quality*
+does. Splitting the axis this way keeps the epistemics honest: we ship the slices we
+can prove and are explicit that the rest awaits data. It also retires a tempting
+error — a single "difficulty sampler" spanning words and clues — which would cut
+across the complete/soft seam the architecture already draws (D19 removed a sampler
+for precisely the complete-regime half). Note the pleasing inversion: message-passing,
+evicted from *generation* (D3→D19) because generation is hard-bar feasibility, is the
+right lens for *solver difficulty* — the soft, probabilistic regime returns, on the
+analysis side, and D15's interface already anticipated it (it rejected "answer as a
+bare `str`" for foreclosing "difficulty-by-gettability cluing").
+
+Alternatives considered:
+- **One difficulty knob / one sampler for both words and clues:** rejected — conflates
+  a complete filter (words, structure) with a soft sample (clues). They are different
+  regimes on different layers; the seam is the point.
+- **Model the full solve trajectory (order-dependent cascade / BP marginals) now:**
+  rejected for the first cut — it needs a solver-ability model and buys little over the
+  conservative maximal-support reading, which already flags the unavoidable Natick.
+  The trajectory model is the natural next spike *if* solve logs arrive (it is where a
+  real message-passing/marginal computation would earn its keep — see D19's reversal
+  condition).
+- **Put `analyze` in `core` over `DoubleSquare`:** rejected — it would serve only the
+  square model and re-import the two-model split into a place that does not need it.
+  `FilledGrid` (the D15 anti-corruption form) is exactly the representation-agnostic
+  input, so the metric lives in `app` and reads both models for free.
+- **Weight openness into a single "Natick score" inside `analyze`:** rejected for now —
+  kept `analyze` purely structural (openness) and left the obscurity cross-reference
+  (openness × low score = the *unfair* Natick) to the `scripts/difficulty.py` driver,
+  where the per-list score scale (invariant 4) is in hand. A fused score can move into
+  the metric once its scale is settled.
+
+Reversal: none for the decomposition. The band is additive and default-off
+(`max_score=None` == today's floor). If solve logs arrive, layers B and C get built and
+A′ grows the trajectory reading; the `options` seam in `analyze` is where a marginal/BP
+computation would slot in without touching the callers.
+
+## D22. Solve order: the dynamic difficulty reading (grow A′ from snapshot to cascade)
+
+Context: D21's `analyze` is the **maximal-support snapshot** — it asks "at full
+support, is this crossing letter forced?" and deliberately *defers* the
+order-dependent solve trajectory ("needs a solver-ability model, buys little over the
+conservative reading"). But the snapshot conflates two very different entries: an
+obscure word whose crossings *force* it by the time a solver reaches it (fine) and one
+that stays genuinely open (a Natick). Only the *order* distinguishes them. A human
+solves easiest-first — gimmes they know from the clue, then whatever the accumulated
+crossing letters make inferable — so support **arrives over time**, a percolation
+cascade. Modelling that order is the promised A′ follow-up, now taken because it is the
+cheapest lens that separates "obscure-but-gettable" from "obscure-and-stuck".
+
+Decision: add `app/difficulty.solve_order(grid, candidates, score, *, gimme) ->
+Trajectory` — **not a solver** (we have a complete one), but a difficulty *model* that
+replays the already-known fill in human order and measures where the order forces a
+hard get. Each iteration solves one entry, classified by *how* it was gettable:
+
+- **forced** — only one word fits its current pattern (`candidates == 1`): free, pure
+  logic, no clue needed;
+- **gimme** — common enough (`score >= gimme`) to just know from the clue;
+- **hard** — neither: the solver is stuck and must work an obscure, still-open entry,
+  disambiguating among its remaining fits.
+
+Solving an entry reveals its cells, which can force or ease its crossings next
+iteration (the cascade — a cell is "known" once any entry through it is solved, and
+crossing entries share the cell, so no explicit propagation map is needed). When
+stuck, the model attacks the **most-supported** entry (fewest fits), ties to the one
+you are likelier to know (higher score) — so *support*, not raw obscurity, drives the
+cascade, and only the ice-breaking first get on an all-obscure grid is truly cold.
+`Trajectory.bottleneck` is the hardest hard-get (most fits to disambiguate) — what
+makes a grid a Saturday.
+
+What it revealed (measured, `scripts/difficulty.py`, folded into notes.md):
+- **all-common (cw>=90):** `GGGG…FF` — a few gimmes ignite, the rest cascade to
+  forced, **0 hard-gets**. A grid of common words is a Monday *however open its
+  crossings* — the dynamic mechanism behind D21's "openness ≠ hard when words are
+  common".
+- **mixed (cw>=68):** still **0 hard-gets** despite 8–13 *open* crossings — the payoff:
+  obscure-but-forced ≠ Natick, which `analyze` alone cannot see.
+- **all-obscure (cw band [50,58]):** `HHHH…HF` — no gimmes, so one cold ice-breaker
+  (~20k fits, the bottleneck) then support cascades but every entry stays hard: a true
+  Saturday. Lowering `gimme` to inside the band (you *know* those words) drops
+  hard-gets 9→7 and the bottleneck from ~20k fits to ~140 — **anchoring/ignition
+  quantified**.
+
+Assumptions and limits, held explicitly:
+- **No backtracking.** It replays a *known* solution, so it never guesses wrong; it
+  models the *order of discovery*, not search. A real solver's wrong turns are out of
+  scope (and not needed for a difficulty estimate).
+- **One greedy order, not a distribution.** Ties are broken deterministically
+  (`grid.runs()` order). A distribution over plausible solve orders is a later
+  refinement; the greedy path is the honest "does an easy route exist" bound.
+- **`gimme` is the soft, uncalibrated knob (D21 layer B).** It is an *input*, not a
+  claim: the model *brackets* a real solver (vary `gimme` to sweep solver skill) rather
+  than pretending to be one. Calibrating it still wants human solve logs.
+
+Kept clean: `solve_order` couples to nothing in `core` — like `analyze` it takes a
+`candidates(answer, known) -> int` callable (wired to `Lexicon.matching` in the
+driver), so it is representation-agnostic (square or blocked) and fakeable with a
+dict. The layers contract is untouched (it sits in `app`).
+
+Alternatives considered:
+- **A pure-structural cascade (no `score`/`gimme`, fill only forced entries):**
+  rejected — a fully-checked grid has *no* forced entry at the start (every cell blank),
+  so a logic-only solver cannot even ignite. Ignition *requires* the obscurity/clue
+  signal; that a grid needs clue-gettable anchors to start is itself the finding, so
+  `score` is a first-class input, not an add-on.
+- **Score-first hard-get order (`(score, -fits)`):** tried, rejected — it picked
+  multiple cold ice-breakers in a row (an obscure word with zero support chosen over a
+  supported one), understating the cascade. Support-first (`(-fits, score)`) makes the
+  cascade flow through crossings, which is the whole point of modelling order.
+- **A finer effort scale than three buckets:** deferred — "how few fits is easy
+  enough" is a calibration (soft) question; three buckets plus the per-step fit count
+  convey the gradient without inventing a scale.
+
+Reversal: `solve_order` is additive (a new `app` function + a driver mode; no `core`
+or service change). The next step, when solve logs exist, is to calibrate `gimme`/the
+bucket thresholds against real times and to widen the single greedy order into a
+distribution — at which point the `candidates` seam is where BP marginals would slot
+in, the same seam D21 named for `analyze`.
+
+## D23. Generate to a difficulty: select on solve order in the service — and say it is not a proof
+
+Context: D21/D22 built difficulty as *analysis* — you generate a grid, then measure how
+hard it is. The natural product move is to invert it: ask the generator for a *target*
+difficulty and have it hand back grids that hit it ("give me a Saturday"). The
+machinery is all present (`solve_order` scores a grid; `MiniService` already loops
+seeds); D23 is the wiring, plus the one thing that must stay explicit — this selection
+is **not** the complete/provable kind of answer the rest of the system trades in.
+
+Decision: `MiniService.generate` grows two optional knobs, `min_hard_gets` (default 0,
+== today's behaviour) and `gimme` (default 80). When `min_hard_gets > 0` the service
+loads the **full** vocabulary (for the difficulty read, D22), generates over the band as
+before, and for each solved grid runs `solve_order` (wired to the new
+`Lexicon.n_candidates` primitive and the full-list score); it keeps a grid only if it
+needs at least `min_hard_gets` hard gets, dedupes by fill, and returns the survivors
+**hardest-first** with a `SolveDifficulty` attached (`hard_gets`, `bottleneck_word`,
+`bottleneck_fits`, `gimme`). `cli.mini` exposes it as `--hard K [--gimme G]`.
+
+The load-bearing distinction, stated in the docstring and the presenter's empty-result
+message: **a short return is budget exhaustion, not UNSAT.** A backtracker `None` is a
+theorem — the tree is exhausted, no grid exists (invariant: "None is a proof"). Difficulty
+selection is best-of-a-seed-budget over a *soft, uncalibrated* score (`gimme` is D21 layer
+B); returning fewer than `count` means "not found in the seeds tried", never "impossible".
+Conflating the two would be the exact epistemic error the whole design is careful to avoid,
+so the code never calls a difficulty miss a proof, and the message says "not found in the
+seed budget" and suggests loosening (`higher gimme`, obscurer band), not "impossible".
+
+Why *threshold-first*, not *global-hardest*: the service stops at the first `count` grids
+clearing the bar (then sorts those), rather than scanning the whole budget for the
+absolute hardest. The target is "at least this hard" — a Saturday, not *the* hardest
+possible grid — and first-past-the-bar is faster and matches the ask. The budget is
+`count * 40` when targeting (vs `* 20`), since target-meeting grids are rarer; still a
+budget, still honest about it.
+
+Kept clean: `n_candidates` is the mirror of `n_letters_at` (a `core` primitive; the
+solve-order analogue of the checkability one), so the service wires `solve_order` with
+core primitives exactly as the driver does — no new coupling, the layers contract holds.
+Backward compatible: `min_hard_gets=0` skips all of it (no full-vocab load, no
+`solve_order`, `difficulty=None`), so `mini 5 70 3` is byte-identical.
+
+Alternatives considered:
+- **Scan the full budget, return the N hardest (best-of):** rejected as the default —
+  always burns the whole budget and answers a different question ("the hardest you can
+  find") than the target ("hard enough"). The hardest-first sort of the threshold
+  survivors gives most of the benefit at a fraction of the cost.
+- **A `Difficulty`/Mon–Sat preset enum mapping to `(gimme, min_hard_gets)`:** deferred —
+  tempting, but the mapping *is* the calibration that D21/D22 say needs solve data. Baking
+  presets now would dress an uncalibrated guess as a named label. Two honest knobs until
+  there are real times to fit the presets to.
+- **Compute difficulty for every grid always (drop the `min_hard_gets>0` gate):** rejected
+  — `solve_order` over the full 20k-word vocabulary is real work; making the default
+  `mini` pay it for a field it did not ask for is a silent tax. Opt-in via the target.
+
+Reversal: additive and default-off. When solve logs arrive, the `Difficulty` preset enum
+becomes buildable (calibrate `gimme`/`min_hard_gets` per weekday), and best-of-budget
+could join as an explicit mode; neither changes the seam.

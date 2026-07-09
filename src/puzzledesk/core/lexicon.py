@@ -88,13 +88,50 @@ class Lexicon:
             scores.append(s)
         return cls(words, scores)
 
-    def filtered(self, min_score: float) -> Lexicon:
-        """Sub-lexicon of words scoring at least ``min_score``. Filtering at the
-        acceptance bar turns 'quality' into feasibility on a smaller list."""
+    def filtered(self, min_score: float, max_score: float | None = None) -> Lexicon:
+        """Sub-lexicon of words scoring in ``[min_score, max_score]`` (``max_score``
+        ``None`` == no upper bound).
+
+        A one-sided floor applies a *quality* bar -- filtering at the acceptance bar
+        turns quality into feasibility on a smaller list (D6). A two-sided *band*
+        applies a *difficulty* bar (D21): "harder" draws from the obscure band rather
+        than merely lowering the floor, and a banded run still proves a difficulty
+        ceiling because the search stays complete.
+        """
         kept = [
-            (w, s) for w, s in zip(self.words, self.scores.tolist(), strict=True) if s >= min_score
+            (w, s)
+            for w, s in zip(self.words, self.scores.tolist(), strict=True)
+            if s >= min_score and (max_score is None or s <= max_score)
         ]
         return Lexicon([w for w, _ in kept], [s for _, s in kept])
+
+    def n_letters_at(self, word: str, pos: int) -> int:
+        """How many distinct letters this lexicon still admits at position ``pos`` if
+        that cell of ``word`` were blanked and the rest of ``word`` held fixed.
+
+        ``1`` means ``word`` alone forces the letter there (a self-checking crossing);
+        ``>1`` means the word does not pin it. The primitive behind structural
+        checkability (``app.difficulty``); scored against the *full* solving vocabulary,
+        not a bar-filtered list (a solver knows every word). See D21.
+        """
+        pattern: list[int | None] = [int(c) for c in encode(word)]
+        pattern[pos] = None
+        idx = self.matching(pattern)
+        return int(np.unique(self.letters[idx, pos]).size)
+
+    def n_candidates(self, word: str, known: Iterable[int]) -> int:
+        """How many words fit ``word``'s pattern when the positions in ``known`` are
+        pinned to its letters and the rest are blank. ``1`` == the pattern forces
+        ``word`` (its crossings so far leave no other option). The primitive behind the
+        solve-order model (``app.difficulty.solve_order``): a solver's support for an
+        entry is exactly which of its cells the already-solved crossings have filled.
+        Scored against the *full* solving vocabulary, like ``n_letters_at`` (D22).
+        """
+        fixed = set(known)
+        pattern: list[int | None] = [
+            int(c) if i in fixed else None for i, c in enumerate(encode(word))
+        ]
+        return int(self.matching(pattern).size)
 
     def is_word(self, s: str) -> bool:
         return s in self.wordset
@@ -145,6 +182,12 @@ class _EmptyLexicon:
     def matching(self, pattern: list[int | None]) -> np.ndarray:
         return np.empty(0, dtype=np.intp)
 
+    def n_letters_at(self, word: str, pos: int) -> int:
+        return 0  # no words of this length => nothing admitted here
+
+    def n_candidates(self, word: str, known: Iterable[int]) -> int:
+        return 0  # no words of this length => nothing fits
+
 
 class MultiLexicon:
     """Words bucketed by length -- what a blocked grid needs, since its slots no
@@ -169,23 +212,20 @@ class MultiLexicon:
 
     @classmethod
     def from_scored_texts(
-        cls, text_for: Callable[[int], str], lengths: Iterable[int], min_score: float = 0.0
+        cls,
+        text_for: Callable[[int], str],
+        lengths: Iterable[int],
+        min_score: float = 0.0,
+        max_score: float | None = None,
     ) -> MultiLexicon:
         """Build one bucket per length from scored-file *bodies*. ``text_for(n)``
         returns the text for length n (an adapter reads the file and supplies it).
-        ``min_score`` applies the same acceptance-bar filter the rest of the system
-        uses, so every entry a fill can use already clears the bar. A length that
-        ends up empty after filtering is kept as an empty bucket (its slots become
-        unfillable)."""
+        ``min_score``/``max_score`` apply the same band filter the rest of the system
+        uses (``max_score`` ``None`` == a plain acceptance-bar floor), so every entry a
+        fill can use already clears the bar. A length that ends up empty after
+        filtering is kept as an empty bucket (its slots become unfillable)."""
         buckets: dict[int, Lexicon | _EmptyLexicon] = {}
         for n in sorted(set(lengths)):
-            lex = Lexicon.from_scored_text(text_for(n), length=n)
-            kept = [
-                (w, s)
-                for w, s in zip(lex.words, lex.scores.tolist(), strict=True)
-                if s >= min_score
-            ]
-            buckets[n] = (
-                Lexicon([w for w, _ in kept], [s for _, s in kept]) if kept else _EmptyLexicon(n)
-            )
+            lex = Lexicon.from_scored_text(text_for(n), length=n).filtered(min_score, max_score)
+            buckets[n] = lex if len(lex) else _EmptyLexicon(n)
         return cls(buckets)
