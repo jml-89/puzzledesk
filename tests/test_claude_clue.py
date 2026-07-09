@@ -29,6 +29,18 @@ def test_prompt_carries_answers_difficulty_and_instructions() -> None:
         assert t.answer.upper() in prompt
 
 
+def test_prompt_difficulty_controls_obliqueness() -> None:
+    # the Mon..Sat label must actually shape the clue: Monday = direct, Saturday = oblique
+    # and crossing-reliant (the D24 lever).
+    grid = FilledGrid((("a", "b"), ("c", "d")))
+    targets = grid.runs()
+    monday = _build_prompt(grid, targets, ClueStyle(difficulty=Difficulty.MONDAY), 1)
+    saturday = _build_prompt(grid, targets, ClueStyle(difficulty=Difficulty.SATURDAY), 1)
+    assert "direct" in monday.lower() and "no wordplay" in monday.lower()
+    assert "oblique" in saturday.lower() and "misdirection" in saturday.lower()
+    assert "crossing" in saturday.lower()  # Saturday tells the writer to lean on crossings
+
+
 def test_parse_maps_indices_back_to_targets() -> None:
     grid = FilledGrid((("a", "b"), ("c", "d")))
     targets = grid.runs()

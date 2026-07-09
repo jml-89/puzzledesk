@@ -266,13 +266,26 @@ head-to-head above is the cleaner read anyway.)
 
 Conclusion for the probe: the axis that makes reasoning-effort track structural difficulty is
 **clue under-determination** (the clue alone must not fix the answer), *not* word obscurity or
-the Mon..Sat *label*. It is controllable today via `ClueStyle.instructions`/`difficulty` (the
-oblique run used a free-text instruction). The genuine Saturday / Natick regime is the
-*conjunction* — obscure words **and** oblique clues, so the answer is reachable only through the
-crossings. Follow-ups: (i) make `difficulty` actually drive clue obliqueness in the clue prompt
-(today Saturday still wrote fairly precise clues until instructed); (ii) correlate the oblique-
-clue thinking-token spend against `solve_order`'s predicted hard-gets to close the
-analytical↔empirical loop.
+the Mon..Sat *label*. The genuine Saturday / Natick regime is the *conjunction* — obscure words
+**and** oblique clues, so the answer is reachable only through the crossings.
+
+**Difficulty now drives obliqueness (done).** Follow-up (i) is implemented:
+`adapters/claude_clue.py::_DIFFICULTY_GUIDANCE` gives the clue prompt a graded Mon..Sat
+obliqueness ladder (Monday = direct definition → Saturday = maximally oblique, "not
+determinable from the clue alone"). Validated live on the *same* obscure grid ([60,75] seed 3,
+Opus solver, `--policy none`), the **enum alone** (no free-text instruction) now grades both the
+clues and the reasoning:
+
+    difficulty  example clue (AMMAN / LORRE / RATE)                       opus think_tok
+    Monday      "Capital of Jordan" / "Peter of 'Casablanca'" / "Assess"        1071
+    Saturday    "It overlooks a very old citadel" / "Casablanca's twitchy       2767
+                heavy" / "It might be prime, or panic"
+
+2.6x the reasoning on an identical grid, purely from the label — the clue axis is now a real
+knob (previously the label moved nothing; §"clue-difficulty sweep" above). Remaining follow-up:
+(ii) correlate the oblique-clue thinking-token spend against `solve_order`'s predicted hard-gets
+to close the analytical↔empirical loop — and, per the composition-of-difficulty framing, split
+`solve_order`'s single `gimme` into two per-entry inputs (word recognizability, clue precision).
 
 ## Environment quirks (dev container)
 
