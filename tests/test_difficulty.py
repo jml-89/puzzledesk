@@ -1,18 +1,23 @@
-"""Difficulty contracts (D20): the score band and structural checkability.
+"""Difficulty contracts (D20/D21): score band, structural checkability, solve order.
 
-Both slices are *complete and deterministic*, so they get tests (not benchmarks):
-the band filter keeps exactly the in-range words, and ``analyze`` flags a crossing as
-*open* iff neither crossing word alone pins the shared letter -- the Natick signal.
+These slices are deterministic, so they get tests (not benchmarks): the band filter
+keeps exactly the in-range words, ``analyze`` flags a crossing *open* iff neither word
+pins the shared letter, and ``solve_order`` replays the fill easiest-first -- forced,
+then gimme, else a hard get -- so an obscure entry its crossings *force* is not a
+Natick, which the static reading cannot tell.
 """
 
 from __future__ import annotations
 
 from fakes import InMemoryLexiconSource, RecordingRngFactory
 
-from puzzledesk.app.difficulty import analyze
+from puzzledesk.app.difficulty import analyze, solve_order
 from puzzledesk.app.mini import MiniService
 from puzzledesk.app.puzzle import FilledGrid
 from puzzledesk.core.lexicon import Lexicon
+
+# A fully-checked 2x2: across ab/cd induce down ac/bd; four entries, four crossings.
+_GRID = FilledGrid((("a", "b"), ("c", "d")))
 
 # --- A. word prior: the two-sided score band -------------------------------------
 
@@ -103,3 +108,40 @@ def test_analyze_wired_to_a_real_lexicon() -> None:
     assert c00.down_options == 2  # ac / bc
     assert c00.is_open
     assert diff.hardest is not None and diff.hardest.cell == (0, 0)
+
+
+# --- D21. solve order: the dynamic reading ---------------------------------------
+
+
+def test_solve_order_all_common_is_a_monday() -> None:
+    # Every entry is a gimme (score >= gimme) and nothing is forced -- the solver just
+    # knows them all, so there are no hard gets regardless of how open the crossings are.
+    traj = solve_order(_GRID, lambda w, kn: 5, lambda w: 100.0, gimme=80.0)
+    assert len(traj.steps) == 4
+    assert traj.hard_gets == ()
+    assert traj.bottleneck is None
+    assert {s.kind for s in traj.steps} == {"gimme"}
+
+
+def test_obscure_but_forced_is_not_a_natick() -> None:
+    # "cd" is obscure (below the gimme) yet its crossings pin it (one fit) -- so it is
+    # solved as *forced*, never a hard get. This is exactly what the static openness
+    # reading cannot distinguish: obscure + forced != obscure + open.
+    candidates = lambda w, kn: 1 if w == "cd" else 5  # noqa: E731
+    score = lambda w: 10.0 if w == "cd" else 100.0  # noqa: E731
+    traj = solve_order(_GRID, candidates, score, gimme=80.0)
+    cd = next(s for s in traj.steps if s.answer == "cd")
+    assert cd.kind == "forced"
+    assert traj.hard_gets == ()
+
+
+def test_all_obscure_needs_one_cold_ice_breaker_then_cascades() -> None:
+    # Nothing is a gimme; an entry becomes forced once any crossing letter is known.
+    # So the solver makes exactly one cold hard get (the ignition, the bottleneck),
+    # and the revealed letters force the rest -- the cascade.
+    candidates = lambda w, kn: 1 if len(kn) >= 1 else 5  # noqa: E731
+    traj = solve_order(_GRID, candidates, lambda w: 10.0, gimme=80.0)
+    assert len(traj.hard_gets) == 1
+    assert traj.hard_gets[0].order == 0
+    assert traj.bottleneck is not None and traj.bottleneck.order == 0
+    assert [s.kind for s in traj.steps[1:]] == ["forced", "forced", "forced"]

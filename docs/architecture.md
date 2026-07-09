@@ -191,11 +191,13 @@ reversal note and open-questions "Grid variety".
 the feedback signal the whole design optimises against. `score_of` falls back to
 0.0 for words not in the lexicon's score_map.
 
-## Difficulty: structural checkability (src/puzzledesk/app/difficulty.py)
+## Difficulty: checkability + solve order (src/puzzledesk/app/difficulty.py)
 
 `validate` scores *quality* (per-word crowd score + distinctness). Difficulty is a
-separate, layered thing (D20); the one *complete, deterministic* structural slice
-lives here. `analyze(grid, options)` reads a `FilledGrid` (invariant 0: either grid
+separate, layered thing (D20); the *complete, deterministic* slices live here — a
+**static** snapshot (`analyze`) and a **dynamic** solve-order model (`solve_order`, D21).
+
+`analyze(grid, options)` reads a `FilledGrid` (invariant 0: either grid
 model projects into it) and reports, per crossing cell, whether the shared letter is
 **forced** (one of the two words alone pins it) or **open** (neither does, so the
 solver needs outside knowledge — the Natick pathology). `CrossingOpenness` carries
@@ -213,11 +215,24 @@ Two modelling choices (D20), both at the call site, not baked into the metric:
   signal, not a solve-trajectory simulation (that trajectory/BP model is a deferred
   spike, see open-questions "Difficulty").
 
-`analyze` imports nothing from `core` (it takes the `options` callable), so it is
-representation-agnostic and fakeable with a plain dict. `scripts/difficulty.py` is the
-measurement driver: it solves minis, projects to `FilledGrid`, runs `analyze` against
-the full list, and cross-references openness with per-word score (invariant 4) for the
-"unfair Natick" read.
+`solve_order(grid, candidates, score, *, gimme)` (D21) is the *dynamic* reading: it
+replays the known fill easiest-first and returns a `Trajectory` of `Step`s, each
+classified **forced** (only one word fits its pattern now), **gimme** (`score >=
+gimme` — known from the clue), or **hard** (stuck: obscure and still open). Solving an
+entry reveals its cells, which force/ease its crossings next iteration (the cascade);
+when stuck it attacks the most-supported entry first, so support drives the cascade.
+`Trajectory.bottleneck` is the hardest hard-get — what makes a grid a Saturday. This
+separates *obscure-but-forced* (fine) from *obscure-and-open* (a Natick), which
+`analyze`'s maximal-support snapshot cannot. `gimme` is the soft, uncalibrated
+clue-gettability knob (D20 layer B) — an input that lets the model bracket a solver,
+not a claim to be one.
+
+Both functions import nothing from `core` (they take the `options`/`candidates`/`score`
+callables), so they are representation-agnostic and fakeable with plain dicts.
+`scripts/difficulty.py` is the measurement driver: it solves minis (square or `blocked`),
+projects to `FilledGrid`, and reports the static openness (cross-referenced with
+per-word score, invariant 4, for the "unfair Natick" read) and the dynamic trajectory
+side by side.
 
 ## Blocked grids (src/puzzledesk/blocked.py, fill.py)
 

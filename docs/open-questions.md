@@ -64,14 +64,18 @@ ones are built, the two *soft* ones are recorded and blocked on data:
   driver analogous to `ceiling.py` (where does a band go UNSAT), and whether obscurity
   band is the right proxy for "word difficulty" or whether a separate difficulty score
   (distinct from crowd-enjoyment score) is worth sourcing.
-- **A′. Structural checkability — BUILT.** `app/difficulty.analyze` flags *open*
-  crossings (Natick risk) from the lexicon, no solve data. Open follow-ups: (i) it is
-  the conservative maximal-support reading — the **order-dependent cascade** (which
-  entries a solver gets first, how support propagates) is unmodelled and is where a
-  real belief-propagation/marginal computation would live (the soft regime returning
-  on the *analysis* side; cf. D19 reversal); (ii) openness is currently structural
-  only — fusing it with per-word obscurity into a single calibrated "Natick score"
-  needs the score scale settled (invariant 4).
+- **A′. Structural checkability — BUILT (static + dynamic).** `app/difficulty.analyze`
+  flags *open* crossings (Natick risk) at maximal support, no solve data.
+  `app/difficulty.solve_order` (D21) adds the **order-dependent cascade**: replay the
+  fill easiest-first (forced → gimme → hard get) so an obscure entry its crossings
+  *force* by the time you reach it is not a Natick — the distinction the static reading
+  cannot make. Open follow-ups: (i) it is one greedy order with a deterministic
+  tie-break, not a **distribution** over plausible solve paths, and `gimme` (the
+  clue-gettability knob) is uncalibrated — both want human solve logs; this is exactly
+  where a real belief-propagation/marginal computation would live (the `candidates`
+  seam; cf. D19 reversal); (ii) openness is still structural only — fusing it with
+  per-word obscurity into a single calibrated "Natick score" needs the score scale
+  settled (invariant 4).
 - **B. Clue difficulty — knob exists, calibration deferred.** The Mon..Sat
   `Difficulty` enum behind `ClueProvider` (D15/D16) is the soft, sampled layer.
   Proving a clue hits a target difficulty needs human solve logs this environment does

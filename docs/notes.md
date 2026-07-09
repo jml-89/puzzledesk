@@ -134,6 +134,33 @@ because a 3-slot's 4-/5-letter crossing neighbours sometimes pin the letter from
 shorten the grid, or shorten a slot with a block — either way the weak side's stem is
 what sets openness.
 
+## Solve-order difficulty (D21, scripts/difficulty.py)
+
+`solve_order` replays the fill easiest-first (forced → gimme[score>=80] → hard get) and
+reports the trajectory as a kind-string plus the bottleneck. Measured on 5x5 cw minis
+(this container), it separates *obscure-but-forced* from a real Natick — which the
+static openness reading cannot:
+
+- **cw>=90 (all common):** `GGGGFFGFFF` — 5 gimmes ignite, the other 5 cascade to
+  forced, **0 hard-gets**. A grid of common words is a Monday *however open* its
+  crossings (10–15 open/grid). This is the dynamic mechanism behind "openness ≠ hard
+  when words are common".
+- **cw>=68 (mixed):** still **0 hard-gets** despite 8–13 open crossings — obscure-ish
+  entries are *forced* by the time the solver reaches them. The payoff: static "open"
+  over-counts difficulty; the cascade shows most opens never bite.
+- **cw band [50,58] (all obscure):** `HHHHHHHHHF` — no gimmes, so one cold ice-breaker
+  (step0, ~20,292 fits = the bottleneck) then support cascades (fits fall
+  20292→482→…→4) but every entry stays *hard*: a genuine Saturday, 9 hard-gets/grid.
+
+The ignition knob: on the same [50,58] grids, lowering `gimme` 80→55 (assume the solver
+*knows* those words) drops hard-gets 9→7 and the bottleneck from ~20,292 fits to ~140 —
+anchoring quantified. Two modelling choices matter (D21): the hard-get order is
+support-first (`(-fits, score)`) so the cascade flows through crossings (score-first
+picked multiple cold ice-breakers, understating it); and a fully-checked grid has no
+forced entry cold, so *ignition requires the gimme signal* — a logic-only solver can't
+even start, which is itself the finding. `gimme` is uncalibrated (D20 layer B): vary it
+to bracket solver skill, not to claim a Monday/Saturday label.
+
 Reproducibility note: `mini 5 70 1` is unchanged by the band work
 (`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
 to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.

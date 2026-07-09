@@ -119,3 +119,109 @@ def analyze(grid: FilledGrid, options: Options) -> StructuralDifficulty:
             )
         )
     return StructuralDifficulty(tuple(out))
+
+
+# --- Solve order: the dynamic reading (D21) --------------------------------------
+#
+# ``analyze`` is a *snapshot* at maximal support. A human does not solve at maximal
+# support -- they uncover entries easiest-first, and each entry they get donates its
+# letters to the crossing entries, so support *arrives over time* (a percolation
+# cascade). ``solve_order`` replays the *known* fill in that human order and measures
+# where the order forces a hard get. It is not a solver (we have a complete one); it
+# is a difficulty *model* over an already-solved grid, so it never backtracks.
+#
+# The step kinds encode the three ways a human gets an entry:
+#   * ``forced`` -- only one word fits its current pattern; free, pure logic, no clue.
+#   * ``gimme``  -- common enough (score >= ``gimme``) to just know from the clue.
+#   * ``hard``   -- neither: the solver is stuck and must work an obscure, still-open
+#                   entry from its clue, disambiguating among ``candidates`` fits.
+#
+# The payoff over ``analyze``: an obscure word whose crossings *force* it by the time
+# the solver reaches it is not a Natick -- ``analyze`` (maximal support) cannot tell
+# that from a genuinely open one, but the cascade can. ``gimme`` is the soft
+# clue-gettability knob (D20 layer B), still uncalibrated -- so it is an input, and
+# the model brackets a real solver rather than claiming to be one.
+
+Candidates = Callable[[str, frozenset[int]], int]
+"""``candidates(answer, known)`` -> how many words fit ``answer``'s pattern when the
+positions in ``known`` are pinned to its letters and the rest are blank. ``1`` == the
+entry is forced by its crossings so far. Wired to ``Lexicon.matching`` in production."""
+
+
+@dataclass(frozen=True, slots=True)
+class Step:
+    """One entry solved, in human order: why it was gettable and how hard."""
+
+    order: int
+    target: TargetId
+    answer: str
+    kind: str  # "forced" | "gimme" | "hard"
+    candidates: int  # words fitting its pattern at the moment it was solved
+    score: float
+
+
+@dataclass(frozen=True, slots=True)
+class Trajectory:
+    """The full easiest-first solve of one grid: the effort curve and its bottleneck."""
+
+    steps: tuple[Step, ...]
+
+    def of_kind(self, kind: str) -> tuple[Step, ...]:
+        return tuple(s for s in self.steps if s.kind == kind)
+
+    @property
+    def hard_gets(self) -> tuple[Step, ...]:
+        """The steps where the solver stalled -- obscure *and* still under-supported."""
+        return self.of_kind("hard")
+
+    @property
+    def bottleneck(self) -> Step | None:
+        """The hardest hard-get (most fits to disambiguate, ties to the more obscure),
+        or None if the grid solved with no stall. This is what makes it a Saturday."""
+        hard = self.hard_gets
+        return max(hard, key=lambda s: (s.candidates, -s.score)) if hard else None
+
+
+def solve_order(
+    grid: FilledGrid, candidates: Candidates, score: Callable[[str], float], *, gimme: float
+) -> Trajectory:
+    """Replay ``grid``'s fill easiest-first and record the effort at each step.
+
+    Each iteration solves one entry: a forced one if any (a unique fit), else the most
+    common still-unsolved gimme (score >= ``gimme``), else -- stuck -- the least-bad
+    hard get (highest score, fewest fits). Solving an entry reveals its cells, which
+    can force or ease its crossings next iteration (the cascade). Deterministic:
+    ``grid.runs()`` order breaks every tie.
+    """
+    entries = grid.runs()
+    # A cell is "known" once any entry through it is solved; since crossing entries
+    # share that cell, revealing a solved entry's cells propagates to its crossings.
+    known: set[Cell] = set()
+    solved: set[TargetId] = set()
+    steps: list[Step] = []
+    while len(solved) < len(entries):
+        pending = [t for t in entries if t.id not in solved]
+        fits = {
+            t.id: candidates(t.answer, frozenset(i for i, c in enumerate(t.cells) if c in known))
+            for t in pending
+        }
+        forced = [t for t in pending if fits[t.id] == 1]
+        if forced:
+            pick, kind = forced[0], "forced"
+        else:
+            gimmes = [t for t in pending if score(t.answer) >= gimme]
+            if gimmes:
+                pick, kind = max(gimmes, key=lambda t: score(t.answer)), "gimme"
+            else:
+                # Stuck: attack the most-supported entry (fewest fits), ties to the
+                # one you are likelier to know (higher score). So support -- not raw
+                # obscurity -- drives the cascade; only the ice-breaking first get is
+                # truly cold.
+                pick = max(pending, key=lambda t: (-fits[t.id], score(t.answer)))
+                kind = "hard"
+        steps.append(
+            Step(len(steps), pick.id, pick.answer, kind, fits[pick.id], score(pick.answer))
+        )
+        solved.add(pick.id)
+        known.update(pick.cells)
+    return Trajectory(tuple(steps))
