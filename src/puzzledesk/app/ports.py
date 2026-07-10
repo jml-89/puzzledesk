@@ -31,7 +31,7 @@ class LexiconSource(Protocol):
 
     ``name`` selects the list family and its on-disk format; ``min_score``/
     ``max_score`` apply the score band filter (``min_score=0.0`` + ``max_score=None``
-    == the full list; a two-sided band is the difficulty knob, D20). The adapter owns
+    == the full list; a two-sided band is the difficulty knob, D21). The adapter owns
     the mapping from ``(name, length)`` to a file and the read; the kernel only parses.
     """
 

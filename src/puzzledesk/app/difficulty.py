@@ -1,7 +1,7 @@
 """Structural difficulty: which crossings a solver cannot get from the grid alone.
 
 ``validate`` (core) scores a grid's *quality* -- per-word crowd score plus
-distinctness. Difficulty is a separate, layered thing (docs/decisions.md D20); this
+distinctness. Difficulty is a separate, layered thing (docs/decisions.md D21); this
 module is its one *complete, deterministic* structural slice.
 
 The idea: a dense mini solves as a percolation cascade -- get the gettable entries,
@@ -15,7 +15,7 @@ rest of the across word still admits, likewise for the down word. If either coun
 **open** -- the difficulty a grid of merely-obscure words can still hide, and the
 easy-crossings a grid of rare words can still unzip through.
 
-Two modelling choices live at the *call site*, not here (D20):
+Two modelling choices live at the *call site*, not here (D21):
 
   * **Full vocabulary.** ``options`` is wired against the solver's whole lexicon (the
     unfiltered list), not the generation-filtered one -- a solver knows every word.
@@ -121,7 +121,7 @@ def analyze(grid: FilledGrid, options: Options) -> StructuralDifficulty:
     return StructuralDifficulty(tuple(out))
 
 
-# --- Solve order: the dynamic reading (D21) --------------------------------------
+# --- Solve order: the dynamic reading (D22) --------------------------------------
 #
 # ``analyze`` is a *snapshot* at maximal support. A human does not solve at maximal
 # support -- they uncover entries easiest-first, and each entry they get donates its
@@ -139,7 +139,7 @@ def analyze(grid: FilledGrid, options: Options) -> StructuralDifficulty:
 # The payoff over ``analyze``: an obscure word whose crossings *force* it by the time
 # the solver reaches it is not a Natick -- ``analyze`` (maximal support) cannot tell
 # that from a genuinely open one, but the cascade can. ``gimme`` is the soft
-# clue-gettability knob (D20 layer B), still uncalibrated -- so it is an input, and
+# clue-gettability knob (D21 layer B), still uncalibrated -- so it is an input, and
 # the model brackets a real solver rather than claiming to be one.
 
 Candidates = Callable[[str, frozenset[int]], int]

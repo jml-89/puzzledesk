@@ -113,9 +113,11 @@ class BlockedGenerateService:
         defaults to a sensible black ceiling (:data:`DEFAULT_BLACK_FRACTION` of the
         cells) so the free path yields clean, real-crossword-like grids instead of the
         over-black uniform search. Because the cap keeps entries within the loaded
-        lengths (``range(min_len, max_len + 1)``), no word list beyond 5 is needed. A
-        ``None`` under ``max_patterns`` is budget exhaustion, not a UNSAT theorem (the
-        capped layout space is astronomically large at 10x10)."""
+        lengths (``range(min_len, max_len + 1)``), no word list beyond 5 is needed. The
+        layout search here always runs under a node budget (and ``max_patterns`` may cap
+        the attempts), so a ``None`` is budget exhaustion, **never** a UNSAT theorem (the
+        capped layout space is astronomically large at 10x10); the unbudgeted existence
+        proof is :meth:`capped_layout_exists`."""
         if num_black is None and max_black is None:
             max_black = default_black_ceiling(rows, cols)
         mlex = self._lexicon.load_multi(
