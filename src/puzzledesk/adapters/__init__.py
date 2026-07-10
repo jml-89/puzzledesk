@@ -7,9 +7,8 @@ core or app defined:
     (the injected Prng: ``np.random.default_rng`` lives here, nowhere else);
   * :class:`~puzzledesk.adapters.file_lexicon.FileLexicon` -> ``app.ports.LexiconSource``
     (the filesystem read that used to sit in the kernel);
-  * :class:`~puzzledesk.adapters.writer.StreamWriter` /
-    :class:`~puzzledesk.adapters.writer.CapturingWriter` -> ``app.ports.Writer``
-    (stdout, or a buffer under test).
+  * :class:`~puzzledesk.adapters.writer.StreamWriter` -> ``app.ports.Writer``
+    (stdout in production; tests supply their own recording ``Writer``).
 
 Adapters sit *above* ``app`` in the import graph (they import the ports they
 implement) and *below* the composition root. import-linter forbids ``app`` from

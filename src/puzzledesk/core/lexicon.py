@@ -133,9 +133,6 @@ class Lexicon:
         ]
         return int(self.matching(pattern).size)
 
-    def is_word(self, s: str) -> bool:
-        return s in self.wordset
-
     def words_matching(self, allowed: list[np.ndarray]) -> np.ndarray:
         """Return indices of words whose letter at each position is permitted by
         the corresponding 26-bool mask in ``allowed`` (length N).
