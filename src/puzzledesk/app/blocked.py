@@ -14,7 +14,7 @@ Injected: the length-bucketed word list via :class:`LexiconSource`, randomness v
 from __future__ import annotations
 
 from ..core.blocked import BlockedGrid
-from ..core.engines import fill, patterns
+from ..core.engines import fill, gibbs_layout, patterns
 from ..core.lexicon import MultiLexicon
 from ..core.rng import RngFactory
 from .ports import LexiconSource
@@ -135,6 +135,55 @@ class BlockedGenerateService:
             max_black=max_black,
             layout_node_budget=_LAYOUT_NODE_BUDGET,
             max_patterns=max_patterns,
+        )
+        if found is None:
+            return None
+        grid, assign = found
+        return result_of(grid, mlex, assign)
+
+    def fill_capped_gibbs_once(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        max_len: int,
+        min_score: float,
+        seed: int = 0,
+        symmetric: bool = True,
+        min_len: int = 3,
+        num_black: int | None = None,
+        max_layouts: int = 40,
+    ) -> BlockedResult | None:
+        """A length-capped mini whose *layout* is drawn from the Gibbs energy field
+        (D27) instead of the complete cap-driven search -- the aesthetic-controlled path.
+
+        Same output as :meth:`fill_capped_once` (a filled ``BlockedResult``); only the
+        layout source differs. The field gives explicit, tunable control over density,
+        spread, and the no-2x2-black-block rule -- properties ``gen_capped``'s heuristic
+        gets only emergently (and which it can violate) -- at the cost of speed and, being
+        a sampler, *completeness*: a ``None`` here is budget exhaustion (no layout sampled
+        that filled within ``max_layouts``), **never** a UNSAT theorem. Density is set by
+        ``num_black`` (an exact-count spring) or, unset, by :data:`DEFAULT_BLACK_FRACTION`
+        of the cells. Entries stay within ``[min_len, max_len]``, so no word list beyond
+        ``max_len`` is needed."""
+        target_black = num_black if num_black and num_black > 0 else None
+        black_fraction = DEFAULT_BLACK_FRACTION if target_black is None else 0.0
+        mlex = self._lexicon.load_multi(
+            self._list_name, range(min_len, max_len + 1), min_score=min_score
+        )
+        found = gibbs_layout.fill_gibbs(
+            rows,
+            cols,
+            mlex,
+            rng_factory=self._rng,
+            max_len=max_len,
+            seed=seed,
+            min_len=min_len,
+            symmetric=symmetric,
+            distinct=True,
+            black_fraction=black_fraction,
+            target_black=target_black,
+            max_layouts=max_layouts,
         )
         if found is None:
             return None

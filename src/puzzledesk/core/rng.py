@@ -7,8 +7,10 @@ actually need and depend only on those:
 
   * :class:`Rng` -- a single random stream. The engines call ``shuffle`` (candidate
     order for per-seed diversity); ``integers`` is the generic determinism probe the
-    port test uses. ``numpy.random.Generator`` satisfies this structurally, so the
-    default adapter is just ``np.random.default_rng(seed)`` with no wrapper.
+    port test uses; ``random`` (a uniform float) is the Metropolis/Gibbs accept draw
+    the layout field sampler needs (D27). ``numpy.random.Generator`` satisfies this
+    structurally, so the default adapter is just ``np.random.default_rng(seed)`` with
+    no wrapper.
   * :class:`RngFactory` -- makes a fresh stream from a seed. This is what preserves
     the reproducibility invariant: ``factory.create(seed)`` yields the identical
     stream every time, so a given ``(lists, seed)`` reproduces exactly, and a
@@ -43,6 +45,12 @@ class Rng(Protocol):
 
     def integers(self, low: int, high: int | None = ..., size: int | None = ...) -> Any:
         """Random integers in ``[0, low)`` or ``[low, high)``."""
+        ...
+
+    def random(self, size: int | None = ...) -> Any:
+        """A uniform float in ``[0, 1)`` (or an array of them). The Gibbs sampler's
+        accept draw: black iff ``random() < P(black | rest)`` (D27). ``numpy``'s
+        ``Generator.random`` matches this exactly, so the adapter is unchanged."""
         ...
 
 

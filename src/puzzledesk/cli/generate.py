@@ -19,6 +19,13 @@ from the 2..5 lists at ``--max-len 5``:
 In cap mode the black-cell count is *derived* from the cap; the ``num_black``
 positional is an optional exact target (``0`` = let the search choose, defaulting to
 ~20% black). ``--max-black K`` bounds the count above for a specific density (D25).
+
+Adding ``--gibbs`` (cap mode only) draws the *layout* from the Gibbs energy field
+(D27) instead of the complete cap-driven search: aesthetic-controlled density and
+spread and a guaranteed no-2x2-black-block texture, at the cost of speed and
+completeness (a miss is budget exhaustion, never a proof). The fill is unchanged.
+
+    uv run generate 10 10 0 60 3 --max-len 5 --gibbs
 """
 
 from __future__ import annotations
@@ -36,6 +43,7 @@ def main(argv: list[str] | None = None) -> None:
     symmetric = True
     max_len: int | None = None
     max_black: int | None = None
+    gibbs = False
     positional: list[str] = []
     it = iter(args)
     for a in it:
@@ -45,6 +53,8 @@ def main(argv: list[str] | None = None) -> None:
             max_len = int(next(it))
         elif a == "--max-black":
             max_black = int(next(it))
+        elif a == "--gibbs":
+            gibbs = True
         else:
             positional.append(a)
     rows = int(positional[0]) if len(positional) > 0 else 5
@@ -54,7 +64,9 @@ def main(argv: list[str] | None = None) -> None:
     count = int(positional[4]) if len(positional) > 4 else 3
 
     if max_len is not None:
-        _run_capped(build(), rows, cols, max_len, num_black, min_score, count, symmetric, max_black)
+        _run_capped(
+            build(), rows, cols, max_len, num_black, min_score, count, symmetric, max_black, gibbs
+        )
     else:
         _run(build(), rows, cols, num_black, min_score, count, symmetric)
 
@@ -127,11 +139,13 @@ def _run_capped(
     count: int,
     symmetric: bool,
     max_black: int | None,
+    gibbs: bool = False,
 ) -> None:
     """The cap-driven path: entries capped at ``max_len`` by black cells, so a grid
     bigger than the word data fills from the 2..5 lists. ``num_black`` (positional) > 0
     pins the count; ``0`` lets the search choose (density defaults to ~20% via
-    ``--max-black``, D25)."""
+    ``--max-black``, D25). ``gibbs`` swaps the complete layout search for the Gibbs
+    energy-field sampler (D27): aesthetic-controlled, but not complete."""
     w = c.writer.line
     kind = "symmetric" if symmetric else "non-symmetric"
     target = None if num_black <= 0 else num_black
@@ -141,9 +155,10 @@ def _run_capped(
         density = f", <= {max_black} black cells"
     else:
         density = f", ~{blocked.default_black_ceiling(rows, cols)} black cells (default)"
+    source = " [Gibbs field]" if gibbs else ""
     w()
     w(
-        f"{rows}x{cols} {kind} capped minis, max entry length {max_len}{density}, "
+        f"{rows}x{cols} {kind} capped minis{source}, max entry length {max_len}{density}, "
         f"every word score >= {min_score:.0f}"
     )
     w()
@@ -160,18 +175,30 @@ def _run_capped(
     shown = 0
     # The capped layout space is large, so budget the seeds; a miss here is
     # exhaustion of the budget, not a UNSAT theorem (unlike the count-driven path).
+    # The Gibbs path is a sampler, so it is a budget for the same reason -- more so.
     for seed in range(count * 20):
         t0 = time.perf_counter()
-        res = c.blocked.fill_capped_once(
-            rows,
-            cols,
-            max_len=max_len,
-            min_score=min_score,
-            seed=seed,
-            symmetric=symmetric,
-            num_black=target,
-            max_black=max_black,
-        )
+        if gibbs:
+            res = c.blocked.fill_capped_gibbs_once(
+                rows,
+                cols,
+                max_len=max_len,
+                min_score=min_score,
+                seed=seed,
+                symmetric=symmetric,
+                num_black=target,
+            )
+        else:
+            res = c.blocked.fill_capped_once(
+                rows,
+                cols,
+                max_len=max_len,
+                min_score=min_score,
+                seed=seed,
+                symmetric=symmetric,
+                num_black=target,
+                max_black=max_black,
+            )
         dt = time.perf_counter() - t0
         if res is None:
             continue

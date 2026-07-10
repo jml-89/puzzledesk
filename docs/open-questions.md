@@ -58,6 +58,13 @@ generation**, a soft, local, translation-invariant field problem — see "Layout
 generation is a soft, local field" below. That is where a sampler would earn its keep,
 not the fill.
 
+**Update (D27): it did.** The layout Gibbs sampler was built and measured — and unlike the
+fill sampler (retired), it *earns a scoped keep*: it guarantees aesthetic properties
+(no 2x2 block) the complete search cannot, spreads blacks better, and stays productive at
+the 12x12 frontier where the complete search's budget collapses. So the D3→D19 arc's final
+shape is precise: **stochastic sampling lost the *fill* and won the *layout*** — the right
+tool for each regime, exactly the split D19's reversal clause anticipated.
+
 ## Difficulty — partially modelled (D21)
 
 Difficulty is decomposed into four layers (D21); the two *complete/deterministic*
@@ -162,7 +169,10 @@ grid vs brute-force ground truth. What that spike deliberately left open:
     `node_budget` keeps a tight cap from running away. Left open: an explicit
     *spread/anti-cluster* objective (residual clustering ~0.85 is acceptable but not
     tuned), and tight density at 12x12+ (near its feasibility minimum → low yield, wants
-    the scaling search below).
+    the scaling search below). **Both are addressed by the D27 Gibbs field** (an explicit
+    anti-cluster energy term → cluster 0.67, and it stays productive at 12x12 where this
+    complete search collapses), which coexists with `gen_capped` — see "Layout generation
+    is a soft, local field — BUILT (D27)".
   - **Scaling past ~12x12.** Connectivity checked only at the leaf makes the search
     backtrack heavily at 13x13+ (a 15x15 does not finish) — the "pruning before 15x15"
     item below, now concrete. Incremental connectivity/symmetry pruning is the fix.
@@ -183,7 +193,22 @@ grid vs brute-force ground truth. What that spike deliberately left open:
 - Larger word SQUARES (the no-black case): order 8+ gets rare fast in English;
   feasibility/timing for 6x6, 7x7 on the curated list is still unmeasured.
 
-## Layout generation is a soft, local field — the sampler's real home (not the fill)
+## Layout generation is a soft, local field — the sampler's real home (not the fill) — BUILT (D27)
+
+**Resolved for the core hypothesis (D27): the sampler was built, measured, and KEPT
+(scoped).** `core/engines/gibbs_layout.py` is an annealed-Gibbs sampler over the
+black-cell field — local factors for run-length legality, density, anti-cluster, and
+no-2x2-block; symmetry by construction (orbit colouring); connectivity as a global BFS
+**reject** (the one non-local constraint, exactly as flagged below). Head-to-head vs
+`gen_capped` (notes.md): at 10x10 it wins on spread (cluster 0.67 vs 0.85) and
+*guarantees* no 2x2 block (vs ~0.27/grid), and at the 12x12 frontier it stays productive
+(1/15 miss, 8/14 distinct) where the complete search's node budget collapses (13/15
+miss) — the phase-transition prediction below, confirmed. It loses on speed (~40x) and
+10x10 diversity and is not complete, so it *coexists* with `gen_capped` (the fast default
++ existence-proof engine) rather than replacing it (`generate --gibbs`). The thesis that
+follows is what motivated the spike; it is preserved because the **follow-ups it names
+(WFC, ASP, connectivity, template libraries) are still open** — see "Still open after
+D27" at the end.
 
 A thesis worth recording before anyone reflexively reaches for a bigger backtracker
 at 15x15. **The black-cell LAYOUT problem and the word FILL problem are opposite
@@ -262,7 +287,7 @@ on as a separate global check or bake into the sampler's moves.
   cap)** and reserve field-based generation for when we want *novel / parameterised /
   themed* black architectures a fixed library can't cover.
 
-### The shape of the spike, if taken
+### The shape of the spike — TAKEN (D27)
 
 An energy/Gibbs (or WFC-style) sampler over the black-cell field — local factors for
 run-length legality, density, and anti-cluster; symmetry by construction (fold the
@@ -273,6 +298,38 @@ backtracker for the words untouched. The system then has a clean, honest seam:
 soft split the architecture already draws at D21 (difficulty) and D15 (the clue port),
 now surfacing in the geometry. Until then, 10x10 backtracking (D24/D25) is a fine
 stopgap and the template-library route is the cheap way to more sizes.
+
+**This is what D27 built** — the energy/Gibbs sampler with a global connectivity
+**reject** — and the seam it predicted is now real. **D28 then ran the basin-shape × count
+study and the connectivity-repair follow-up** (notes.md). Its findings reshape this list:
+
+- **Connectivity by repair — TRIED, DEFEATED by the cap, REMOVED (D28).** The obvious upgrade
+  (whiten a "bridge" black to reconnect components) fixes **~0** disconnected capped
+  layouts at every density/size: under a tight cap the separating blacks *are* the
+  cap-load-bearing cells, so whitening a bridge re-creates an over-cap run (and a 6-run
+  can't split into two ≥3 runs). It was deleted (D19-style; verdict in D28, code in git).
+  Still open: connectivity that is *not* cap-coupled — an **ASP formulation with native
+  reachability** (the survey's declarative route), which is a different object than local
+  whitening, or a move set that respects run-length by construction so the two constraints
+  never fight.
+- **The real frontier is the LEGALITY wall, not connectivity (D28).** The study showed
+  the sampler's failure mode shifts from connectivity to run-length legality as the grid
+  grows (14x14: 0% legal at frac 0.20, all `over_cap`/`short_run`) — the cap-forced
+  jamming density. Getting the field past ~12x12 wants a move set or schedule that reaches
+  *exactly*-legal grids near the jam (WFC min-entropy propagation, run-length-aware moves,
+  or a soft-field + complete-legalizer hybrid — the last risks re-importing a backtracker,
+  see D28). The count knob's **floor** is physics (D25): asking below it is infeasible, not
+  sparse.
+- **WFC min-entropy as an alternative move.** The survey's Wave Function Collapse
+  (min-entropy collapse + local propagation — which *is* MRV) was not built; it is the
+  natural candidate for the legality-wall above, worth a bake-off vs Gibbs.
+- **A curated template library.** The "pragmatic shortcut" (a small per-(size, cap)
+  library of hand-vetted symmetric patterns) is still unbuilt — the cheapest route to
+  *more sizes* with guaranteed-clean architecture, complementary to the sampler (which is
+  for *novel/parameterised/themed* layouts a fixed library can't cover).
+- **Field weights as a product surface.** `FieldParams` exists and D28 measured `w_cluster`
+  as a clean spread lever (cluster 0.90→0.71); a calibrated "sparse / dense / spread" preset
+  surface is the remaining product step.
 
 References (surveyed 2026-07): Gumin, *WaveFunctionCollapse* (2016,
 github.com/mxgmn/WaveFunctionCollapse); Smith & Mateas, "Answer Set Programming for

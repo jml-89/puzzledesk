@@ -332,6 +332,50 @@ grid fillable from the length-2..5 data we already have — no length-6+ lists n
   — e.g. the odd-count proof — is still exact). `scripts/largemini.py` is the measurement
   driver; `BlockedGenerateService.fill_capped_once` and `generate --max-len K` expose it.
 
+### The layout field sampler — Gibbs, soft, coexisting (src/puzzledesk/core/engines/gibbs_layout.py, D27)
+
+Everything above *searches* the layout (complete backtracking). The black-cell **layout** is
+the one *soft, local field* regime the system has (docs/open-questions.md "Layout generation is
+a soft, local field"): a translation-invariant grid with local run-length legality and a soft
+objective — density, spread, no 2x2 block. `gibbs_layout.py` samples it, a **coexisting**
+layout generator beside the complete `gen_capped` (the invariant-0 "two models coexist" move,
+at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler's return — a
+*new* spike (the layout, not the retired fill sampler).
+
+- `gibbs_layouts(rows, cols, *, rng, max_len, min_len=3, black_fraction=.16, target_black=None,
+  symmetric=True, params=None, sweeps, t0, t1, attempts_per_layout)` yields legal capped
+  layouts drawn by **annealed Gibbs** over the binary field. The energy (`FieldParams`) is a sum
+  of **local factors**: run-length legality (dominant), a density spring `(n_black-target)^2`,
+  an anti-cluster pair penalty, and an explicit **no-2x2-black-block** term. A single-cell Gibbs
+  step evaluates only the *affected rows/columns* + the *cluster touching the flipped orbit*
+  (the rest cancels in the conditional), so it is cheap per step.
+- **Symmetry is global-but-free** — it colours only the 180° orbit representatives (whole orbit
+  at once), so every draw is symmetric by construction, no factor. **Connectivity is global and
+  topological** — a local factor cannot express it, so it is *not* in the energy; it is a global
+  **reject** at the end (`patterns._connected` BFS), the honest boundary open-questions flagged.
+- **Not complete.** A yielded grid is legal by exactly `gen_capped`'s definition (the final gate
+  reuses `patterns._fully_checked`/`_connected`), but "no sample after N attempts" is **budget
+  exhaustion, never a UNSAT proof** — `capped_layout_exists` stays the sole existence theorem.
+  The epistemics survive the new engine.
+- `fill_gibbs` / `BlockedGenerateService.fill_capped_gibbs_once` / `generate --gibbs` expose it;
+  `scripts/gibbs.py` is the head-to-head driver. **Verdict (D27): kept, scoped to aesthetics** —
+  at 10x10 it wins on spread (cluster 0.67 vs 0.85) and *guarantees* no 2x2 block (vs ~0.27/grid
+  for `gen_capped`), and is far more productive at the 12x12 frontier where the complete search's
+  node budget collapses; it loses on speed (~40x) and 10x10 diversity, and is not complete. So
+  `gen_capped` stays the fast default + the proof engine; the field is the aesthetic alternative.
+- This needed one **port extension**: `core.rng.Rng` gained `random()` (a uniform float for the
+  Gibbs accept draw) — the seam D19's reversal note named; `numpy.random.Generator` already
+  satisfies it, so no adapter changed.
+- **The basin study (D28).** `anneal_field` (the raw sweep, split out of `sample_layout`) +
+  `reject_reason` (`ok`/`short_run`/`over_cap`/`disconnected`) are the instruments for
+  `scripts/gibbs.py`'s sweep of *basin shape × count*. Findings: the count knob has a **floor**
+  (the cap-forced jamming density — D25's phase transition, sampler-side), the failure mode shifts
+  from connectivity to run-length **legality** as the grid grows, and a **connectivity repair**
+  (whiten a bridge black) was tried and **removed** — it is defeated by the cap (the separating
+  blacks are cap-load-bearing, so whitening re-creates an over-cap run; it fixed ~0). The reliable
+  lever is the soft weights (`w_cluster` reshapes spread cleanly). The soft/hard split re-derived
+  inside the layout: the field owns the soft objective, complete search owns the hard legality.
+
 ## Invariants — do not break
 
 0. TWO GRID MODELS COEXIST. The square (square.py: induced columns, invariants
@@ -437,7 +481,10 @@ Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle,solve}.py` a
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
   With `--max-len K` it switches to the cap-driven path (D24): entries capped at K by
   black cells, so a grid bigger than the word data fills — e.g. `generate 10 10 0 60 3
-  --max-len 5` (num_black `0` = let the cap choose the count).
+  --max-len 5` (num_black `0` = let the cap choose the count). Adding `--gibbs` (cap mode
+  only) draws the *layout* from the Gibbs energy field (D27) instead of the complete
+  search: aesthetic-controlled density/spread and a guaranteed no-2x2-block texture, but
+  not complete (a miss is budget exhaustion).
 - puzzle.py: a whole *clued* puzzle as plain text to solve (grid + Across/Down clues).
   All **named flags**, not positional (D20): `puzzle --rows 5 --cols 5 --black 4
   --min-score 75 --difficulty wednesday [--no-symmetric] [--reveal]`. Clue generation
@@ -460,6 +507,8 @@ and uses the injected `lexicon`/`rng_factory` adapters):
 - largemini.py: the large capped-mini spike (D24) — why the count-driven search cannot
   cap entry length, the cap-driven search's black-count/timing, and fill rate from the
   cw 2..5 lists at 10x10 and 12x12.
+- gibbs.py: the layout-sampler head-to-head (D27) — Gibbs energy field vs `gen_capped`'s
+  complete search on density, spread, 2x2 blocks, diversity, and fill, at 10x10 and 12x12.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
