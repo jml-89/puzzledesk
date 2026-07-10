@@ -9,6 +9,10 @@ unless ``--nonsymmetric``) for ones that fill with distinct words above the bar.
 The layout-search property check that used to run first now lives in the pytest
 suite (``tests/test_patterns.py``).
 
+Argv is parsed with argparse -- the ``rows cols num_black min_score count`` shape is
+kept positional (D20), so ``--help`` and type validation come for free without
+changing the documented invocation.
+
 With ``--max-len K`` the search switches to the *cap-driven* path
 (``patterns.gen_capped``): every entry is forced to length <= K by tactically
 placed black cells, so a grid larger than the word data can fill -- e.g. a 10x10
@@ -30,6 +34,7 @@ completeness (a miss is budget exhaustion, never a proof). The fill is unchanged
 
 from __future__ import annotations
 
+import argparse
 import sys
 import time
 
@@ -38,37 +43,89 @@ from ..bootstrap import Container, build
 from . import present
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = sys.argv[1:] if argv is None else argv
-    symmetric = True
-    max_len: int | None = None
-    max_black: int | None = None
-    gibbs = False
-    positional: list[str] = []
-    it = iter(args)
-    for a in it:
-        if a in ("--nonsymmetric", "--asym"):
-            symmetric = False
-        elif a == "--max-len":
-            max_len = int(next(it))
-        elif a == "--max-black":
-            max_black = int(next(it))
-        elif a == "--gibbs":
-            gibbs = True
-        else:
-            positional.append(a)
-    rows = int(positional[0]) if len(positional) > 0 else 5
-    cols = int(positional[1]) if len(positional) > 1 else 5
-    num_black = int(positional[2]) if len(positional) > 2 else 4
-    min_score = float(positional[3]) if len(positional) > 3 else 60.0
-    count = int(positional[4]) if len(positional) > 4 else 3
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        prog="generate",
+        description="Generate blocked minis from a black-cell count (or a length cap).",
+    )
+    # Positional, on purpose: rows/cols/num_black/min_score/count is the historical
+    # `generate 5 5 4 60 3` shape (D20 keeps mini/generate positional). argparse just
+    # replaces the hand-rolled scan -- --help and type validation come for free.
+    p.add_argument("rows", type=int, nargs="?", default=5, help="grid rows (default: 5)")
+    p.add_argument("cols", type=int, nargs="?", default=5, help="grid columns (default: 5)")
+    p.add_argument(
+        "num_black",
+        type=int,
+        nargs="?",
+        default=4,
+        help="black cells to place; in --max-len mode 0 lets the search choose (default: 4)",
+    )
+    p.add_argument(
+        "min_score",
+        type=float,
+        nargs="?",
+        default=60.0,
+        help="quality floor: every word scores >= this (default: 60)",
+    )
+    p.add_argument(
+        "count", type=int, nargs="?", default=3, help="how many grids to emit (default: 3)"
+    )
+    p.add_argument(
+        "--nonsymmetric",
+        "--asym",
+        dest="symmetric",
+        action="store_false",
+        help="drop the 180-degree black-cell symmetry requirement (default: symmetric)",
+    )
+    p.add_argument(
+        "--max-len",
+        type=int,
+        default=None,
+        metavar="K",
+        help="cap every entry at length K via black cells -- the cap-driven path (D24)",
+    )
+    p.add_argument(
+        "--max-black",
+        type=int,
+        default=None,
+        metavar="K",
+        help="upper bound on the black-cell count in --max-len mode (D25)",
+    )
+    p.add_argument(
+        "--gibbs",
+        action="store_true",
+        help="draw the layout from the Gibbs energy field instead of the complete search "
+        "(cap mode only; a sampler, not complete -- D27)",
+    )
+    return p.parse_args(argv)
 
-    if max_len is not None:
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+
+    if args.max_len is not None:
         _run_capped(
-            build(), rows, cols, max_len, num_black, min_score, count, symmetric, max_black, gibbs
+            build(),
+            args.rows,
+            args.cols,
+            args.max_len,
+            args.num_black,
+            args.min_score,
+            args.count,
+            args.symmetric,
+            args.max_black,
+            args.gibbs,
         )
     else:
-        _run(build(), rows, cols, num_black, min_score, count, symmetric)
+        _run(
+            build(),
+            args.rows,
+            args.cols,
+            args.num_black,
+            args.min_score,
+            args.count,
+            args.symmetric,
+        )
 
 
 def _run(
