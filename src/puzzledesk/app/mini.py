@@ -47,9 +47,11 @@ class MiniService:
         """Up to ``count`` distinct minis of order ``n`` with every word scoring in
         ``[min_score, max_score]`` (``max_score=None`` == an open floor, the plain
         quality bar; a two-sided band is the difficulty knob, D21). Backtracking is
-        complete, so a seed that returns None simply found no grid on its randomised
-        path; we try more seeds up to a budget and stop at ``count`` grids (or when the
-        budget is spent).
+        complete, so on a given band ``solve`` either yields a grid or proves none
+        exists -- a ``None`` is that proof, not a seed artefact; the seed only varies
+        *which* grid, for diversity. We iterate seeds up to a budget, dedupe by fill so
+        the batch is distinct grid-wide (a complete search can return the same solution
+        under different seeds), and stop at ``count``.
 
         With ``min_hard_gets > 0`` the service *targets a difficulty* (D23): each solved
         grid is scored by ``solve_order`` (against the full vocabulary, under ``gimme``)
@@ -73,19 +75,18 @@ class MiniService:
             state = backtrack.solve(sq, rng=self._rng.create(seed), distinct=True)
             if state is None:
                 continue
+            words = tuple(sq.rows.words[i] for i in state)
+            if words in seen:  # a batch never repeats a grid (invariant 3, grid-wide)
+                continue
             v = validate(sq, state, min_score)
             assert v.ok, v  # filtered list + distinct=True guarantee this
             difficulty = None
             if targeting:
-                words = tuple(sq.rows.words[i] for i in state)
-                if words in seen:
-                    continue
                 traj = solve_order(
                     filled_from_square(sq, state), full.n_candidates, score, gimme=gimme
                 )
                 if len(traj.hard_gets) < min_hard_gets:
                     continue
-                seen.add(words)
                 b = traj.bottleneck
                 difficulty = SolveDifficulty(
                     hard_gets=len(traj.hard_gets),
@@ -93,6 +94,7 @@ class MiniService:
                     bottleneck_fits=b.candidates if b else 0,
                     gimme=gimme,
                 )
+            seen.add(words)
             results.append(_to_result(sq, state, v, difficulty))
             if len(results) >= count:
                 break
