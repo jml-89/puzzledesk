@@ -1460,85 +1460,53 @@ the positional shape, so they needed no edit; this log is the record of *why* th
 Reversal: n/a -- consolidation. The hand-rolled parsers are in git if a tool ever needs a
 parse argparse cannot express (none does today).
 
-## D31. Solution counting: measure the *size* of the solution space -- and the distinctness-pruning experiment, measured and dropped
+## D31. The kernel-methods review spike: measured, tombstoned -- see the post-mortem
 
-Context: a review-of-methods spike (the arc D1-D30 is well recorded, which makes the
-genuinely-unexplored kernel gaps easy to see). Two of them are *complete/deterministic*
--- the house regime (filter, prove, measure) -- and had never been built. (i) Every
-ceiling number in the repo so far is time-to-*first*-grid or an UNSAT proof; nobody had
-asked how *large* the SAT space is. open-questions.md flagged it explicitly ("How many
-distinct minis exist at score>=X is unknown ... a different, larger computation"), and it
-is load-bearing for the one big remaining *product* question -- **batch variety** (you
-cannot reason about "don't repeat oreo/erie across a batch" without knowing whether the
-top tier holds 18 distinct grids or 18,000). (ii) The performance follow-up named an early
-distinctness prune ("detect when a partial column can only complete to an already-used
-word ... Unimplemented; measure before optimising"). This spike does both, in `core`.
+Context: a final review-of-methods spike over the pure kernel (the arc D1-D30 is well
+recorded, which made the genuinely-unexplored *complete/deterministic* gaps easy to see).
+Two were tried, in the house regime (filter, prove, measure): **solution counting** (how
+*large* is the SAT space at a bar -- the open-questions "how many distinct minis exist at
+score>=X" item) and an **early distinctness prune** (the "detect a partial column that can
+only complete to an already-used word ... measure before optimising" perf item). Both were
+built, measured, and -- following this repo's tombstone discipline (D19 sampler, D28
+connectivity-repair, D29 dead code) -- **removed from the shipped kernel with the findings
+recorded**, because neither earns a durable place in it: the counter's value was a *one-time
+measurement* (now recorded), and the prune *failed outright*.
 
-Decision, two parts -- a capability kept and an optimisation measured-and-dropped:
+Decision: tombstone the spike. The kernel returns to its pre-spike state (`backtrack.py` has
+`solve` only; no `count`/`SolutionCount`, no `scripts/count.py`, no `tests/test_count.py`),
+and the review + the measured findings live as the canonical reference in
+**`docs/postmortem-kernel-methods.md`**. The code is one `git show` away (commit on the
+spike branch); the numbers are the memory, exactly as D19 kept the sampler's numbers after
+deleting the sampler.
 
-- **`backtrack.count` -- model counting on the complete search (KEPT).** A pure,
-  deterministic (no `rng` -- order is irrelevant when you walk the whole tree) counter that
-  returns a `SolutionCount(n, exact, nodes)`. The `exact` bit is the epistemics, in the
-  invariant-0 "None is a proof" style: `exact=True` means the tree was **exhausted**, so `n`
-  is the *exact* total -- a theorem, the counting twin of a complete UNSAT proof (indeed an
-  `exact` count of `0` **is** that UNSAT proof, reached by counting). `exact=False` means the
-  walk stopped at `limit`, and the total is only known `>= n` -- budget exhaustion, never
-  dressed as exact, the same honesty a budgeted `fill` result carries. `nodes` is the
-  search-tree size: a deterministic, container-independent measure (unlike wall-clock), which
-  is also what makes it the right instrument for judging a pruning rule (below). `distinct`
-  (default) counts genuine double squares (2N distinct words), excluding the symmetric basin.
+What was learned (full write-up in the post-mortem; headline numbers also in notes.md):
 
-  **The payoff (measured, `scripts/count.py`; numbers in notes.md): the solution space
-  *collapses to a countable set* as the bar rises, and every prior "ceiling" now has a *size*
-  beside it.** The weak (Zipf) list goes **56 -> 8 -> 0** exact distinct minis across
-  T=3.5/3.7/3.9 -- which also *refines* the earlier ceiling (notes.md said "5x5 tops out
-  ~3.5; 4.0 provably UNSAT"; the exhaustive count puts the true edge **between 3.7 and 3.9** --
-  3.9 is already UNSAT). The curated list's **top tier (score>=90, 2384 words) admits exactly
-  38 distinct 5x5 minis** -- the *denominator* behind notes.md's "18/25 seeds found distinct"
-  (25 random seeds hit 18 of the 38 that exist). Below the top tier the space is
-  astronomically large (capped, reported `>=`). So the "many -> countable handful -> zero"
-  transition near the ceiling is now a first-class, provable artifact.
-
-- **Early distinctness pruning -- built, measured on the node count, DROPPED.** The idea: a
-  column whose partial prefix admits exactly *one* column word has its down word already
-  *determined*, so if that forced word is already an across word (or two columns are forced to
-  the same word) no distinct leaf exists below -- prune at depth instead of at `r==n`. It is
-  *sound* (removes only branches with no distinct leaf; first-solution order untouched). But
-  counting exhausts the tree, so it measures the prune exactly: **~2% fewer nodes on both
-  lists (2.1% weak, 2.6% curated), and time-neutral.** The forced-down condition almost never
-  fires early -- with hundreds/thousands of words a column prefix stays multiply-completable
-  until deep in the tree, by which point the existing leaf check catches the duplicate anyway.
-  So the prune buys nothing its purpose (speed) wants. Per the repo's measure-then-record
-  discipline (D19 sampler, D28 connectivity-repair, D29 dead code), a marginal optimisation is
-  **removed with its verdict recorded**, not left as a rotting off-by-default knob on the
-  public `solve`/`count` signatures. The `_ForcedDown`/`_distinct_dead` helpers and the
-  `early_distinct` flag are one `git show` away; the number is the memory.
-
-Scope: `count` is the square engine only -- the canonical mini, and where the ceiling and
-batch-variety stories live. It is additive: a new pure function beside `solve`, ground-truthed
-against `enumerate_squares` on tiny lists (an exhaustive `count` == the distinct-filtered
-brute-force enumeration -- the counting analogue of "solver output is a subset of ground
-truth"). The layers contract is untouched (`core`), and `scripts/count.py` builds the container
-and drives it like every other benchmark.
+- **The solution space collapses to a countable set at the ceiling.** The weak (Zipf) list
+  goes **56 -> 8 -> 0** exact distinct 5x5 minis across T=3.5/3.7/3.9, which also *refines*
+  the earlier ceiling read (the true edge is **between 3.7 and 3.9**, not "tops out ~3.5 /
+  UNSAT at 4.0"). The curated **top tier (score>=90) admits exactly 38 distinct 5x5 minis** --
+  the *denominator* behind "25 seeds found 18 distinct", and the number batch-variety
+  reasoning was missing (at the top the distinct pool is genuinely tiny, which is *why*
+  top-tier fills repeat). This finding survives the tombstone; the code that produced it need
+  not.
+- **The early distinctness prune does not pay.** A sound forced-down prune (a column prefix
+  admitting one word determines its down word; reject a duplicate before the `r==n` leaf) cut
+  only **~2% of search nodes and was time-neutral** -- the condition rarely fires before the
+  existing leaf check catches the duplicate anyway. "Measure before optimising" answered No.
 
 Alternatives considered:
-- **Keep the pruning as an off-by-default flag ("it's sound and free"):** rejected -- a ~2%,
-  time-neutral knob on two public signatures is exactly the "tombstone in place" D19/D28 warn
-  against (attention tax, foot-gun to rot, a misleading "we prune distinctness early" claim).
-  Sound-but-useless still gets deleted here.
-- **Return a bare `int` (drop `exact`):** rejected -- a capped walk returning `limit` would be
-  indistinguishable from an exact total, committing the precise epistemic error (soft budget
-  dressed as a theorem) the whole design avoids. The `exact` bit is the point.
-- **Enumerate the solutions (return the grids), not just count:** deferred -- the *count* is
-  the open question's ask, and the diversity drivers already *sample* grids; materialising the
-  whole set is a bigger object with no current consumer.
-- **Count the blocked/`fill` space too:** deferred -- additive, the same pattern over
-  `fill.solve`, but the square carries the ceiling/variety narrative; a blocked counter is a
-  clean follow-on when batch-variety wants a per-shape denominator.
-- **Count up to symmetry class / canonical-form dedup for speed:** deferred -- the top-tier
-  spaces are small enough to exhaust directly (38 at cw>=90), so canonicalisation is a
-  perf-only refinement, not needed to answer the question.
+- **Keep `count` as a shipped capability (partial success, not failure):** rejected on the
+  owner's call to tombstone the spike -- consistent with D19's line that an idea can *earn its
+  place in the arc* (here: it answered the open question) *without earning an operational place
+  in the shipped system*. The measurement is the deliverable; the recorded number outlives the
+  code, and a future counting need restores `count` from git rather than carrying it idle.
+- **Keep the prune as an off-by-default flag:** rejected -- a ~2%, time-neutral knob on public
+  signatures is the "tombstone in place" D19/D28 warn against.
+- **A single decision entry, no separate doc:** rejected -- the spike is both a *review* of the
+  whole methods arc and two experiments; a dedicated post-mortem is the "easy reference"
+  canonical form, with this entry the index into it.
 
-Reversal: additive. Delete `count`/`SolutionCount`/`scripts/count.py` and the engine is
-untouched; restore the `early_distinct` prune from git if a regime where forced-down fires
-early ever appears (a much smaller list, or longer entries where prefixes disambiguate sooner).
+Reversal: n/a for the design (nothing in the kernel changed). To resurrect the counter or the
+prune, `git show` the spike commit; the post-mortem records what they found so the resurrection
+starts from the verdict, not from scratch.

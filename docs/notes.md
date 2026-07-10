@@ -572,12 +572,17 @@ word difficulty is a structural cliff (unknown x unknown = Natick), not a slope.
 reasoning-tokens, Haiku failures, the vocabulary-floor Natick reproduction, and a human's lifetime of
 minis. The empirical agent and the analytical `analyze`/`solve_order` model agree.
 
-## Solution-space size (D31, scripts/count.py)
+## Solution-space size (D31 — spike tombstoned)
 
-`backtrack.count` exhausts the complete search to count *how many* distinct minis a
-bar admits (not just whether one exists). `SolutionCount(n, exact, nodes)`: `exact`
+> The `backtrack.count` counter and `scripts/count.py` that produced these numbers were
+> **removed** (D31 tombstone; code one `git show` away). The numbers are kept deliberately,
+> D19-style — they are the measured record of the spike. Canonical write-up:
+> `docs/postmortem-kernel-methods.md`.
+
+`backtrack.count` exhausted the complete search to count *how many* distinct minis a
+bar admits (not just whether one exists), returning `(n, exact, nodes)`: `exact`
 True == the tree was walked to the end, so `n` is the exact total (a theorem, the
-counting twin of a `None` UNSAT proof); a `limit` hit reports `exact=False` (`>= n`).
+counting twin of a `None` UNSAT proof); a `limit` hit reported `exact=False` (`>= n`).
 Measured this container:
 
 **The space collapses to a countable set as the bar rises**, weak (Zipf) list, N=5:

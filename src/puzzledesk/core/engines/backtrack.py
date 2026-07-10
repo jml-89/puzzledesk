@@ -20,8 +20,6 @@ ground-truth checks).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 
 from puzzledesk.core.lexicon import Lexicon
@@ -96,72 +94,3 @@ def solve(
         return None
 
     return rec(0)
-
-
-@dataclass(slots=True, frozen=True)
-class SolutionCount:
-    """The size of a grid's solution space (`count` below).
-
-    ``n`` distinct double word squares were found; ``nodes`` search-tree nodes were
-    visited. ``exact`` is the epistemic bit, in the house style (invariant "None is a
-    proof"): ``True`` means the tree was **exhausted**, so ``n`` is the *exact* total
-    -- a theorem, the counting analogue of a complete UNSAT proof; ``False`` means the
-    search stopped at ``limit`` and the true total is only known to be ``>= n``.
-    """
-
-    n: int
-    exact: bool
-    nodes: int
-
-
-def count(sq: DoubleSquare, *, distinct: bool = True, limit: int | None = None) -> SolutionCount:
-    """Count the double word squares these lexicons admit -- how *large* the
-    solution space is, not just whether it is non-empty.
-
-    Every ceiling number elsewhere is time-to-*first*-grid or an UNSAT proof; this
-    is the space's *size*. With ``limit=None`` the search exhausts the tree and the
-    count is exact (a theorem). ``limit`` caps the walk: a result with ``exact=False``
-    means "at least ``limit``" (budget exhaustion, never dressed as exact) -- the same
-    honesty a budgeted ``fill`` result carries. ``distinct`` (default) counts genuine
-    double squares (2N distinct words), excluding the symmetric basin.
-
-    Deterministic: counting does not depend on candidate order, so no ``rng`` -- the
-    whole tree is walked (or the first ``limit`` leaves).
-    """
-    n = sq.n
-    pidx = _PrefixIndex(sq.cols)
-    cols = [""] * n
-    used_across: set[str] = set()
-    found = 0
-    nodes = 0
-
-    def rec(r: int) -> bool:
-        # Returns True to signal "limit reached, unwind"; False to keep searching.
-        nonlocal found, nodes
-        nodes += 1
-        if r == n:
-            if distinct:
-                downs = [cols[j] for j in range(n)]
-                if len(set(downs)) != n or used_across & set(downs):
-                    return False  # repeated word: not a distinct square
-            found += 1
-            return limit is not None and found >= limit
-        allowed = [pidx.allowed(cols[j]) for j in range(n)]
-        cands = sq.rows.words_matching(allowed)
-        for idx in cands:
-            w = sq.rows.words[idx]
-            if distinct and w in used_across:
-                continue
-            for j in range(n):
-                cols[j] += w[j]
-            used_across.add(w)
-            stop = rec(r + 1)
-            used_across.discard(w)
-            for j in range(n):
-                cols[j] = cols[j][:-1]
-            if stop:
-                return True
-        return False
-
-    hit_limit = rec(0)
-    return SolutionCount(n=found, exact=not hit_limit, nodes=nodes)
