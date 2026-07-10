@@ -7,12 +7,17 @@ does **not** restate the design — that lives in `docs/`, and you should read i
 - `docs/roadmap.md` — the chosen forward **direction** (D34): ship a playable product and
   close the human-solve loop. The one forward-looking doc; everything else here is memory.
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D35). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D36). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution
   counting + distinctness pruning), measured and tombstoned. Read before re-attempting
   either, and for a synthesis of the whole methods arc.
+- `docs/lesson-length-ceiling.md` — why the 2..5 word-length ceiling was a *data* accident,
+  not a design limit (closed at D36), and the load-bearing distinction between **max word
+  length** (vocabulary → less-dense grids) and **double-square order** (density/search).
+  Read before reasoning about grid size or "how long a word can we hold"; it indexes the
+  older, assumption-laden decisions so you read them right.
 - `CONTRIBUTING.md` — branch/commit/PR etiquette. Read before you push.
 
 When this file and `docs/architecture.md` seem to disagree, `architecture.md`
@@ -157,9 +162,12 @@ uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the 
   grabbed once in `bootstrap`, never in the kernel (D18). If you genuinely need a new
   cross-layer edge, change the contract with a reason (a D-entry if it reshapes the
   architecture) — do not route around it.
-- **`wordfreq` is optional**, needed only to regenerate `data/scored_N.txt`:
-  `uv run --extra scoring scripts/gen_scored.py`. The solvers read the files, not
-  `wordfreq`.
+- **Word data is generated, lengths 2..15** (D36). Three reproducible drivers, each
+  `--min-len/--max-len`: `scripts/gen_cw.py` (curated `cw_N`, the default list) and
+  `scripts/gen_words.py` (plain `words_N`) slice their upstreams; `scripts/gen_scored.py`
+  scores `words_N` with wordfreq. The solvers read the committed files, never the sources.
+- **`wordfreq` is optional**, needed only to (re)generate `data/scored_N.txt`:
+  `uv run --extra scoring scripts/gen_scored.py`.
 - **`anthropic` is optional** (`clue` extra), needed only for *live* clue generation
   (`adapters/claude_clue.py`); it is imported lazily and resolves the API key from the
   environment. The grid generator and tests run without it (the `FakeClueProvider`

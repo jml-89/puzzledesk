@@ -282,8 +282,9 @@ blocked case is a SEPARATE, coexisting representation:
 
 This reuses the whole thesis (complete search on a bar-filtered list) and the
 Lexicon's pattern machinery; only the representation changed. `scripts/blackcells.py`
-is the demo + ground-truth check. Word lists longer than 5 are still not built (the
-data only covers 2..5, enough for slots up to length 5).
+is the demo + ground-truth check. Word lists now cover **lengths 2..15** (D36):
+`cw`/`scored`/`words` each ship a file per length, so a slot of any length up to 15 is
+fillable — the earlier 2..5 ceiling was a data gap, not an engine limit, and it is closed.
 
 ## Block-pattern generation (src/puzzledesk/core/engines/patterns.py)
 
@@ -325,8 +326,10 @@ suite (`tests/test_patterns.py`).
 `gen_patterns` above is *count-driven*: you fix the number of blacks and it caps only
 the *minimum* entry length. A mini bigger than 5x5 wants the opposite knob — a cap on the
 *maximum* entry length, so tactically placed black cells hold every entry short (a 10x10
-built from 3–5-letter words, not ten-letter monsters). That cap is also what makes a big
-grid fillable from the length-2..5 data we already have — no length-6+ lists needed.
+built from 3–5-letter words, not ten-letter monsters). That cap is also what let a big
+grid fill from short-word data alone — no length-6+ lists *required*. (Those lists now
+exist, lengths 2..15 per D36, so a larger `max_len` is a supported knob too; the cap
+remains the lever for *short-word* large grids, which is still usually what you want.)
 
 - `gen_capped(rows, cols, *, rng, min_len=3, max_len=None, symmetric=True, num_black=None,
   max_black=None, node_budget=None, randomize=True)` yields every legal layout whose entries
