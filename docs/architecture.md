@@ -33,7 +33,7 @@ that keeps the OS out of the pure layers (see "OS reach is confined to init", be
   (service + adapter).
 - **`adapters/`** — infrastructure implementing the ports: `NumpyRngFactory` (the
   injected Prng; `np.random.default_rng` is confined here), `FileLexicon` (the disk
-  read that used to sit in the kernel), `StreamWriter`/`CapturingWriter`. Adapters
+  read that used to sit in the kernel), `StreamWriter`. Adapters
   sit *above* `app` on purpose — they implement `app`'s ports — which is what makes
   one `layers` contract forbid `app → adapters` (the DI inversion) yet allow
   `adapters → app`.
@@ -77,7 +77,7 @@ Note the distinction: a symmetric grid (mirror across the main diagonal) has
 across == down and is only a *word square*, not a genuine *double* word square.
 We forbid that; see "distinctness invariant".
 
-## Core representation (src/puzzledesk/square.py)
+## Core representation (src/puzzledesk/core/square.py)
 
 `state` is a 1-D numpy int array of length N. `state[i]` is an index into the
 ROW lexicon's `words`/`letters`, naming the across word in row i. That is the
@@ -99,7 +99,7 @@ to `rows`, and in all current usage across and down draw from the SAME lexicon.
 The code paths for `cols != rows` exist but are untested; if you use different
 lexicons, re-verify. `rows.n == cols.n` is required.
 
-## Lexicon (src/puzzledesk/lexicon.py)
+## Lexicon (src/puzzledesk/core/lexicon.py)
 
 Words of a single fixed length N. Three representations, each for a query shape:
 
@@ -180,7 +180,7 @@ If a big-and-soft regime ever returns (a large list with genuine soft preference
 themes, per-batch novelty), restoring it from git is a fresh spike; see D19's
 reversal note and open-questions "Grid variety".
 
-## Acceptance test (src/puzzledesk/validate.py)
+## Acceptance test (src/puzzledesk/core/validate.py)
 
 `validate(sq, state, threshold) -> Verdict`. A grid is `ok` iff:
 1. the WEAKEST of the 2N words has score >= threshold (a bottleneck/min test,
@@ -234,7 +234,7 @@ projects to `FilledGrid`, and reports the static openness (cross-referenced with
 per-word score, invariant 4, for the "unfair Natick" read) and the dynamic trajectory
 side by side.
 
-## Blocked grids (src/puzzledesk/blocked.py, fill.py)
+## Blocked grids (src/puzzledesk/core/blocked.py, core/engines/fill.py)
 
 The everything-above assumes a fully-checked square: every row and column is one
 full-length word, so down words are induced by reading columns. Black cells break
@@ -266,7 +266,7 @@ Lexicon's pattern machinery; only the representation changed. `scripts/blackcell
 is the demo + ground-truth check. Word lists longer than 5 are still not built (the
 data only covers 2..5, enough for slots up to length 5).
 
-## Block-pattern generation (src/puzzledesk/patterns.py)
+## Block-pattern generation (src/puzzledesk/core/engines/patterns.py)
 
 `blocked.py` takes the block pattern as INPUT. `patterns.py` makes it a PARAMETER:
 from a shape and a *number* of black cells, generate the legal layouts (D13).
@@ -296,9 +296,10 @@ from a shape and a *number* of black cells, generate the legal layouts (D13).
   bound the search).
 
 `patterns.py` produces only `BlockedGrid`s and reuses `fill.py` unchanged — the
-square/blocked split (invariant 0) is intact. `scripts/generate.py` is the demo:
-a small-grid property check (enumerate all layouts, assert the invariants) then
-minis generated from a black-cell count.
+square/blocked split (invariant 0) is intact. `scripts/generate.py` is a thin shim
+to the `generate` tool (`cli.generate`); the small-grid property check that used to
+run inline (enumerate all layouts, assert the invariants) now lives in the pytest
+suite (`tests/test_patterns.py`).
 
 ### Cap-driven layouts for large minis (D24)
 
@@ -518,6 +519,10 @@ and uses the injected `lexicon`/`rng_factory` adapters):
   [obscure_below]` for squares; `difficulty.py blocked R C K [min] [obscure_below]` for
   blocked grids (open rate bucketed by the weak side's slot length). Both paths share
   one reporter over `FilledGrid.runs()`, so the metric is model-agnostic.
+- solve_effort.py: the D26 experiment driver — does a solver's *reasoning effort* track
+  puzzle difficulty? Sweeps a difficulty lever (clue Mon..Sat, model, policy) holding the
+  grid fixed and reports the agent's thinking-token spend. Needs the `clue` extra + a key
+  (it runs the live solver); numbers go to `docs/notes.md`.
 - gen_scored.py: regenerate `scored_N.txt` from `words_N.txt` via wordfreq. Only
   needed if you change the weak list; requires the wordfreq package.
 
