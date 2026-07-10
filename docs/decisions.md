@@ -1671,3 +1671,140 @@ Reversal: lowering the floor again would re-import the shim (D32's form is in gi
 to 3.14 is the intended next step and needs only the three config lines + retesting on a 3.14
 interpreter — no code change (the shim is already gone).
 
+
+## D34. Direction: ship a playable product; close the human-solve loop
+
+Context: with the generation arc essentially closed (square → blocked → capped → Gibbs,
+D13/D24–D28) and the difficulty arc built to the edge of its data blocker (D21/D22/D26),
+the project reached a genuine fork: (a) an engineering "revamp", (b) more of the
+dynamic-programming / field exploration (WFC, ASP, 15×15, a template library), or (c)
+something with *a product at the end that we can feedback-loop*. The user asked, explicitly,
+for help choosing — and named the preference: a product, not another inward spike.
+
+Decision: **build a playable product, and use it to close the one feedback loop the project
+has never closed** — a real human solving a real puzzle, whose solve-time becomes the ground
+truth the difficulty work is blocked on. The staged plan lives in `docs/roadmap.md` (the
+first forward-looking doc in `docs/`); this entry records the call and its reasoning.
+
+The load-bearing argument (why this is not merely "a product"): both cybernetic streams the
+project built — generation and the LLM-agent difficulty probe — are **internal** feedback
+loops. The **external** loop (a person plays) is missing, and the difficulty stream is
+*explicitly blocked on exactly its output*: `open-questions.md` repeats "the one thing that
+would unblock B and C … is a human solve-time signal", and D26's agent-solver was always a
+**proxy** for it ("an LLM brackets *a* solver, not *the* distribution"). So shipping a
+playable puzzle is the **instrument that produces the missing measurement**; one loop unifies
+both streams (generate → clue → serve → human plays → solve-time → calibrate difficulty →
+target better → generate). The architecture already aimed here: D32's typed spec algebra was
+built as the forcing function for a REST body, `open-questions.md` names "*A REST API — the
+next front*" plus a `PuzzleRepository` port, and `site/` already ships a black-cell-aware
+player (static today).
+
+Sequencing honours D15 ("model structure only where an external contract forces it"): the
+`PuzzleRepository` port and the wire schema arrive **with** the web layer that forces them,
+never speculatively ahead — which is *why* this branch records the direction rather than
+pre-building an inert repository port. Three phases (roadmap.md): (1) the API seam — `web/`
+FastAPI behind a `web` extra, a Pydantic wire schema parsing into `PuzzleSpec`, a
+`PuzzleRepository` port + in-memory adapter, `POST`/`GET /puzzles`; (2) the playable loop —
+fold `site/`'s player against the live API, add a solve-telemetry endpoint (the human
+signal); (3) close the cybernetics — calibrate D21/D22 against human times, validate the D26
+proxy against reality, feed the batch scheduler.
+
+Rationale: it is the only option that ends in a product *and* advances the research (the human
+signal is the difficulty work's blocker, not a detour from it); it exercises the last unbuilt
+architectural seam (a second adapter) and cashes in D32's spec algebra; and it composes with —
+does not foreclose — the generation stream, which resumes when the loop earns the attention.
+
+Alternatives considered:
+- **More generation/field methods** (WFC vs Gibbs bake-off, ASP for native connectivity,
+  a curated template library, scaling past 12×12): deferred, not rejected — it is the natural
+  continuation of stream 1 and stays open in `open-questions.md`, but it is inward-facing and
+  produces no product or human signal. The D27 field/complete split means it composes later
+  rather than conflicting now.
+- **Deepen the difficulty cybernetics without shipping** (a transcript→difficulty judge,
+  calibrating the LLM-solver against the deterministic vocabulary-floored solver): rejected as
+  the *primary* direction — it sharpens the proxy but stays a proxy, still blocked on the human
+  data that only shipping produces. It becomes Phase 3, *after* the loop exists.
+- **An engineering revamp**: rejected as lowest-value — the codebase is already hexagonal,
+  DI'd, strict-typed, and import-linted (D14/D18/D32/D33) with little real debt; a revamp would
+  polish a clean floor while the product loop stayed unbuilt.
+
+Reversal: this is a *scope/priority* call, not an engine or invariant (0–5) change, so it
+reverses by deprioritisation, not by removing code — the API and persistence seams are
+additive and live at the `cli`/adapter edge. If the human-signal loop proves too sparse or
+noisy to calibrate against (Phase 3's premise), the project falls back to the LLM-proxy
+difficulty work or the generation stream, while the served/playable/persisted puzzle (Phases
+1–2) stands as the product regardless.
+
+## D35. Phase 1: the HTTP API layer + a persistence port
+
+Context: D34 chose to ship a playable product and `docs/roadmap.md` sequenced it. Phase 1
+is the API seam -- the forcing contract the rest of the loop needs, and the move D32's
+typed spec algebra was explicitly built to enable ("a serialized API body *does* force
+it"). It is pure architecture: no new engine, no research, no invariant touched.
+
+Decision: add a `web` layer beside `cli` and a `PuzzleRepository` port with an in-memory
+adapter.
+
+- **`app/repository.py` -- the persistence port.** A `PuzzleRepository` Protocol
+  (`save(spec, puzzle) -> PuzzleId`, `get(id) -> StoredPuzzle | None`) plus `StoredPuzzle`
+  (the `CluedPuzzle`, its originating `PuzzleSpec` for provenance, and the assigned id).
+  Declared in `app` (the application states the capability); implemented in `adapters`.
+  This is the "Second adapters" seam open-questions reserved, finally exercised. The port
+  is **total** -- `get` returns `None`, never raises -- so the caller words "no such
+  puzzle" (the 404 is the API's call), the same shape as `ClueProvider` returning empties.
+  Determinism nuance (D34): the *fill* is reproducible from `(lists, spec, seed)` but the
+  *clues* are soft (LLM), so the clued aggregate is stored as **data**, not regenerated.
+- **`adapters/memory_repository.py` -- the first implementation.** A dict + a monotonic
+  counter (ids `"1"`, `"2"`, ...). Wired in `bootstrap` as a plain stage-2 adapter (it
+  takes no config, reaches nothing outside); `Container` gains a `repository` field. A DB
+  adapter is a drop-in second implementation of the same port -- that the swap is drop-in,
+  with nothing above this layer changing, is the whole point of the port.
+- **`web/` -- the HTTP entry point.** FastAPI behind a `web` optional extra, isolated
+  exactly like `anthropic` behind `clue` (the package and the whole gate run without it;
+  only `puzzledesk.web.*` imports FastAPI/Pydantic). `web/schema.py` is a **Pydantic wire
+  schema** -- a discriminated union of layout bodies mirroring `LayoutStrategy` -- that
+  *parses into* `PuzzleSpec` via `to_spec()`, and a `PuzzleView` that *renders* a stored
+  puzzle as player JSON via `puzzle_view()`. It is a **separate** object, never `PuzzleSpec`
+  itself (D15: the port speaks the canonical form; serialization is an export concern).
+  `web/app.py::create_app(container)` is a factory (so a test hands it a fake-clued
+  container) exposing `POST /puzzles` (parse -> generate -> store -> view, 201) and
+  `GET /puzzles/{id}` (read back, 404 if absent); `web/main.py` is the uvicorn instance.
+- **The completeness epistemics cross the HTTP boundary intact.** A `None` from generation
+  is worded from the spec's layout tag (`layout_is_complete`, D32): a complete strategy's
+  empty result is a **422 `unsat`** ("a UNSAT proof, not a timeout"), a budgeted/sampled
+  one's is **422 `budget`** -- never collapsed into a bland not-found. "None is a proof"
+  survives the API, restated on the wire.
+
+Enforcement/scope: `web` joins the import-linter `layers` contract at the top (a top entry
+point like `cli`); the whole five-command gate stays green (ruff, ruff format, mypy --
+FastAPI/Pydantic added to the optional-extra `ignore_missing_imports` override beside
+`anthropic`, since the base gate runs without the extra --, import-linter, pytest). Two
+test files: `tests/test_repository.py` (the port round-trip, sequential ids, total-`None`,
+the runtime-checkable fit) runs in the base gate; `tests/test_web.py` (POST/GET round-trip
+against the *real* engine with fake clues, the 404, the 422-`unsat` proof, the wire-schema
+parse) is guarded by `importorskip("fastapi")` so the base gate skips it and
+`--extra web` runs it. A byproduct fix: `site/` (committed presentation artifacts its own
+README declares "outside the lint/type scope") is now actually `extend-exclude`d from ruff,
+which had been silently red there -- a prerequisite for a green `ruff check`.
+
+Rationale: this is the smallest vertical slice that makes generation *servable and
+persistent*, and it is the seam Phase 2 (the playable loop + solve telemetry) and the DB
+adapter build on. It cashes in D32 and exercises the last unbuilt architectural seam,
+without touching an engine or an invariant.
+
+Alternatives considered:
+- **Build the repository port speculatively before the web layer** (on the planning
+  branch): rejected -- D15 says structure arrives only when a contract forces it, and the
+  web body is the forcing function, so the port ships *with* it, not ahead.
+- **Make the app spec double as the wire schema** (Pydantic on `PuzzleSpec` itself):
+  rejected, per D16/D32 -- the app specs stay plain frozen dataclasses; the wire schema is a
+  separate object that parses into them.
+- **A DB adapter now:** deferred -- in-memory first proves the port and the loop; the DB is
+  a drop-in second adapter once Phase 2 needs durability across restarts.
+- **`create_app` takes just the two services it uses** (not the whole `Container`):
+  rejected -- entry points take the assembled container (the `cli` idiom); a test swaps
+  fakes in with `dataclasses.replace` on the frozen container.
+
+Reversal: additive and edge-local (a new top layer + one adapter + one port), so it reverses
+by deletion without disturbing `core`/`app`/`cli`. The `web` extra keeps FastAPI out of
+everyone who does not serve HTTP.

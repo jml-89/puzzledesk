@@ -11,7 +11,11 @@ and `docs/notes.md` for benchmarks/environment.
 stack, enforced by **import-linter** (`[tool.importlinter]` in `pyproject.toml`;
 `uv run lint-imports`). A layer may import any layer *below* it, never one above:
 
-    core  <  app  <  adapters  <  bootstrap  <  cli
+    core  <  app  <  adapters  <  bootstrap  <  cli  <  web
+
+`cli` and `web` are sibling **entry points** (argv and HTTP respectively); the contract
+stacks `web` above `cli` (neither imports the other, so any order is sound) — both do
+input → `build()` → run a service → present.
 
 Two contracts hold: the `layers` contract above (D14), and a `forbidden` contract
 that keeps the OS out of the pure layers (see "OS reach is confined to init", below).
@@ -46,6 +50,12 @@ that keeps the OS out of the pure layers (see "OS reach is confined to init", be
 - **`cli/`** — thin entry points: argv → `build()` → run a service → present via a
   `Writer`. `scripts/*.py` for the tools are two-line shims; benchmark drivers stay
   in `scripts/` but build the container and use its injected adapters.
+- **`web/`** — the HTTP entry point (D35), a sibling of `cli`: an HTTP body →
+  `build()`'s container → a service → a JSON view. FastAPI behind a `web` optional
+  extra, isolated exactly like `anthropic` behind `clue` (the package and the gate run
+  without it; only `puzzledesk.web.*` imports FastAPI/Pydantic). Its Pydantic wire schema
+  *parses into* `PuzzleSpec` and *renders* a stored puzzle — a separate object, never the
+  app spec itself (D15). See "Data flow for serving a puzzle over HTTP" below.
 
 Determinism is unchanged by the injection: `NumpyRngFactory.create(seed)` returns
 `np.random.default_rng(seed)`, so a `(lists, seed)` pair still reproduces exactly
@@ -506,6 +516,45 @@ work (D21/D22) is blocked on.
   network. What difficulty this actually measures is recorded in notes.md (short version: clue
   obliqueness is the graded axis; word obscurity is a structural cliff, not a slope).
 
+## Persistence: the `PuzzleRepository` port (`app.repository`, D35)
+
+"Get a previously created puzzle" needs a place to keep one — the "Second adapters" seam,
+finally exercised (D35, roadmap Phase 1). `app/repository.py` declares a **port**:
+`PuzzleRepository` (`save(spec, puzzle) -> PuzzleId`, `get(id) -> StoredPuzzle | None`),
+with `StoredPuzzle` carrying the `CluedPuzzle`, its originating `PuzzleSpec` (provenance),
+and the assigned id. The port is **total** — `get` returns `None` for an unknown id, never
+raises, so the caller words "no such puzzle" (the API's 404), the same shape as
+`ClueProvider` returning empties.
+
+Why store *data*, not a spec to re-run: the *fill* is reproducible from `(lists, spec,
+seed)` (the complete engines are deterministic), but the *clues* are **soft** (an LLM), so
+regenerating from the spec would not reproduce the same puzzle. `adapters/memory_repository.py`
+(`InMemoryPuzzleRepository`, a dict + a counter) is the first implementation, wired in
+`bootstrap` as a plain stage-2 adapter; `Container` gains a `repository` field. A database
+adapter is a drop-in *second* implementation of the same port — nothing above `adapters`
+changes when it lands, which is the point of the port.
+
+## Data flow for "serve a puzzle over HTTP" (`web`, D35)
+
+The HTTP mirror of `cli.puzzle`, and the first slice of the product loop (D34). A client
+`POST /puzzles` with a JSON body → `web/schema.py::PuzzleRequest` (a Pydantic **wire
+schema**: a discriminated union of layout bodies mirroring `LayoutStrategy`) validates it
+and `to_spec()`s it into a canonical `PuzzleSpec` — a *separate* object that parses into the
+app spec, never *is* it (D15) → `PuzzleService.generate(spec)` (the same fill+clue compose
+`cli.puzzle` runs) → `PuzzleRepository.save` → `web/schema.py::puzzle_view` renders the
+stored puzzle as player JSON (grid + derived numbering + clued Across/Down; a *view* beside
+`present.playable`), returned `201`. `GET /puzzles/{id}` reads it back (`404` if absent).
+
+`web/app.py::create_app(container)` is a **factory** over an assembled `Container` (so a
+test hands it a fake-clued container via `dataclasses.replace`); `web/main.py` is the
+uvicorn instance (`uv run --extra web uvicorn puzzledesk.web.main:app`). **The completeness
+epistemics cross the HTTP boundary:** a `None` from generation becomes a `422` worded from
+the spec's layout tag (`layout_is_complete`, D32) — `reason: "unsat"` when a *complete*
+strategy proves no puzzle exists, `reason: "budget"` when a budgeted/sampled one merely
+ran out — never a bland not-found. "None is a proof" (architecture, above) restated on the
+wire. The answer key is embedded in the view for now (the static `site/` player's trust
+model); a key-free *solving* view (the mirror of `SolveView`) is a Phase-2 concern.
+
 ## Entry points
 
 Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle,solve}.py` are shims;
@@ -536,6 +585,14 @@ Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle,solve}.py` a
   flags: `solve --difficulty saturday --policy crossing --max-turns 20 [--reveal]`. Two live
   steps (clues + solving; the `clue` extra + a key); the fill is LLM-free. `--policy` is the
   solver-skill knob (cell/word/crossing/none).
+
+HTTP entry point (`web/`, D35; the `web` extra):
+
+- `uv run --extra web uvicorn puzzledesk.web.main:app` serves `POST /puzzles` (generate a
+  clued puzzle from a JSON `PuzzleRequest`, store it, return the `PuzzleView`) and
+  `GET /puzzles/{id}` (read it back). Same fill+clue path as `cli.puzzle`; the `clue` extra
+  + a key are needed only for real clue text (the grid search is LLM-free). See "Data flow
+  for serving a puzzle over HTTP" above.
 
 Benchmark/demo drivers (`scripts/`, loose, ANN-exempt; each builds the container
 and uses the injected `lexicon`/`rng_factory` adapters):

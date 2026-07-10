@@ -401,15 +401,18 @@ The hexagonal layering + DI is in (D14). Left open:
   `PuzzleSpec`), and the four `BlockedGenerateService.fill_*` methods collapsed into one
   strategy-dispatched `GenerateService.fill`/`fill_grid`. This is the forcing move D15
   named ("model only where a contract forces it") arriving early because the next front
-  needs it. Left open, and the reason the spec exists:
-  - **A REST API — the next front (not built).** A `web/` entry point beside `cli/`,
-    reusing `build()`'s container: `POST /puzzles` parses a JSON body into a `PuzzleSpec`
-    (a *separate* wire schema — FastAPI + Pydantic behind a `web` extra, isolated like
-    `anthropic` behind `clue` — parsing into the app spec, never *being* it), generates,
-    stores, and returns the `CluedPuzzle` aggregate as JSON (another *view*, beside
-    `present.playable` and the deferred `.ipuz` export). `GET /puzzles/{id}` reads it back.
-  - **Persistence — a `PuzzleRepository` port (not built).** "Get a previously created
-    puzzle" needs a new port in `app` (`save`/`get`) with adapters (in-memory, then a DB)
-    — the "Second adapters" seam above, at last exercised. Note the determinism nuance: the
-    *fill* is reproducible from `(lists, spec, seed)`, but the *clues* are soft (LLM), so
-    the clued aggregate must be stored as data, not regenerated from the spec.
+  needs it. **The two items below are now BUILT — roadmap Phase 1, D35.**
+  - **A REST API — BUILT (D35).** A `web/` entry point beside `cli/`, reusing `build()`'s
+    container: `POST /puzzles` parses a JSON body (a *separate* Pydantic wire schema, a
+    discriminated layout union, behind a `web` extra isolated like `anthropic` behind
+    `clue`) into a `PuzzleSpec`, generates + stores, and returns a `PuzzleView` (player
+    JSON, a *view* beside `present.playable` and the deferred `.ipuz` export);
+    `GET /puzzles/{id}` reads it back. The completeness tag crosses the wire (422 `unsat`
+    vs `budget`). Left open: the key-free *solving* view (mirror of `SolveView`) and the
+    solve-telemetry endpoint are Phase 2; a `.ipuz`/`.puz` export is still deferred.
+  - **Persistence — a `PuzzleRepository` port, BUILT (D35).** `app/repository.py`
+    (`save`/`get` over `StoredPuzzle` = clued aggregate + spec + id), with the in-memory
+    adapter (`adapters/memory_repository.py`); the "Second adapters" seam, exercised. The
+    determinism nuance is why it stores *data*: the fill is reproducible from `(lists,
+    spec, seed)` but the clues are soft (LLM). Left open: the **DB adapter** (a drop-in
+    second implementation — Phase 2, when the loop needs durability across restarts).

@@ -19,6 +19,7 @@ from puzzledesk.app.generate import GenerateService
 from puzzledesk.app.mini import MiniService
 from puzzledesk.app.ports import LexiconSource, Writer
 from puzzledesk.app.puzzle_service import PuzzleService
+from puzzledesk.app.repository import PuzzleRepository
 from puzzledesk.app.solve_service import SolveService
 from puzzledesk.bootstrap.config import Config
 from puzzledesk.core.rng import RngFactory
@@ -30,6 +31,7 @@ class Container:
     rng_factory: RngFactory
     lexicon: LexiconSource
     writer: Writer
+    repository: PuzzleRepository
     mini: MiniService
     generator: GenerateService
     clue: ClueService

@@ -23,6 +23,14 @@ scoring = ["wordfreq>=3.0"]
 # structured output and adaptive-thinking `effort` (D16/D26), which predate no
 # 0.40-era SDK -- an old resolve would crash on the first live call, not at import.
 clue = ["anthropic>=0.116"]
+# Only needed to serve the HTTP API (the `puzzledesk.web` layer, D34/roadmap Phase 1).
+# The engines, the CLIs, and the whole gate run without it -- FastAPI/Pydantic are
+# imported only under `puzzledesk.web.*`, isolated exactly like `anthropic` behind
+# `clue`. `uv sync --extra web` + `uv run --extra web uvicorn puzzledesk.web.main:app`.
+web = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [project.scripts]
 # Console entry points for the tools (the front). `uv run mini 5 70 3` works
@@ -37,6 +45,10 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "import-linter>=2.0",
+    # HTTP client used only by FastAPI's TestClient (tests/test_web.py). Test
+    # infrastructure, so it lives in the dev group, not the runtime `web` extra --
+    # uvicorn serves the app without it.
+    "httpx>=0.27",
     "pytest>=8.0",
 ]
 
@@ -51,6 +63,11 @@ packages = ["src/puzzledesk"]
 line-length = 100
 target-version = "py313"
 src = ["src", "scripts"]
+# site/ is committed presentation artifacts (rendered HTML + their build scripts),
+# explicitly "outside src/ and the lint/type scope" per site/README.md. mypy already
+# scopes to src/puzzledesk; this makes ruff honour the same documented boundary
+# (the scripts use dict()-literals and loose annotations by design).
+extend-exclude = ["site"]
 
 [tool.ruff.lint]
 select = [
@@ -94,7 +111,11 @@ warn_unused_ignores = true
 no_implicit_optional = true
 
 [[tool.mypy.overrides]]
-module = ["wordfreq", "anthropic"]
+# Optional-extra libraries: not installed in the base gate env (`uv run mypy` runs
+# without an extra), so mypy cannot see their stubs. Treat their imports as `Any`,
+# exactly as for `anthropic` behind `clue`. `wordfreq`/`anthropic` back the scoring/
+# clue extras; `fastapi`/`uvicorn`/`starlette`/`pydantic` back the `web` extra.
+module = ["wordfreq", "anthropic", "fastapi", "uvicorn", "starlette", "pydantic"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -114,7 +135,8 @@ name = "Hexagonal layers (core < app < adapters < bootstrap < cli)"
 type = "layers"
 containers = ["puzzledesk"]
 layers = [
-    "cli",        # thin entry points (top): may import everything below
+    "web",        # HTTP entry point (top, D34): beside cli, over the same container
+    "cli",        # thin entry points: may import everything below
     "bootstrap",  # composition root: wires adapters into services
     "adapters",   # infrastructure: implements the ports (above app on purpose)
     "app",        # use-case services + the ports; must NOT reach into adapters
