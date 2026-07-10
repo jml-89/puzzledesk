@@ -300,6 +300,38 @@ square/blocked split (invariant 0) is intact. `scripts/generate.py` is the demo:
 a small-grid property check (enumerate all layouts, assert the invariants) then
 minis generated from a black-cell count.
 
+### Cap-driven layouts for large minis (D24)
+
+`gen_patterns` above is *count-driven*: you fix the number of blacks and it caps only
+the *minimum* entry length. A mini bigger than 5x5 wants the opposite knob — a cap on the
+*maximum* entry length, so tactically placed black cells hold every entry short (a 10x10
+built from 3–5-letter words, not ten-letter monsters). That cap is also what makes a big
+grid fillable from the length-2..5 data we already have — no length-6+ lists needed.
+
+- `gen_capped(rows, cols, *, rng, min_len=3, max_len=None, symmetric=True, num_black=None,
+  max_black=None, node_budget=None, randomize=True)` yields every legal layout whose entries
+  all have length in `[min_len, max_len]`. The *cap* is the governing parameter; the black
+  count is derived. It searches **row-major** and prunes each partial row/column the instant a
+  run is too long or too short (`_cell_ok`) — the run-aware pruning `gen_patterns`' orbit/leaf
+  model structurally cannot do, and why a 10x10 is found in ~5 ms rather than never. Same
+  legality otherwise (symmetric, fully checked, connected) and same completeness: an empty
+  generator is a proof (an odd `num_black` on a symmetric 10x10 has no centre cell). With
+  `max_len=None` + a fixed count it enumerates the *identical set* `gen_patterns` does
+  (cross-tested) — a strict generalization.
+  - **Density (D25).** `num_black` pins the count exactly; `max_black` bounds it above (still
+    complete over "<= K blacks" — below the feasibility minimum it is a provable empty). The
+    randomized order is **white-biased** (black-first only `_BLACK_FIRST_PCT` of the time) so
+    the search prefers few, spread-out blacks; this only reorders which layout appears first.
+    `node_budget` (like `fill.solve`'s) bails a search that a tight cap makes backtrack away —
+    a *budgeted* empty is exhaustion, not a proof. The service defaults `max_black` to ~22% of
+    the cells (`DEFAULT_BLACK_FRACTION`) so a capped mini reads like a real crossword.
+- `fill_capped(rows, cols, mlex, *, max_len, ...)` is the cap-driven analogue of
+  `fill_by_count`: first `gen_capped` layout that admits a distinct fill. Both searches are
+  complete, but the capped layout space at 10x10 is astronomically large, so a `None` under
+  a `max_patterns`/`node_budget` bound is *budget exhaustion, not a UNSAT theorem* (existence
+  — e.g. the odd-count proof — is still exact). `scripts/largemini.py` is the measurement
+  driver; `BlockedGenerateService.fill_capped_once` and `generate --max-len K` expose it.
+
 ## Invariants — do not break
 
 0. TWO GRID MODELS COEXIST. The square (square.py: induced columns, invariants
@@ -350,7 +382,7 @@ answer key is the separate `present.solution`. A `None` grid short-circuits to a
 puzzle *before* any clue call — the completeness epistemics (a UNSAT theorem, not a
 timeout) survive the compose. `cli.puzzle` is the entry point.
 
-## Data flow for "solve a puzzle" (`app.solve_service.SolveService`, D24)
+## Data flow for "solve a puzzle" (`app.solve_service.SolveService`, D26)
 
 The empirical difficulty probe: put a *soft* solver (an LLM agent) in a feedback loop
 against a generated puzzle and record how it goes. The mirror of the clue path — a
@@ -380,7 +412,7 @@ work (D21/D22) is blocked on.
   (the difficulty artifact). **A turn-budget miss is `exhausted`, never a proof** — the
   completeness epistemics (D23) restated on the solving side; only the fill engines prove UNSAT.
 - `adapters/claude_solver.py` is the live agent behind the port (the *second* LLM consumer,
-  D16/D24). It runs with thinking on (mode per model) and *without* a forced JSON schema, so
+  D16/D26). It runs with thinking on (mode per model) and *without* a forced JSON schema, so
   `SolverMove.reasoning_tokens` can carry the model's thinking-token count — **the difficulty
   tell**: for a solver that finishes every mini, *how much it had to think* is the graded
   signal, not whether it solved (`SolveReport.total_reasoning_tokens` sums it). `cli/solve.py`
@@ -403,13 +435,16 @@ Tools (`cli/`, typed, over services; `scripts/{mini,generate,puzzle,solve}.py` a
 - generate.py: blocked minis from a black-cell COUNT (not a template). `generate.py
   rows cols num_black min_score count [--nonsymmetric]` searches legal layouts and
   fills them. (Its old inline layout property-check is now `tests/test_patterns.py`.)
+  With `--max-len K` it switches to the cap-driven path (D24): entries capped at K by
+  black cells, so a grid bigger than the word data fills — e.g. `generate 10 10 0 60 3
+  --max-len 5` (num_black `0` = let the cap choose the count).
 - puzzle.py: a whole *clued* puzzle as plain text to solve (grid + Across/Down clues).
   All **named flags**, not positional (D20): `puzzle --rows 5 --cols 5 --black 4
   --min-score 75 --difficulty wednesday [--no-symmetric] [--reveal]`. Clue generation
   is the one live step (the `clue` extra + a key); the grid search has no LLM
   dependency, and the UNSAT paths short-circuit before any clue call.
 - solve.py: generate a clued puzzle, then have a Claude *agent* try to solve it and print
-  the attempt with its turn-by-turn reasoning (D24) — the empirical difficulty probe. Named
+  the attempt with its turn-by-turn reasoning (D26) — the empirical difficulty probe. Named
   flags: `solve --difficulty saturday --policy crossing --max-turns 20 [--reveal]`. Two live
   steps (clues + solving; the `clue` extra + a key); the fill is LLM-free. `--policy` is the
   solver-skill knob (cell/word/crossing/none).
@@ -422,6 +457,9 @@ and uses the injected `lexicon`/`rng_factory` adapters):
   encoded in `tests/test_ground_truth.py`.)
 - blackcells.py: blocked-grid fill — tiny-grid ground truth, filled grids from the
   curated list, and a quality ceiling (shortest slot's list runs dry first).
+- largemini.py: the large capped-mini spike (D24) — why the count-driven search cannot
+  cap entry length, the cap-driven search's black-count/timing, and fill rate from the
+  cw 2..5 lists at 10x10 and 12x12.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).

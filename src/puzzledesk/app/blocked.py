@@ -21,6 +21,24 @@ from .ports import LexiconSource
 from .puzzle import FilledGrid, filled_from_blocked
 from .results import BlockedResult, Entry
 
+# Default black-cell density for a capped mini when the caller pins no count (D25).
+# ~22% of the cells, as an upper bound; the white-biased search lands a little under it
+# (measured ~16-22% on a 10x10), which reads like a real crossword. 22% leaves enough
+# slack above the minimum feasible count to avoid the pathological backtracking a ceiling
+# *at* the minimum triggers (D25); tighter is still available via an explicit max_black.
+DEFAULT_BLACK_FRACTION = 0.22
+
+# Cap the layout search per seed so a shape/ceiling that backtracks heavily (e.g. a big
+# grid at a tight cap) bails and the seed loop moves on, instead of hanging (D25). Only
+# on the *generation* path; the completeness proof (capped_layout_exists) runs unbudgeted.
+_LAYOUT_NODE_BUDGET = 300_000
+
+
+def default_black_ceiling(rows: int, cols: int) -> int:
+    """The default ``max_black`` when no count is pinned: ``DEFAULT_BLACK_FRACTION`` of
+    the cells (at least 2, so even a tiny grid has a usable ceiling)."""
+    return max(2, round(DEFAULT_BLACK_FRACTION * rows * cols))
+
 
 class BlockedGenerateService:
     """Generate blocked minis: search legal layouts of a given black-cell count
@@ -71,6 +89,82 @@ class BlockedGenerateService:
             return None
         mlex, (grid, assign) = found
         return result_of(grid, mlex, assign)
+
+    def fill_capped_once(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        max_len: int,
+        min_score: float,
+        seed: int = 0,
+        symmetric: bool = True,
+        min_len: int = 3,
+        num_black: int | None = None,
+        max_black: int | None = None,
+        max_patterns: int | None = None,
+    ) -> BlockedResult | None:
+        """A *length-capped* mini: every entry has length in ``[min_len, max_len]``,
+        so a grid larger than the word data can fill (e.g. 10x10 from the 2..5 lists).
+
+        Searches :func:`patterns.gen_capped` layouts (cap-driven, count derived) and
+        fills the first that solves above the bar. Density (D25): ``num_black`` pins the
+        count exactly, ``max_black`` bounds it above; with **neither** given the search
+        defaults to a sensible black ceiling (:data:`DEFAULT_BLACK_FRACTION` of the
+        cells) so the free path yields clean, real-crossword-like grids instead of the
+        over-black uniform search. Because the cap keeps entries within the loaded
+        lengths (``range(min_len, max_len + 1)``), no word list beyond 5 is needed. A
+        ``None`` under ``max_patterns`` is budget exhaustion, not a UNSAT theorem (the
+        capped layout space is astronomically large at 10x10)."""
+        if num_black is None and max_black is None:
+            max_black = default_black_ceiling(rows, cols)
+        mlex = self._lexicon.load_multi(
+            self._list_name, range(min_len, max_len + 1), min_score=min_score
+        )
+        found = patterns.fill_capped(
+            rows,
+            cols,
+            mlex,
+            rng_factory=self._rng,
+            max_len=max_len,
+            seed=seed,
+            min_len=min_len,
+            symmetric=symmetric,
+            distinct=True,
+            num_black=num_black,
+            max_black=max_black,
+            layout_node_budget=_LAYOUT_NODE_BUDGET,
+            max_patterns=max_patterns,
+        )
+        if found is None:
+            return None
+        grid, assign = found
+        return result_of(grid, mlex, assign)
+
+    def capped_layout_exists(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        max_len: int,
+        symmetric: bool = True,
+        min_len: int = 3,
+        num_black: int | None = None,
+        max_black: int | None = None,
+    ) -> bool:
+        """Does any legal length-capped layout exist at all -- a property of the shape,
+        the cap, and any count bound, independent of the words?"""
+        layouts = patterns.gen_capped(
+            rows,
+            cols,
+            rng=self._rng.create(0),
+            min_len=min_len,
+            max_len=max_len,
+            symmetric=symmetric,
+            num_black=num_black,
+            max_black=max_black,
+        )
+        return next(layouts, None) is not None
 
     def fill_grid_once(
         self,
