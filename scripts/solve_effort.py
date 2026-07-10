@@ -1,4 +1,4 @@
-"""Experiment (D24): does a solver's *reasoning effort* track puzzle difficulty?
+"""Experiment (D26): does a solver's *reasoning effort* track puzzle difficulty?
 
 For a model that solves every mini, whether it finishes is a saturated signal; the tell
 is *how much it had to think*. This driver sweeps a difficulty lever and reports the

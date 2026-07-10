@@ -40,7 +40,7 @@ class SolveTurn:
 
 @dataclass(frozen=True, slots=True)
 class SolveReport:
-    """The record of one solve attempt -- the difficulty artifact (D24).
+    """The record of one solve attempt -- the difficulty artifact (D26).
 
     ``solved`` is the truth (the agent actually completed the grid). ``exhausted`` means
     the budget ran out first -- **not** a proof the puzzle is unsolvable, only that this
@@ -83,7 +83,7 @@ class SolveReport:
 
     @property
     def total_reasoning_tokens(self) -> int | None:
-        """Reasoning spent across the whole attempt -- **the difficulty tell** (D24): for
+        """Reasoning spent across the whole attempt -- **the difficulty tell** (D26): for
         a model that solves everything, *how much it had to think* is the graded signal,
         not whether it finished. ``None`` if no turn reported a count (e.g. the fake)."""
         counts = [t.reasoning_tokens for t in self.turns if t.reasoning_tokens is not None]

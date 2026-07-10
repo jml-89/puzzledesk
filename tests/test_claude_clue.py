@@ -31,7 +31,7 @@ def test_prompt_carries_answers_difficulty_and_instructions() -> None:
 
 def test_prompt_difficulty_controls_obliqueness() -> None:
     # the Mon..Sat label must actually shape the clue: Monday = direct, Saturday = oblique
-    # and crossing-reliant (the D24 lever).
+    # and crossing-reliant (the D26 lever).
     grid = FilledGrid((("a", "b"), ("c", "d")))
     targets = grid.runs()
     monday = _build_prompt(grid, targets, ClueStyle(difficulty=Difficulty.MONDAY), 1)

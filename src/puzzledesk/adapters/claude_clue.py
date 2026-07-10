@@ -20,7 +20,7 @@ and unit-tested; the one untestable part is the live ``messages.create`` call.
 
 The difficulty label is not decorative: ``_DIFFICULTY_GUIDANCE`` makes Mon..Sat control
 clue **obliqueness** (how much the clue under-determines its answer), because that -- not
-word obscurity -- is the lever that forces a solver onto the crossings (D24; validated
+word obscurity -- is the lever that forces a solver onto the crossings (D26; validated
 live, Monday clues cost the Opus solver ~1.1k reasoning tokens vs ~2.8k for Saturday on
 the same grid). This is the clue-side (D21 layer B) counterpart to the fill's obscurity band.
 """
@@ -38,7 +38,7 @@ _DEFAULT_MODEL = "claude-opus-4-8"
 _KIND = {"A": "Across", "D": "Down", "meta": "Meta"}
 
 # The Mon..Sat difficulty label is made to *mean something* by controlling clue
-# **obliqueness** -- how much the clue under-determines its answer (D24 finding: clue
+# **obliqueness** -- how much the clue under-determines its answer (D26 finding: clue
 # ambiguity, not word obscurity, is the lever that forces a solver onto the crossings).
 # The ladder runs from "the clue nearly hands over the answer" to "the answer is not
 # determinable from the clue alone; the crossings must disambiguate". This is the

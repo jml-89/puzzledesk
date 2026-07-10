@@ -1,5 +1,5 @@
 """Tool: generate a clued puzzle, then have a Claude agent try to *solve* it, and
-print the attempt -- including the agent's turn-by-turn reasoning (D24).
+print the attempt -- including the agent's turn-by-turn reasoning (D26).
 
     uv run solve
     uv run solve --difficulty saturday --policy crossing --reveal

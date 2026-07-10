@@ -126,7 +126,7 @@ def _grid_lines(grid: FilledGrid, numbering: dict[tuple[int, int], int]) -> list
 
 # --- Solve transcript: the agent's attempt, for inspecting its thinking -----------
 #
-# The difficulty artifact of the solving spike (D24). Renders whether the agent
+# The difficulty artifact of the solving spike (D26). Renders whether the agent
 # completed the grid, how many turns it took, and -- the point -- the per-turn
 # reasoning it worked through. A budget miss is reported honestly as "not solved in N
 # turns", never as a proof of unsolvability.

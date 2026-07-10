@@ -6,7 +6,7 @@ become an app-layer port. The app depends on ``SolverAgent`` (views and moves); 
 the credential (resolved by the composition root from ``Config.clue_api_key_env`` and
 injected), and the reasoning capture all live *here*, beside ``ClaudeClueProvider``.
 
-**Reasoning is the measurement, so the call is shaped to expose it** (D24; verified live,
+**Reasoning is the measurement, so the call is shaped to expose it** (D26; verified live,
 see notes.md "Agent solve loop"). Two shaping choices:
 
   * **Thinking is on, and its mode is per model** (``_thinking_kwargs``): Opus-family
@@ -22,7 +22,7 @@ see notes.md "Agent solve loop"). Two shaping choices:
 
 The call stays **non-streaming** with ``max_tokens`` under the SDK's ~21.3k non-streaming
 ceiling, because only the non-streaming ``Message`` surfaces ``thinking_tokens``; the budget
-must still dwarf the thinking spend or the answer is starved (D24 -- surfaced, not looped on).
+must still dwarf the thinking spend or the answer is starved (D26 -- surfaced, not looped on).
 
 ``anthropic`` is the optional ``clue`` extra, imported lazily; the container builds without
 it and only a live solve needs the SDK and a key. The pure helpers (render/prompt/parse) are
@@ -219,7 +219,7 @@ class ClaudeSolverAgent:
         # (3600*max_tokens/128000 must stay < 600s). We stay non-streaming on purpose:
         # only the non-streaming Message surfaces usage.output_tokens_details.thinking_tokens
         # -- the pure difficulty metric (streaming drops it, leaving only output_tokens).
-        # 20k is 2.5x the budget that starved the answer (D24), so truncation is now rare
+        # 20k is 2.5x the budget that starved the answer (D26), so truncation is now rare
         # and, when it happens, annotated below as its own signal.
         response = self._ensure_client().messages.create(
             model=self._model,
@@ -231,7 +231,7 @@ class ClaudeSolverAgent:
         move = _parse(text, _thinking_tokens(response.usage))
         # If the output budget ran out during the thinking pass, the model never emits its
         # move -- surface that as reasoning rather than returning a silent empty move the
-        # harness would loop on (the artifact that inflated the obscure x Saturday cell, D24).
+        # harness would loop on (the artifact that inflated the obscure x Saturday cell, D26).
         if getattr(response, "stop_reason", None) == "max_tokens" and not move.placements:
             note = "[truncated: hit max_tokens before emitting a move; raise solve_max_tokens]"
             move = replace(move, reasoning=(move.reasoning + "\n" + note).strip())

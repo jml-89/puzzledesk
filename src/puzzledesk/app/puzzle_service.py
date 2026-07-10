@@ -48,7 +48,7 @@ class PuzzleService:
         score band ``[min_score, max_score]``, then clue every entry at ``difficulty``.
         ``max_score`` (default None == a plain floor) turns the bar into an *obscurity
         band* -- a harder fill whose clues alone are insufficient, so the grid must carry
-        the solve (D21/D24). ``None`` when no fill clears the band (complete search -- a
+        the solve (D21/D26). ``None`` when no fill clears the band (complete search -- a
         genuine UNSAT, not a timeout)."""
         grid = self._blocked.fill_grid_once(
             rows,

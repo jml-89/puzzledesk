@@ -1,6 +1,6 @@
 """The solve *session*: the deterministic environment a solver acts against.
 
-This is the complete/deterministic half of the solving spike (D24), the mirror of
+This is the complete/deterministic half of the solving spike (D26), the mirror of
 what ``app/cluing.py`` is to clue *generation*: a pure, testable state machine with
 no model and no network. A soft, generative *solver* (the LLM agent) lives behind
 the :class:`~puzzledesk.app.solver.SolverAgent` port and drives this session through
