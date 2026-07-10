@@ -115,8 +115,10 @@ uv run mini 5 70 3                     # ...same, via the console entry point
 uv run --extra clue puzzle --reveal    # a tool: a whole clued puzzle as plain text (D20; needs a key)
 uv run --extra clue solve --reveal     # a tool: a Claude agent solves a generated puzzle (D26; needs a key)
 uv run generate 10 10 0 60 3 --max-len 5   # a tool: 10x10 minis, entries capped at 5 (D24)
+uv run generate 10 10 0 65 2 --max-len 5 --gibbs  # a tool: capped minis, layout from the Gibbs field (D27)
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
+uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the complete search (D27)
 ```
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the

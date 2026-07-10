@@ -136,6 +136,95 @@ per-seed loop moves on — the *generation* path budgets, the *existence-proof* 
 22% fraction sits near its own minimum, so yield is low (2/12; node budget bailing) — the
 frontier, wanting the D24-scaling layout search. `--max-black K` overrides the default density.
 
+## Gibbs layout field vs the complete search (D27, scripts/gibbs.py)
+
+The black-cell layout as a *soft field* (annealed Gibbs over the binary grid: local run-length
+legality + density spring + anti-cluster + no-2x2), head-to-head against `gen_capped`'s complete
+search on the axis the spike targeted — **aesthetics** at the sizes that already fill. Both give
+legal, symmetric, capped layouts; measured this container (defaults: 60 sweeps, T 1.5→0.06):
+
+    10x10, max_len=5, 30 seeds
+    method       black %   cluster   2x2/grid       distinct   median ms
+    gen_capped   16-22%    0.85      0.27 (max 2)    15/30            5
+    gibbs_field  20-26%    0.67      0.00 (max 0)     9/30          197
+
+- **Spread — win:** clustering 0.67 vs 0.85 (blacks visibly better spread).
+- **No 2x2 block — categorical win:** 0.00 vs 0.27/grid (up to 2). `gen_capped` emits the
+  American-grid defect ~1 grid in 4; the field forbids it by construction (an explicit energy term).
+- **Density — a wash:** 20-26% vs 16-22% (a touch denser/wider — the count spring vs the ceiling).
+- **Diversity — loss:** 9/30 vs 15/30 (the anneal converges to fewer minima).
+- **Speed — loss:** ~197 ms/layout vs ~5 ms (~40x; still sub-second — fine for a generation tool).
+- **Fill — unchanged:** both 6/6 from cw 2..5 at bars 60/70, 38 entries (~350-410 ms).
+
+The measurement also surfaced an **unbid bonus at the 12x12 frontier** (15 seeds):
+
+    method       black %   2x2   distinct   median ms   misses
+    gen_capped   22%       0     1/2         644        13/15
+    gibbs_field  22-26%    0     8/14        563         1/15
+
+`gen_capped` (default cap, node-budgeted) **collapses** near the feasibility minimum — the D25
+phase-transition story: 13/15 seeds bail the node budget, 1 distinct layout. The Gibbs field
+**misses 1/15, returns 8/14 distinct**, at comparable time — it keeps producing where the complete
+search chokes at the threshold, exactly the phase-transition prediction. So the field is *also* the
+more productive engine at the size D25 flagged as the frontier, not just prettier.
+
+**Verdict (D27): KEEP, scoped.** It wins on its target axis (spread, guaranteed no-2x2) and at the
+12x12 frontier; it loses on speed and 10x10 diversity, and is **not complete** (a miss is budget
+exhaustion, never a proof). So `gen_capped` stays the fast default + the sole existence-proof
+engine; the Gibbs field is the aesthetic-controlled (and frontier-productive) alternative
+(`generate --gibbs`). Example 10x10 (bar>=70): `SUN/PRO/POISE/ELOPE/SOLAR/EMAIL/CHICK/HOLES/STAT`.
+
+### Basin shape x count -- how the sampler fares (D28, scripts/gibbs.py)
+
+The follow-up study: reshape the basin (grid size, energy weights) and change the count (black
+density), and watch the anneal's **reject-reason** (`reject_reason` over the raw `anneal_field`:
+`ok`/`short_run`/`over_cap`/`disconnected`). All 25 anneals/cell, sweeps=90, this container.
+
+**The count knob has a floor = the jamming boundary (10x10, max_len=5):**
+
+    frac   ok%   short_run  over_cap  disconn   (~22% is the feasibility floor)
+    0.14   12%   3          12        7         below floor: over_cap dominates
+    0.18   16%   4           8        9
+    0.22   28%   4           2        12        AT the floor: ok peaks, over_cap min
+    0.26   16%   6           3        12        above floor: over-crowding -> disconn
+
+`ok` is a tent peaked *at* the cap-forced floor. Ask below it and the field can't answer with a
+*sparser legal* grid -- only an *illegal* one (`over_cap` runs it couldn't break). This is D25's
+phase transition seen from the soft side: the same wall the complete search hits as `node_budget`,
+now the sampler's reject profile. 12x12's floor is higher (~26%): `ok` is **0%** at frac
+0.14/0.18/0.22 and only reaches 8% at 0.26 -- below the floor the field simply cannot make a legal
+grid, exactly as `gen_capped`'s `max_black` below the minimum is a provable empty.
+
+**The failure mode shifts with basin shape (fixed frac=0.20):**
+
+    shape   ok  short_run  over_cap  disconn   target/floor
+    10x10   6   4           7        8         20 / ~22
+    12x12   4   7          14        0         29 / ~32
+    14x14   0   6          18        1         39 / ~43
+
+As the grid grows the fixed frac falls further below the (rising) floor, so failure moves from
+balanced -> pure legality. **Connectivity vanishes as a failure mode at size; run-length legality
+is what defeats the field as the basin tightens.** The honest reading: the soft field owns the soft
+objective, the hard run-length legality is where the complete search still wins -- the soft/hard
+split (D15/D21) re-derived inside the layout layer.
+
+**The connectivity repair is defeated by the cap (a negative result):** bridge-whitening fixed
+**0/25 disconnected anneals at every density and size**. Under the cap the blacks separating two
+white components *are* the cap-load-bearing cells, so whitening a bridge re-creates an over-cap run
+(and a 6-run can't split into two >=3 runs). So it was **removed** (D19-style: verdict kept, code in
+git); rejection is correct for capped minis.
+
+**The reliable lever is the soft weights (basin reshape works), 10x10:**
+
+    w_cluster   black %    cluster   2x2/grid
+    0.0         22-32%     0.90      0.00
+    0.55        20-28%     0.73      0.00
+    1.2         20-24%     0.71      0.00
+
+Raising the anti-cluster weight moves clustering 0.90->0.71 *and* tightens the density spread, 2x2
+staying 0. Where the *hard* constraints jam, the *soft* objective is exactly as controllable as a
+field should be -- the reason to have a field here at all.
+
 ## Structural difficulty — open crossings (D21, scripts/difficulty.py)
 
 `app.difficulty.analyze` scores each crossing against the *full* solving vocabulary

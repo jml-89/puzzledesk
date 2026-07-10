@@ -1179,3 +1179,194 @@ the natural follow-ons are a transcript-judge (a third soft stage → the `Langu
 finally earns itself), calibrating the policies/budget against the agent runs, and feeding
 the result back to validate/tune `solve_order` (D22) — closing the analytical/empirical loop
 the difficulty work has been reaching for.
+
+## D27. The black-cell layout is a soft field: a Gibbs sampler, measured and kept (scoped)
+
+Context: for several decisions the docs *cheerled* one idea without building it. D25's density
+knobs -- a white bias, a black-fraction target, an anti-cluster penalty -- were each a **local
+kernel applied uniformly across the grid**, and open-questions.md ("Layout generation is a soft,
+local field") read that tell out loud: the black-cell **layout** is a *translation-invariant grid
+with local run-length legality and a soft statistical objective* (density, spread, no 2x2 block),
+i.e. an Ising/Potts **field with local factors**, not something to hand-tune inside a systematic
+search. It even *stiffens near a critical density* -- the D25 runaway backtracking as ``max_black``
+neared the feasibility minimum (the reason a ``node_budget`` was needed; why a 12x12 yields ~2/15
+and a 15x15 hangs) is textbook SAT/UNSAT phase-transition hardness, exactly where a complete solver
+chokes. This is the **"big-and-soft" regime D19 reserved** for a sampler's return. The spike: stop
+cheerleading and *build the Gibbs sampler*, then -- in this repo's measure-then-record style (D19,
+D24, D25) -- benchmark it head-to-head against ``gen_capped`` and keep or retire it on the numbers.
+The stated target was **aesthetics** (density/spread/texture at the sizes that already fill), not
+the giant-size frontier.
+
+Decision: add ``core/engines/gibbs_layout.py`` -- an **annealed-Gibbs sampler over the binary
+black/white field** -- as a *coexisting* layout generator beside the complete ``gen_patterns``/
+``gen_capped`` (the invariant-0 "two models coexist" move, one level up at the layout layer). It
+samples ``exp(-E/T)`` where the energy is a sum of **local factors**:
+
+- **run-length legality** (dominant weight) -- a white run of length 1..min_len-1 or > max_len is
+  penalised, so the anneal settles into a legal basin;
+- **density** -- a ``(n_black - target)^2`` spring toward a target count;
+- **anti-cluster** -- a penalty per 4-adjacent black-black pair (spread);
+- **no 2x2 black block** -- an explicit term forbidding the American-grid defect.
+
+Two structural choices honour the boundary open-questions.md drew:
+
+- **Symmetry is global but free** -- the sampler colours only the 180°-rotation *orbit
+  representatives* (both cells at once), so **every draw is symmetric by construction**, no factor,
+  no penalty.
+- **Connectivity is global and topological** -- a local factor genuinely cannot express "all white
+  cells are one region", so it is **not** in the energy; it is a global **reject** at the end
+  (``patterns._connected`` BFS). A single-cell Gibbs step evaluates only the *affected rows/columns*
+  plus the *cluster terms touching the flipped orbit* (everything else cancels in the conditional),
+  so the sampler is cheap per step.
+
+The **`Rng` port grew one method**, ``random()`` (a uniform float for the Metropolis/Gibbs accept
+draw) -- the port extension D19's reversal note explicitly anticipated ("the `Rng` port is the seam
+to swap the randomness adapter without touching the engines"). ``numpy.random.Generator`` already
+satisfies it, so no adapter changed. ``fill_gibbs`` composes the sampler with ``fill.solve`` exactly
+as ``fill_capped`` does; ``BlockedGenerateService.fill_capped_gibbs_once`` and ``generate --gibbs``
+expose it. Tests pin the contracts: a Gibbs draw is a member of ``gen_capped``'s complete legal set
+(the ``backtrack ⊆ bruteforce`` ground-truth pattern, at the layout layer), never has a 2x2 block
+(though the legal set does), is symmetric, is reproducible from the seed, and -- load-bearing -- a
+**miss is budget exhaustion, never a proof** (``capped_layout_exists`` stays the sole existence
+theorem; the epistemics survive the new engine unchanged).
+
+**The verdict (measured, `scripts/gibbs.py`, this container; numbers in notes.md): KEEP, scoped to
+the aesthetics regime.** On its target axis at 10x10 it wins where it was meant to and honestly loses
+where a sampler must:
+
+- **spread -- win:** clustering **0.67 vs gen_capped's 0.85** (blacks visibly better spread);
+- **no 2x2 block -- categorical win:** **0.00 vs 0.27 per grid (max 2)** -- ``gen_capped`` emits the
+  American-grid defect ~1 grid in 4; the field forbids it by construction;
+- **density -- roughly a wash:** 20-26% vs 16-22% (a touch denser/wider -- the count spring vs the
+  ceiling);
+- **diversity -- loss:** 9/30 distinct vs 15/30 (the anneal converges to fewer minima);
+- **speed -- loss:** ~197 ms/layout vs ~5 ms (~40x; still sub-second, fine for a generation tool);
+- **fill -- unchanged:** both 6/6 from cw 2..5 at bars 60/70, 38 entries.
+
+The measurement also surfaced an **unbid bonus at the 12x12 frontier**: ``gen_capped`` (default cap,
+node-budgeted) **misses 13/15 seeds** and returns 1 distinct layout -- the D25 phase-transition
+collapse -- while the Gibbs field **misses 1/15, returns 8/14 distinct**, at comparable time. The
+sampler keeps producing where the complete search's budget chokes near the threshold, which is
+precisely the phase-transition prediction the docs made. So the field is *also* the more productive
+engine at the size D25 flagged as the frontier -- not just prettier.
+
+So it earns a place, but a **scoped** one: ``gen_capped`` stays the **fast default** and the **sole
+completeness/existence-proof** engine; the Gibbs field is the **aesthetic-controlled (and
+frontier-productive) alternative** behind ``--gibbs``. The clean seam the architecture already draws
+-- *a soft field for the blacks, a complete CSP for the words* -- is now real (open-questions.md's
+"the shape of the spike"), and it is the same complete-vs-soft split as D21 (difficulty) and D15
+(the clue port), surfacing this time in the geometry. D3's original post-classical instinct was not
+wrong; D19 was right that it did not belong to the *fill* -- it belongs to the *layout*.
+
+Alternatives considered:
+- **Retire it (a D19-style "measured and removed"):** rejected -- unlike the fill sampler, this one
+  *wins on its target axis* (no-2x2 is a guarantee ``gen_capped`` structurally cannot make; spread is
+  better) and is strictly more productive at 12x12. A losing spike gets a tombstone; a winning-but-
+  narrow one gets a scoped keep.
+- **Make it the default layout engine (retire ``gen_capped``):** rejected -- it is ~40x slower at
+  10x10, less diverse there, and (the decisive reason) **not complete**: it cannot prove
+  ``capped_layout_exists``, the existence theorem the whole design's epistemics rest on. Coexistence,
+  not replacement.
+- **Metropolis-Hastings / simulated annealing instead of Gibbs:** rejected as the first cut -- the
+  binary-field Gibbs conditional is exact and cheap (local delta), and the annealing schedule already
+  gives the temperature control MH would tune. A different move kernel is a refinement, not a
+  redesign.
+- **Connectivity as a soft energy term or a repair pass:** rejected for the spike -- it is genuinely
+  non-local (open-questions.md's "the real obstacle"), so a local factor cannot express it and a
+  repair risks reintroducing an illegal run; a global BFS **reject** is the honest, simple gate. A
+  union-find repair (or an ASP formulation with native reachability) is the recorded follow-up.
+- **Expose the field weights as user knobs now:** deferred -- ``FieldParams`` exists and the
+  benchmark set sensible defaults; a calibrated "sparse vs dense vs spread" preset surface is a
+  product follow-up, not this spike.
+
+Reversal: additive and coexisting. ``gibbs_layout.py``, the ``--gibbs`` path, and the ``Rng.random``
+method are self-contained; delete them and ``gen_capped`` is untouched. The natural follow-ups
+(open-questions.md): union-find/ASP connectivity to lift the 12x12 reject rate further; a spread/
+density preset surface; and -- the larger prize the frontier result now motivates -- whether the
+field's productivity past 12x12 makes it, not a smarter backtracker, the right answer to the
+"scaling past 15x15" question (D24 (iii)).
+
+## D28. How the sampler fares as basin shape and count change -- a study, and a repair that fails
+
+Context: D27 landed the Gibbs layout field and named follow-ups -- chiefly a **connectivity
+repair** (whiten a "bridge" black to reconnect a split white region, instead of only rejecting)
+and a **sweep** to see how the sampler behaves as we reshape the basin (grid size, energy weights)
+and change the count (black density). This is that study, taken in the repo's measure-then-record
+style. The instrument is a new ``reject_reason`` classifier over the *raw* anneal
+(``anneal_field`` split out of ``sample_layout``): ``ok`` / ``short_run`` / ``over_cap`` /
+``disconnected`` -- so we can see not just *whether* an anneal fails but *how*, and watch the
+failure mode move.
+
+Decision: build the connectivity repair (a bridge-whitening ``_repair_connectivity``), the
+``reject_reason``/``anneal_field`` instruments, and a sweep driver (``scripts/gibbs.py`` D28
+section); measure; **record the findings, and delete the repair because the measurement
+retired it** (D19-style: the lesson here, the code one ``git show`` away). The findings
+(numbers in notes.md; this container):
+
+- **The count knob has a hard FLOOR, and it is the jamming boundary seen from the soft side.**
+  A tight cap forces a *minimum* black density (a 10-wide row capped at 5 needs >= 2 blacks). Ask
+  the field for fewer blacks than that floor and it cannot answer with a *sparser legal* grid --
+  it answers with an *illegal* one: ``over_cap`` white runs it could not break. So ``ok`` rate is
+  a tent peaked **at** the floor: 10x10 ``ok`` climbs 12%->16%->**28%**->16% across frac
+  0.14/0.18/0.22/0.26, ``over_cap`` collapsing (12->2) as the target rises to the ~22% floor, then
+  ``disconnected`` taking over above it (over-crowding). This is exactly D25's phase transition --
+  the same wall the *complete* search hits as ``node_budget`` (D25) -- now visible as the
+  *sampler's* reject profile. The complete search backtracks into the wall; the field leaves
+  soft-constraint residue against it. Same frontier, two epistemics.
+- **The failure mode SHIFTS with basin shape.** At a fixed frac=0.20, as the grid grows the target
+  falls further below the (rising) floor, so the reject profile moves from balanced to pure
+  legality: 10x10 ``{ok 6, short_run 4, over_cap 7, disconn 8}`` -> 12x12 ``{ok 4, 7, 14, 0}`` ->
+  14x14 ``{ok 0, 6, 18, 1}``. Connectivity (the D27 concern) *vanishes* as a failure mode at size;
+  fine-grained run-length legality is what defeats the field as the basin tightens. The honest
+  reading: **the soft field owns the soft objective (density, spread, no-2x2) but the hard
+  run-length legality is where the complete search still wins** -- the very soft/hard split the
+  architecture draws (D15/D21), now re-derived inside the layout layer.
+- **The connectivity repair is DEFEATED by the cap -- a clean negative result.** Bridge-whitening
+  fixed **0 of 25 disconnected anneals at every density and size measured**. The mechanism is
+  exact: under a tight cap the blacks separating two white components *are* the cap-load-bearing
+  cells (each caps a maximal run at ``max_len``), so whitening a bridge re-creates an over-cap run
+  -- and such a run cannot be single-black-split back into two >= min_len runs (a 6-run splits only
+  into 5+0..3+2, one side always < 3). So connectivity, the one *globally*-repairable-looking
+  constraint, is *not* locally repairable **once a length cap couples it to run-length**. Rejection
+  (the D27 baseline) is therefore correct for capped minis, and the repair was **removed** -- it
+  earned no product surface. (This is the D19 move in miniature: a follow-up built, measured, found
+  wanting, deleted with its verdict recorded, rather than left as a 0-effect flag to rot and
+  mislead. The ``reject_reason``/``anneal_field`` *instruments* stay -- those are used.)
+- **The reliable lever is the soft weights (the basin reshape works).** Sweeping ``w_cluster``
+  0.0->0.55->1.2 moves clustering **0.90->0.73->0.71** *and* tightens the density spread
+  (22-32% -> 20-24%), 2x2 staying 0 throughout. Where the *hard* constraints jam, the *soft*
+  objective is exactly as controllable as a field promises -- which is the whole reason to have a
+  field here at all.
+
+Rationale: the study answers the question D27 opened ("how does it fare across the basin?") with a
+coherent picture -- the sampler is a good soft-objective shaper up to a hard-legality wall that
+*is* the jamming density, and that wall, not connectivity, is its frontier. The repair follow-up
+was worth building precisely to learn it cannot work under a cap; recording that stops the next
+agent re-attempting it. Nothing about D27's verdict changes: the field stays the aesthetic path,
+``gen_capped`` the fast/complete default.
+
+Alternatives considered:
+- **Keep the repair (on, or off-behind-a-flag as an instrument):** rejected -- it fixes ~0 under
+  the cap, so on-by-default is cost with no benefit and a misleading "we handle connectivity" claim,
+  and off-behind-a-flag is exactly the "tombstone in place" D19 warns against (a 0-effect knob on
+  three public signatures, a foot-gun to rot). Deleted; the mechanism and its verdict live in this
+  entry + git. The pure ``reject_reason``/``anneal_field`` instruments the sweep *does* use stay.
+- **A general legality *polish* (min-conflicts descent to fix short-runs/over-cap too):** tried in
+  a spike, rejected -- blackening a short-run white cascades new short runs in the crossing
+  direction; exact legalization of a near-legal field near the jam is itself the hard CSP the
+  *complete* search already does well. Chasing it would re-import a backtracker into the sampler.
+  Recorded as the reason the honest boundary is "soft field + complete legalizer", not "field
+  alone".
+- **Raise ``w_legal`` / colder tail to force legality at 12x12:** measured to barely move the
+  ``over_cap``/``short_run`` counts -- the residue is a jamming property, not an annealing-schedule
+  artifact. Left at the D27 schedule.
+- **A count *below* the floor as a "sparse" mode:** rejected -- it is infeasible, not sparse; the
+  field correctly cannot produce it. The floor is physics (D25), and asking under it is the same
+  category error as a ``max_black`` below ``gen_capped``'s feasibility minimum (a provable empty).
+
+Reversal / still open (open-questions.md): connectivity that is *not* cap-coupled would want an
+**ASP/union-find formulation with reachability native** (the survey's declarative route) rather
+than local whitening; the **legality wall past 12x12** is where a smarter field (WFC min-entropy
+propagation, or a move set that respects run-length by construction) or simply the template-library
+route earns its keep. The instruments (``reject_reason``, ``anneal_field``, the sweep) are additive
+and the layers contract is untouched.

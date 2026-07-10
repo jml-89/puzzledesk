@@ -97,6 +97,21 @@ own unit: any legal placement is allowed, which is the only way to get e.g. 3
 black cells across a 5×5. The completeness guarantee is unchanged — the search
 just enumerates a larger legal set.
 
+**Capstone — the sampler returns, for the layout (D27).** The epilogue above retired
+the stochastic sampler because the *fill* is a hard-bar CSP where complete search wins.
+But the black-cell **layout** is the opposite regime: a translation-invariant grid with
+*local* run-length legality and a *soft* objective (density, spread, no 2×2 block) — a
+field with local factors, and it even stiffens near a critical density (a SAT/UNSAT phase
+transition) exactly where the complete search's node budget starts to choke. So an
+**annealed-Gibbs sampler over the black-cell field** (`gibbs_layout.py`) is the sampler's
+real home — symmetry by construction, connectivity as a global reject, the soft aesthetics
+as energy terms. Measured head-to-head against the complete `gen_capped` (D27,
+`scripts/gibbs.py`): it *guarantees* no 2×2 block (the complete search emits ~1 in 4),
+spreads blacks better, and stays productive at 12×12 where the complete search collapses —
+at the cost of speed and completeness, so the two **coexist** (`generate --gibbs`). The
+arc's final shape: **stochastic sampling lost the fill and won the layout** — the right
+tool for each regime.
+
 ## Layout
 
 The package is a hexagon (ports & adapters) with a linear import stack enforced by
@@ -112,7 +127,8 @@ import-linter: `core < app < adapters < bootstrap < cli` (see
 | `src/puzzledesk/core/rng.py`        | the `Rng`/`RngFactory` ports — randomness is injected, not built in the kernel |
 | `src/puzzledesk/core/engines/backtrack.py`  | **complete** prefix-pruned search — the engine for squares |
 | `src/puzzledesk/core/engines/fill.py`       | **complete** MRV backtracking fill over slots — the blocked-grid engine (+ `enumerate_fills` ground truth) |
-| `src/puzzledesk/core/engines/patterns.py`   | **block-pattern generation** — from a black-cell *count* to legal layouts; `fill_by_count` ties layout search to fill |
+| `src/puzzledesk/core/engines/patterns.py`   | **block-pattern generation** — from a black-cell *count* (D13) or a *length cap* (`gen_capped`, D24/D25) to legal layouts; `fill_by_count`/`fill_capped` tie layout search to fill |
+| `src/puzzledesk/core/engines/gibbs_layout.py` | **layout field sampler** (D27) — annealed Gibbs over the black-cell field (density/spread/no-2×2), coexisting with the complete search; `fill_gibbs` ties it to fill |
 | `src/puzzledesk/core/engines/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
 | `src/puzzledesk/app/`               | use-case services (`MiniService`, `BlockedGenerateService`), the ports they need (`LexiconSource`, `Writer`), and structured results |
 | `src/puzzledesk/adapters/`          | infrastructure implementing the ports: `NumpyRngFactory` (the injected Prng), `FileLexicon` (disk reads), `StreamWriter` |
@@ -123,6 +139,7 @@ import-linter: `core < app < adapters < bootstrap < cli` (see
 | `scripts/demo.py`              | validation across N=2..4, `backtrack ⊆ bruteforce` at N=2 (benchmark driver) |
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
 | `scripts/blackcells.py`        | **blocked-grid fill** — ground-truth check, filled grids, quality ceiling |
+| `scripts/gibbs.py`             | **layout sampler head-to-head** (D27) — Gibbs field vs the complete `gen_capped` on density/spread/2×2/diversity/fill |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
 | `data/scored_N.txt`            | the above with wordfreq Zipf scores (weak baseline list) |
 | `data/cw_N.txt`                | curated crossword list, scored 0–100 (the real list) |
@@ -202,7 +219,19 @@ architecture is a checked fact, not a convention.
 - [x] **Hexagonal architecture** — pure `core`, `app` services, `adapters` (the
       injected Prng lives here), a staged `bootstrap` container, thin `cli`; layering
       enforced by import-linter; pytest suite driven by injected fakes (D14)
+- [x] **Large capped minis** — cap the *maximum* entry length so a 10×10 fills from
+      the 2..5 lists (`gen_capped`, D24), with density control (a white-biased search +
+      a black-cell ceiling, D25); `generate --max-len K`
+- [x] **Layout field sampler** — an annealed-Gibbs sampler over the black-cell field
+      (density/spread/no-2×2), measured against the complete search and *kept, scoped*:
+      the sampler lost the fill (D19) and won the layout (D27); `generate --gibbs`
+- [x] **Basin-shape × count study** (D28) — swept grid size, density, and energy weights:
+      the count knob has a jamming floor, the failure mode shifts to run-length legality as
+      the grid grows, and the connectivity *repair* was tried and **removed** (defeated by
+      the cap — the separating blacks are cap-load-bearing); `scripts/gibbs.py`
 - [ ] Word lists longer than 5 — needed for full-size (15×15) blocked grids
 - [ ] Clue generation (separate downstream stage)
 - [ ] Grid variety controls — seed words, themes, avoid overused entries
-- [ ] JAX parallel chains — only if we reintroduce genuinely soft preferences
+- [ ] Past the legality wall (>12×12) — ASP-native connectivity or a run-length-aware move
+      set (WFC), + a spread/density preset surface over `FieldParams` (the open D28 threads)
+- [ ] JAX parallel chains — only if the layout field sampler (D27) needs the scale
