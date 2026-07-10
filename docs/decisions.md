@@ -1370,3 +1370,55 @@ than local whitening; the **legality wall past 12x12** is where a smarter field 
 propagation, or a move set that respects run-length by construction) or simply the template-library
 route earns its keep. The instruments (``reject_reason``, ``anneal_field``, the sweep) are additive
 and the layers contract is untouched.
+
+## D29. Drift and dead-code cleanup after the concurrent-spike merges
+
+Context: several spikes merged to `main` in close succession -- D24/D25 (large capped
+minis), D26 (agent solver), D27/D28 (Gibbs layout field) -- alongside a mid-stream
+decision *renumbering* (the solver spike D24->D26; the difficulty spike's D20/D21/D22
+became D21/D22/D23 once D20 "the whole-puzzle path" was inserted). The automated gate
+stayed green the whole time, which is exactly the problem: ruff/mypy/import-linter/pytest
+catch layering, types, and broken invariants, but not *semantic* drift -- so prose,
+code comments, and a little dead surface fell out of sync with the code. This entry
+records the cleanup; it changes no design.
+
+Decision: chase the three classes the spikes left behind and fix them, architecture untouched.
+
+- **Dead code removed.** `Lexicon.is_word` (an unused predicate) and the `CapturingWriter`
+  adapter (referenced only in docstrings; the one test that needs a recording sink rolls its
+  own inline `Writer`). Both are one `git show` away, per the D19 discipline. Deliberately
+  *kept* despite looking caller-light: the static-difficulty subsystem (`analyze`,
+  `CrossingOpenness`/`StructuralDifficulty`, `Lexicon.n_letters_at`) is D21 layer A' and the
+  Gibbs `reject_reason`/`anneal_field` are the D28 study instruments -- both are load-bearing
+  benchmark surface the docs describe as built, exercised by `scripts/difficulty.py`/`gibbs.py`
+  and the tests, so removing them would contradict D21/D28, not clean up after them.
+- **A batch-distinctness gap closed.** `MiniService.generate` deduped emitted grids only on
+  the difficulty-*targeting* path (`min_hard_gets > 0`); the plain path could emit the same
+  fill twice, because a *complete* backtracker returns the same solution under different seeds
+  when the band admits few (`mini 5 90 3` at a tight bar). Distinctness *within* a grid
+  (invariant 3) was never at risk -- `backtrack`/`validate` still enforce 2N distinct words;
+  this is invariant 3 applied *grid-wide across the batch*, which the tool's "distinct minis"
+  wording promises. The `seen`-set dedup is hoisted to guard every emitted grid (a regression
+  test in `test_services.py` pins it: a lexicon with two distinct squares now yields at most
+  two grids for `count=5`, never a repeat). Single-grid reproducibility is unchanged
+  (`mini 5 70 1` is byte-identical; only the first grid of a batch is a documented contract).
+- **Docs re-synced to the code.** The decision-log range in CLAUDE.md (D1-D13 -> D1-D28); the
+  stale "`scripts/generate.py` is the demo / property check" claim in architecture.md (it is a
+  shim to the `generate` tool; the property check moved to `tests/test_patterns.py`, as the same
+  file already said elsewhere); five section-header paths that predated the `core/`+`core/engines/`
+  reorg; the D20/D21 -> D21/D22 difficulty references the renumbering left in `app/difficulty.py`,
+  `app/ports.py`, and `scripts/difficulty.py`; the drivers missing from the enumerations
+  (`solve_effort.py`, `largemini.py`, `difficulty.py`, `gibbs.py`); and README's status/layout/run,
+  which still listed clue generation as "not started" despite the shipped clue (D15/D16/D20),
+  difficulty (D21-D23), and agent-solve (D26) work. The stale `from_scored_file` present-tense
+  claim in notes.md's initial-spike snapshot was framed as historical (the read moved to
+  `FileLexicon` at D14).
+
+Rationale: the repo's memory *is* its docs (this log, architecture.md, notes.md), and the
+"documentation is part of the change" rule (CONTRIBUTING) had slipped under merge pressure.
+Recording the cleanup rather than silently applying it keeps the *why* legible and tells the
+next agent that `is_word`/`CapturingWriter` were removed on purpose (not lost). No engine,
+invariant, or layer changed; the full gate stays green.
+
+Reversal: n/a -- maintenance. If a second `Writer` sink is ever wanted, `CapturingWriter` is in
+git; if the static-difficulty benchmark is retired, its cluster becomes removable at that point.

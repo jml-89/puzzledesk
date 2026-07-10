@@ -2,7 +2,7 @@
 
 Solves distinct minis at a score band, projects each to the canonical FilledGrid, and
 reports two readings of difficulty against the *full* solving vocabulary (not the
-generation-filtered list -- a solver knows every word, D20/D21):
+generation-filtered list -- a solver knows every word, D21/D22):
 
   * STATIC (``app.difficulty.analyze``): each crossing is *open* if neither crossing
     word alone pins the shared letter -- a Natick *risk* at maximal support. Flagged
@@ -29,7 +29,7 @@ from puzzledesk.core.lexicon import encode
 from puzzledesk.core.square import DoubleSquare
 
 _OBSCURE = {"cw": 60.0, "scored": 3.0}  # per-list "below this is obscure" (cw: below "solid")
-_GIMME = {"cw": 80.0, "scored": 4.0}  # per-list "known from the clue" cutoff (D20 layer B)
+_GIMME = {"cw": 80.0, "scored": 4.0}  # per-list "known from the clue" cutoff (D21 layer B)
 _SYM = {"forced": "F", "gimme": "G", "hard": "H"}
 
 

@@ -130,16 +130,19 @@ import-linter: `core < app < adapters < bootstrap < cli` (see
 | `src/puzzledesk/core/engines/patterns.py`   | **block-pattern generation** — from a black-cell *count* (D13) or a *length cap* (`gen_capped`, D24/D25) to legal layouts; `fill_by_count`/`fill_capped` tie layout search to fill |
 | `src/puzzledesk/core/engines/gibbs_layout.py` | **layout field sampler** (D27) — annealed Gibbs over the black-cell field (density/spread/no-2×2), coexisting with the complete search; `fill_gibbs` ties it to fill |
 | `src/puzzledesk/core/engines/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
-| `src/puzzledesk/app/`               | use-case services (`MiniService`, `BlockedGenerateService`), the ports they need (`LexiconSource`, `Writer`), and structured results |
+| `src/puzzledesk/app/`               | use-case services (`MiniService`, `BlockedGenerateService`, `ClueService`/`PuzzleService` for clues, `SolveService` for the agent probe, `difficulty` analysis), the ports they need (`LexiconSource`, `Writer`, `ClueProvider`, `SolverAgent`), and structured results |
+| `src/puzzledesk/adapters/claude_clue.py`, `claude_solver.py` | the live Claude adapters behind the clue and solver ports (optional `clue` extra; D16/D26) |
 | `src/puzzledesk/adapters/`          | infrastructure implementing the ports: `NumpyRngFactory` (the injected Prng), `FileLexicon` (disk reads), `StreamWriter` |
 | `src/puzzledesk/bootstrap/`         | composition root — `build()` a service `Container` in stages (config → adapters → services) |
 | `src/puzzledesk/cli/`               | thin entry points: argv → build → run → present |
 | `tests/`                            | pytest suite — invariants, ground truth, DI (fakes for the ports) |
-| `scripts/mini.py`, `scripts/generate.py` | tool shims (logic in `cli/`); also `uv run mini …` / `uv run generate …` |
+| `scripts/mini.py`, `generate.py`, `puzzle.py`, `solve.py` | tool shims (logic in `cli/`); also `uv run mini/generate/puzzle/solve …`. `puzzle` clues a whole grid (D20); `solve` runs the agent probe (D26) — both need the `clue` extra + a key |
 | `scripts/demo.py`              | validation across N=2..4, `backtrack ⊆ bruteforce` at N=2 (benchmark driver) |
 | `scripts/ceiling.py`           | how high can the bar go before UNSAT (`ceiling.py 5 cw`) |
 | `scripts/blackcells.py`        | **blocked-grid fill** — ground-truth check, filled grids, quality ceiling |
+| `scripts/largemini.py`         | **large capped minis** (D24) — why the count-driven search can't cap, the cap-driven black-count/timing, and fill rate at 10×10/12×12 |
 | `scripts/gibbs.py`             | **layout sampler head-to-head** (D27) — Gibbs field vs the complete `gen_capped` on density/spread/2×2/diversity/fill |
+| `scripts/difficulty.py`, `solve_effort.py` | difficulty measurement drivers — structural/solve-order openness (D21/D22), and the solver reasoning-effort sweep (D26) |
 | `data/words_N.txt`             | length-N words from dwyl `words_alpha` |
 | `data/scored_N.txt`            | the above with wordfreq Zipf scores (weak baseline list) |
 | `data/cw_N.txt`                | curated crossword list, scored 0–100 (the real list) |
@@ -158,6 +161,15 @@ uv run scripts/ceiling.py 5 cw     # 5x5 quality ceiling on the curated list
 uv run scripts/blackcells.py       # blocked-grid fill: ground truth + filled grids
 uv run scripts/generate.py 5 5 4 60 3   # 5x5 minis with 4 black cells, layout found by search
 uv run scripts/generate.py 5 5 3 60 3 --nonsymmetric  # 3 black cells, no 180° symmetry
+uv run generate 10 10 0 60 3 --max-len 5  # a 10x10 capped-entry mini (D24/D25)
+```
+
+The clued-puzzle and agent-solver tools need the `clue` extra and an API key
+(`uv sync --extra clue`; the key env var defaults to `ANTHROPIC_API_KEY_TWO`, D17):
+
+```bash
+uv run --extra clue puzzle --reveal   # a whole clued puzzle as plain text (D20)
+uv run --extra clue solve  --reveal   # a Claude agent solves a generated puzzle (D26)
 ```
 
 `wordfreq` is only needed to regenerate the scored word lists; install it with
@@ -219,6 +231,18 @@ architecture is a checked fact, not a convention.
 - [x] **Hexagonal architecture** — pure `core`, `app` services, `adapters` (the
       injected Prng lives here), a staged `bootstrap` container, thin `cli`; layering
       enforced by import-linter; pytest suite driven by injected fakes (D14)
+- [x] **Clue generation** — the `ClueProvider` port + `FilledGrid` anti-corruption
+      form (D15), a live Claude adapter behind it (D16), and the whole-puzzle compose
+      (`PuzzleService` + a plain-text solving view; `uv run puzzle`, D20). Clue
+      *quality* is still iterating; the pipeline ships.
+- [x] **Difficulty modelling** — the *complete, deterministic* slices: a two-sided
+      obscurity band (D21 layer A), static open-crossing / Natick checkability
+      (`analyze`, D21 A′) and the dynamic solve-order cascade (`solve_order`, D22), plus
+      generate-to-a-difficulty (`mini --hard K`, D23). The soft/clue layers stay
+      recorded-but-unbuilt pending human solve data.
+- [x] **Agent solve probe** — a Claude agent solving a generated puzzle in a feedback
+      loop as an empirical difficulty signal (`uv run solve`, D26); reasoning-token
+      spend is the graded tell (see `docs/notes.md`)
 - [x] **Large capped minis** — cap the *maximum* entry length so a 10×10 fills from
       the 2..5 lists (`gen_capped`, D24), with density control (a white-biased search +
       a black-cell ceiling, D25); `generate --max-len K`
@@ -230,7 +254,8 @@ architecture is a checked fact, not a convention.
       the grid grows, and the connectivity *repair* was tried and **removed** (defeated by
       the cap — the separating blacks are cap-load-bearing); `scripts/gibbs.py`
 - [ ] Word lists longer than 5 — needed for full-size (15×15) blocked grids
-- [ ] Clue generation (separate downstream stage)
+- [ ] Clue *quality* + calibration — ranking, cross-clue constraints, and a
+      calibrated Mon..Sat target (needs human solve logs; D21 layers B/C)
 - [ ] Grid variety controls — seed words, themes, avoid overused entries
 - [ ] Past the legality wall (>12×12) — ASP-native connectivity or a run-length-aware move
       set (WFC), + a spread/density preset surface over `FieldParams` (the open D28 threads)

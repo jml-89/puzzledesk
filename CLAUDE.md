@@ -5,7 +5,7 @@ Operating manual for an agent working in this repo. It tells you how the code is
 does **not** restate the design — that lives in `docs/`, and you should read it:
 
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D13). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D28). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `CONTRIBUTING.md` — branch/commit/PR etiquette. Read before you push.
@@ -54,7 +54,7 @@ loop, as an empirical difficulty probe).
 ### adapters — infrastructure (`src/puzzledesk/adapters/`)
 
 Where effects are bound: `NumpyRngFactory` (the injected Prng — `default_rng` lives
-only here), `FileLexicon` (the disk read), `StreamWriter`/`CapturingWriter`. They
+only here), `FileLexicon` (the disk read), `StreamWriter`. They
 sit *above* app because they implement app's ports. Keep new I/O *here*, never in
 `core`/`app`.
 
@@ -68,12 +68,13 @@ emits passes the acceptance test (invariant 3).
 
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
-`ceiling.py`, `demo.py`, `blackcells.py`: they *measure/demo*, not produce. They
-stay loose and `ANN`-exempt (`scripts/*.py`), but now `build()` the container and
-drive the core engines through its injected `lexicon`/`rng_factory` adapters — no
-bare `default_rng`/`DATA` path. Their output is numbers for `docs/notes.md`. (The
-sampler-only drivers `bench`/`frontier`/`compare`/`samplers`/`quality` were removed
-with the sampler engine — D19.)
+`ceiling.py`, `demo.py`, `blackcells.py`, `difficulty.py`, `largemini.py`, `gibbs.py`,
+`solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
+(`scripts/*.py`), but now `build()` the container and drive the core engines through its
+injected `lexicon`/`rng_factory` adapters — no bare `default_rng`/`DATA` path. Their
+output is numbers for `docs/notes.md` (see architecture.md "Benchmark/demo drivers" for
+the full list). (The sampler-only drivers `bench`/`frontier`/`compare`/`samplers`/
+`quality` were removed with the sampler engine — D19.)
 
 > Still a follow-up: splitting tool vs benchmark *directories* and console entry
 > points for every driver. `cli` groups them by intent; honour the distinction.

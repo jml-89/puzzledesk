@@ -646,11 +646,18 @@ Curated real list — `data/cw_N.txt`:
   `from_words_text`, `from_scored_texts`); the file read moved to the `FileLexicon`
   adapter. If you regenerate lists, nothing about the *files* changed.
 
-## Repo status at end of spike
+## Repo status at end of the *initial* spike (historical snapshot)
+
+A point-in-time record of the first spike's HEAD, kept for the arc. Later spikes
+superseded most of the "not started" list (see the decision log / open-questions):
+black-cell grids landed at D12–D13/D24–D27, clue generation at D15/D16/D20, and the
+`from_scored_file` kernel read was replaced by `from_scored_text` + the `FileLexicon`
+adapter at D14. Read the current shape from `docs/architecture.md`, not from here.
 
 - On `origin/main` at the spike HEAD (8 commits). Working tree clean.
 - Engine: complete backtracking (the sampler, once secondary, was retired in D19).
   Distinctness enforced in backtrack + validate (+ fill for blocked grids). Curated
-  list wired via `from_scored_file`.
+  list wired via `from_scored_file` (later moved to the `FileLexicon` adapter, D14).
 - Deliverable: `scripts/mini.py` generates distinct minis above a quality bar.
-- Not started: clue generation, cross-batch variety, JAX, black-cell grids.
+- Not started *at that point*: clue generation, cross-batch variety, JAX, black-cell
+  grids (all but cross-batch variety and JAX have since shipped).

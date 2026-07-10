@@ -34,6 +34,18 @@ def test_service_emits_distinct_grids_above_the_bar() -> None:
     assert all(w.score >= 0.0 for w in r.across + r.down)
 
 
+def test_batch_has_no_duplicate_grids() -> None:
+    # Only a handful of distinct double squares exist on this tiny lexicon, so a
+    # *complete* search returns the same fill under different seeds. The batch must
+    # still never repeat a grid -- invariant 3 (distinctness) applied grid-wide across
+    # the batch, not only within one grid.
+    service, _ = _service()
+    batch = service.generate(2, min_score=0.0, count=5)
+    grids = [tuple(w.word for w in r.across) for r in batch.results]
+    assert grids  # the lexicon admits at least one distinct square
+    assert len(grids) == len(set(grids))  # ...and no grid is emitted twice
+
+
 def test_service_uses_the_injected_factory() -> None:
     _, rng = _service()[0], _service()[1]
     service = MiniService(InMemoryLexiconSource(single={2: _LEX}), rng)
