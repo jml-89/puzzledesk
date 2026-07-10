@@ -157,9 +157,12 @@ uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the 
   grabbed once in `bootstrap`, never in the kernel (D18). If you genuinely need a new
   cross-layer edge, change the contract with a reason (a D-entry if it reshapes the
   architecture) — do not route around it.
-- **`wordfreq` is optional**, needed only to regenerate `data/scored_N.txt`:
-  `uv run --extra scoring scripts/gen_scored.py`. The solvers read the files, not
-  `wordfreq`.
+- **Word data is generated, lengths 2..15** (D36). Three reproducible drivers, each
+  `--min-len/--max-len`: `scripts/gen_cw.py` (curated `cw_N`, the default list) and
+  `scripts/gen_words.py` (plain `words_N`) slice their upstreams; `scripts/gen_scored.py`
+  scores `words_N` with wordfreq. The solvers read the committed files, never the sources.
+- **`wordfreq` is optional**, needed only to (re)generate `data/scored_N.txt`:
+  `uv run --extra scoring scripts/gen_scored.py`.
 - **`anthropic` is optional** (`clue` extra), needed only for *live* clue generation
   (`adapters/claude_clue.py`); it is imported lazily and resolves the API key from the
   environment. The grid generator and tests run without it (the `FakeClueProvider`

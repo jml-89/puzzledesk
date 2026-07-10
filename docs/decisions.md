@@ -1808,3 +1808,60 @@ Alternatives considered:
 Reversal: additive and edge-local (a new top layer + one adapter + one port), so it reverses
 by deletion without disturbing `core`/`app`/`cli`. The `web` extra keeps FastAPI out of
 everyone who does not serve HTTP.
+
+## D36. Word lists to length 15: close the 2..5 data gap, make regeneration reproducible
+
+Context: every list shipped covered lengths 2..5 only, and the docs repeatedly flagged
+"word lists longer than 5" as an open, un-built item (architecture.md, open-questions.md).
+This was never an engine limit -- `Lexicon` is length-agnostic and `MultiLexicon` buckets
+over whatever `range(min_len, max_len+1)` a service asks for; a missing length just becomes
+an empty (unfillable) bucket. So the 5-letter ceiling was purely a *data* gap. It capped
+the interesting-grid space in two ways: no fully-checked word squares above 5x5 (a 6x6/7x7
+`FullSquare` needs 6-/7-letter lists), and no capped/Gibbs large grid could set `max_len > 5`
+(the knob existed, the data did not back it). The user's ask: support longer words as an
+ordinary configuration option -- "just a different max length" -- for more interesting grids.
+
+Decision: generate and ship `cw`/`scored`/`words` for **lengths 2..15**, and make the whole
+data pipeline **reproducible in-repo** (it previously was not -- only `scored_N` had a
+generator, and it hardcoded `(2,3,4,5)`; `words_N`/`cw_N` were sliced externally). No engine
+or invariant change -- this is data + drivers.
+
+- **Three parameterized slice/score drivers**, each a thin `scripts/*.py` (ANN-exempt,
+  I/O lives here, not the kernel -- D18): `gen_words.py` (dwyl `words_alpha.txt` -> plain
+  per-length lists), `gen_cw.py` (Crossword-Nexus `xwordlist.dict`, `WORD;score` ->
+  curated per-length lists, floor `score>=25`, dedupe keeping the highest score), and
+  `gen_scored.py` (now `--min-len/--max-len`, scores `words_N` with wordfreq, floor
+  `zipf>=2.0`). Each takes `--min-len/--max-len` and defaults to the canonical upstream URL
+  (or a local `--source`), so any length range regenerates with one command.
+- **The curated list reproduces byte-exact.** `gen_cw.py` re-derives the committed
+  `cw_5.txt` (20,292 words) identically, which pins the filter/sort/dedupe rules as the
+  ground truth for the new lengths. The `words`/`scored` families come from a *moving*
+  upstream (dwyl master), so an already-committed length re-slices to the same *set* but
+  can reorder; the committed 2..5 files were left untouched and only 6..15 were added.
+- **Nothing beyond the data changed.** Same `FileLexicon` read (`<name>_<n>.txt`), same
+  bar-filter, same distinctness/completeness invariants. `max_len` on `CappedLayout`/
+  `GibbsLayout` and the grid order on `FullSquare` are now the only things gating length --
+  a search-cost concern, not a data one.
+
+Findings (this container): a 12x12 capped at `max_len=7`, bar 60, fills with real 7-letter
+entries (SEVENPM, IBETCHA, TVEXECS, TRUSTEE, LENDOUT, ...) in ~3.9 s -- the "more interesting
+grids" payoff. A 6x6 fully-checked double square fills at bar 40 (~length-6 lists). Order-7
+double squares stay hard/rare (a 7x7 `mini` did not finish in 180 s) -- but that is the
+pre-existing search-scaling limit (architecture.md "order 8+ gets rare fast"), now cleanly
+separated from the data gap this closes. Data footprint: ~7.7 MB added (cw 6..15), 9.7 MB total.
+
+Alternatives considered:
+- **Cap the length forever and never ship longer lists (the D24 stance, taken further):**
+  rejected as the *general* answer. D24's point stands -- capping is the right lever for a
+  *short-word* big grid -- but "we can only ever build short-word grids" is a data accident,
+  not a design choice, and word squares / long-entry themed grids are exactly the interesting
+  space the ceiling was hiding. Shipping the data makes `max_len` an honest knob; the cap
+  remains available for those who want short words.
+- **Only ship up to the working search regime (~12):** rejected. Lengths 13..15 sit unused
+  until the uncapped >12x12 layout search is pruned (still open), but shipping the full
+  American-crossword range makes `max_len` gated by *search performance alone*, never by
+  missing data -- the cleaner contract. The cost is ~2 MB of currently-cold lists.
+
+Reversal: additive (30 data files + 3 drivers, no `src` change), so it reverses by deleting
+the 6..15 files. The generators stay useful regardless -- they make the 2..5 lists
+reproducible where before they were not.

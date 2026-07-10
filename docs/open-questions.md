@@ -176,11 +176,15 @@ grid vs brute-force ground truth. What that spike deliberately left open:
   - **Scaling past ~12x12.** Connectivity checked only at the leaf makes the search
     backtrack heavily at 13x13+ (a 15x15 does not finish) — the "pruning before 15x15"
     item below, now concrete. Incremental connectivity/symmetry pruning is the fix.
-- **Word lists longer than 5.** Data is lengths 2..5. With the D24 cap (`max_len <=
-  5`) a big grid needs *nothing longer* — that is the point. Longer lists are only
-  needed for the *un*capped regime (a real 15x15 with 6..15-letter entries), same
-  `cw`/`scored` pipeline, longer slice. Also: the curated list has no usable
-  2-letter entries, so any grid with a length-2 slot is UNSAT on it — fine for
+- **Word lists longer than 5 — DONE (D36).** Data now covers lengths **2..15** for all
+  three families (`cw`/`scored`/`words`), and the slice/score pipeline is reproducible
+  in-repo (`scripts/gen_cw.py`, `gen_words.py`, `gen_scored.py`, each `--min-len/--max-len`).
+  This was always a data gap, not an engine limit — `MultiLexicon` already bucketed by
+  length. `max_len` (capped/Gibbs) and the grid order (`FullSquare` squares) are now gated
+  only by *search cost*, not by missing lists. What this unblocks but does **not** solve:
+  the uncapped >12x12 layout search still doesn't finish (see scaling item below), and
+  order-7+ double squares stay rare/hard. Note still standing: the curated list has no
+  usable 2-letter entries, so any grid with a length-2 slot is UNSAT on it — fine for
   American grids (min length 3).
 - **Layout search pruning before 15x15 (was under D13).** `gen_patterns` enumerates
   raw orbit subsets and `gen_capped` checks connectivity at the leaf — both fine to

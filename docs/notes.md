@@ -79,9 +79,10 @@ real bar (length-2 slots are UNSAT on it).
 ## Large capped minis — 10x10+ (D24, scripts/largemini.py)
 
 The reframing that makes a big mini work: **cap the maximum entry length, don't grow
-the word lists.** A 10x10 with few blacks has length-10 runs (needs 6..10 lists we don't
-have, and would be a monster of obscure long words); cap every entry at `<= max_len` and
-it fills from the length-2..5 data we already ship.
+the word lists.** A 10x10 with few blacks has length-10 runs (would be a monster of obscure
+long words even now that the 6..15 lists exist — D36); cap every entry at `<= max_len` and
+it fills from short-word data alone. (The cap is still the lever for a *short-word* big
+grid; D36 makes a *longer* `max_len` a supported option, not the default aesthetic.)
 
 The count-driven `gen_patterns` (D13) cannot cap: it validates whole layouts at the leaf
 with a min-length-only test, and its orbit-subset order can't prune a run-length bound.
@@ -634,19 +635,22 @@ off-by-default knob. Code is in git; this is the memory.
 
 ## Data provenance and regeneration
 
-Two families, DIFFERENT SCORE SCALES (architecture.md invariant 4):
+Two families, DIFFERENT SCORE SCALES (architecture.md invariant 4). All three lists now
+ship **lengths 2..15** (D36); the ad-hoc awk recipes below were replaced by reproducible
+`scripts/*.py` drivers (each `--min-len/--max-len`, default 2..15, default canonical URL
+or a local `--source`).
 
 Weak baseline — `data/words_N.txt` and `data/scored_N.txt`:
 - Source: dwyl english-words `words_alpha.txt` (~370k words). Public domain.
   URL: https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt
-- GOTCHA: that file has CRLF line endings. `awk 'length($0)==n'` counts the
-  trailing \r, so every length bucket is off by one unless you strip \r first.
-  This bit us; strip with `tr -d '\r'` before filtering.
-- Regenerate length lists:
-    tr -d '\r' < words_alpha.txt > clean.txt
-    for n in 2 3 4 5; do awk -v n=$n 'length($0)==n' clean.txt > data/words_$n.txt; done
-- Scores: `scripts/gen_scored.py` (needs wordfreq) writes `scored_N.txt` as
-  "word zipf" for words with Zipf >= 2.0 (drops zero-signal junk like 'aalii').
+- GOTCHA (historical, now handled in-script): that file has CRLF line endings, so a naive
+  `awk 'length($0)==n'` counts the trailing \r and every length bucket is off by one.
+  `gen_words.py` strips/lowercases/alpha-filters, so this no longer bites.
+- Regenerate: `uv run scripts/gen_words.py` (plain per-length lists), then
+  `uv run --extra scoring scripts/gen_scored.py` (writes `scored_N.txt` as "word zipf"
+  for Zipf >= 2.0, dropping zero-signal junk like 'aalii'). dwyl master is a *moving*
+  upstream: re-slicing an already-committed length gives the same set but may reorder, so
+  only 6..15 were added, 2..5 left as committed.
 
 Curated real list — `data/cw_N.txt`:
 - Source: Crossword-Nexus collaborative word list, MIT licensed.
@@ -654,11 +658,14 @@ Curated real list — `data/cw_N.txt`:
   Format: `WORD;score`, score 0..100, ~567k entries incl. de-spaced phrases and
   proper nouns (uppercase, no spaces). Convention: 60+ solid, 50 acceptable,
   <=30 weak/roll-your-own.
-- Regenerate length-N slice (lowercased, score>=25, sorted by score desc):
-    awk -F';' -v n=$n '$1 ~ /^[A-Za-z]+$/ && length($1)==n && $2>=25 {print tolower($1)" "$2}' \
-      xwordlist.dict | sort -t' ' -k2,2nr -k1,1 > data/cw_$n.txt
+- Regenerate: `uv run scripts/gen_cw.py` (lowercase, alpha-only, score>=25, dedupe keeping
+  the highest score, sorted by score desc then word). This re-derives the committed
+  `cw_5.txt` **byte-exact** (20,292 words) — the reproduction gate that pins the rules.
 - Provenance/licenses also recorded in data/SOURCES.md.
 - Only the DERIVED length lists are committed; the raw dumps are not.
+- Length reach (D36): a 12x12 capped at `max_len=7` (bar 60) fills with real 7-letter
+  entries in ~3.9 s; a 6x6 fully-checked double square fills at bar 40. Order-7 double
+  squares stay hard (a 7x7 `mini` did not finish in 180 s) — a search limit, not a data one.
 - QA finding (D20): for *generating* clean puzzles the practical floor is ~75, not
   the list's "60+ solid" convention. At `min_score 60`, a 5x5 fill admitted `LEDON`
   (a non-word the list rates 60); `min_score 75` produced only real words across
