@@ -11,7 +11,7 @@ Run: uv run scripts/blackcells.py
 
 import time
 
-from puzzledesk.app.blocked import result_of
+from puzzledesk.app.generate import result_of
 from puzzledesk.bootstrap import build
 from puzzledesk.cli import present
 from puzzledesk.core.blocked import BlockedGrid

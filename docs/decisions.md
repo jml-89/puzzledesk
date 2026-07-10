@@ -1459,3 +1459,90 @@ the positional shape, so they needed no edit; this log is the record of *why* th
 
 Reversal: n/a -- consolidation. The hand-rolled parsers are in git if a tool ever needs a
 parse argparse cannot express (none does today).
+
+## D31. Generation input becomes a typed spec algebra; the four fill methods collapse to one
+
+Context: the next front is a REST API (basic puzzle aggregate: create + get). Before wiring
+it, the internal shape it will consume needed formalising. The blocked generator carried the
+smell a serialized API would expose immediately: four near-duplicate methods
+(`BlockedGenerateService.fill_once` / `fill_capped_once` / `fill_capped_gibbs_once` /
+`fill_grid_once`), each a flat bag of overlapping-but-different keyword arguments (rows, cols,
+min_score, max_score, seed, symmetric, min_len shared; num_black / max_len / max_black /
+max_patterns / max_layouts varying), plus `MiniService.generate` and `PuzzleService.generate`
+re-declaring the bag again. Two structural problems: (a) **strategy selection lived in the
+caller as method-name dispatch** — `cli/generate.py` chose which of the four to call with
+`if args.max_len is not None: ... if gibbs: ...`, and the knobs illegal for a given engine
+(`max_black` on Gibbs, `max_layouts` on the count search) were merely absent-or-ignored
+kwargs; (b) **the load-bearing epistemic distinction** — is a `None` a UNSAT *proof*
+(complete search) or budget exhaustion (a sampler)? — was encoded only in the method name
+and a docstring (`cli/puzzle.py::_explain_no_puzzle` reconstructed it by hand).
+
+Decision: model generation input as a typed algebra (`app/spec.py`) and collapse the four
+methods into one strategy-dispatched search (`app/generate.py`, `GenerateService`). This is
+D15's own rule — *"introduce a modelled structure only where an external contract forces
+it"* — applied to generation input. argparse never forced it (named flags are free; D20/D30
+kept the tools positional on purpose), so the services got away with the flat bag. A
+serialized API body *does* force it: the request must be one validatable, versionable
+object. So we model it now, and the internal call sites get the clarity for free.
+
+- **The algebra.** `GridSpec` (the shape + quality band + seed every strategy shares); a
+  **closed, tagged `LayoutStrategy` union** — `FullSquare` / `CountLayout` / `CappedLayout`
+  / `GibbsLayout`, each a frozen record carrying *only its own* knobs; `FillSpec` (the
+  fill-selection knobs `min_hard_gets`/`gimme`, D23 — distinctness is not a knob, always on);
+  and `PuzzleSpec` bundling all four plus a `ClueStyle`. The illegal knob combinations the
+  flat kwargs allowed are now **unrepresentable** (a `GibbsLayout` has no `max_black`), and
+  the proof-vs-budget epistemic tag is `layout_is_complete(layout)` — a property of the
+  *type*, so a caller (the API's future "no puzzle" response) words it honestly from the tag.
+
+- **One dispatched search.** `GenerateService._search(grid, layout)` is a single `match` over
+  the union; `fill_grid` projects it into the model-agnostic `FilledGrid` (D15) for *every*
+  strategy — square or blocked, one call — and `fill` shapes the scored `BlockedResult` for
+  the blocked ones. `layout_exists` likewise dispatches (subsuming the old `layout_exists` +
+  `capped_layout_exists`). Exhaustiveness is enforced by `assert_never`, so adding a fifth
+  engine (the surveyed WFC / template-library routes) is a compile-time obligation at every
+  call site, not an `if`-ladder to remember.
+
+- **The square folds in as `FullSquare`.** A single fully-checked square now flows through
+  `GenerateService.fill_grid(grid, FullSquare())` like any blocked grid — so a square can
+  become a clued puzzle through `PuzzleService` too, uniformly. `MiniService` stays as the
+  square's *batch + scoring* specialist (it keeps the `DoubleSquare`/state the model-agnostic
+  `FilledGrid` cannot carry, to score every word and read `solve_order` difficulty), now
+  spoken in the same `GridSpec`/`FillSpec` vocabulary.
+
+- **`assert_never` on the 3.10 floor.** CLAUDE.md recommends `match` + `typing.assert_never`,
+  but `typing.assert_never` is 3.11+ and the floor is a hard 3.10 ("Modern Python — with one
+  hard boundary"). Resolved by a hand-rolled `spec.assert_never` with a `NoReturn` parameter —
+  the pre-3.11 idiom that gives mypy the *identical* exhaustiveness check without the 3.11
+  import. (A small internal contradiction in CLAUDE.md, resolved in favour of the hard floor.)
+
+Rationale: the API is the forcing function, but the collapse is a strict improvement
+independent of it — one search instead of four, the impossible combinations typed out, the
+epistemics surfaced. Scope held: no engine, invariant (0–5), or user-visible artifact changed
+(all four CLIs and their documented invocations still work byte-for-byte; the benchmark
+drivers were mechanically ported); the full gate — ruff, mypy (the exhaustiveness check
+lands), import-linter (all new edges point down, `app/spec.py` sits in `app`), pytest —
+stays green. `BlockedGenerateService` was renamed `GenerateService` (module `app/blocked.py`
+→ `app/generate.py`, container field `blocked` → `generator`) because it now generates the
+square too; the old name was a misnomer.
+
+Alternatives considered:
+- **A single flat `GenerationConfig` dataclass** (every knob, optional): rejected — it keeps
+  the illegal combinations representable (a `num_black` *and* a `max_len` *and* a
+  `max_layouts` on one object) and pushes "which knobs apply" back into runtime validation.
+  The tagged union makes the engine's legal knobs a type, which is the whole point.
+- **Keep the four methods, add the specs as a thin wrapper**: rejected — it leaves the
+  method-name dispatch and the duplicated search in place; the specs would decorate a mess
+  rather than replace it.
+- **Fold `MiniService` entirely into `GenerateService`**: rejected for now — the square's
+  batch + per-word scoring + difficulty targeting genuinely differ from single-grid
+  generation, and forcing them together would blur invariant 0 (two coexisting models). The
+  square folds in at the *spec/geometry* level (`FullSquare`, `fill_grid`), which is enough.
+- **Pydantic models as the app spec**: rejected — D16 deliberately declined a `pydantic`
+  runtime dependency. The app specs stay plain frozen dataclasses; when the REST layer lands,
+  its wire schema (Pydantic, behind a `web` extra) *parses into* these, never *is* them — the
+  D15 rule that the port speaks the canonical form and serialization is a separate concern.
+
+Reversal: the collapse is consolidation (the old methods are in git). The spec algebra is
+additive and is the seam the REST API and a `PuzzleRepository` port build on (open-questions
+"Generation specs — BUILT (D31)"); if a fifth layout engine or a genuinely different fill
+regime arrives, it is a new union variant + a new `match` arm, caught by `assert_never`.

@@ -17,7 +17,8 @@ Run: uv run scripts/largemini.py
 import time
 from collections import Counter
 
-from puzzledesk.app.blocked import default_black_ceiling
+from puzzledesk.app.generate import default_black_ceiling
+from puzzledesk.app.spec import CappedLayout, GridSpec
 from puzzledesk.bootstrap import build
 from puzzledesk.cli import present
 from puzzledesk.core.engines import patterns
@@ -110,8 +111,9 @@ def fill_rate(container, rows, cols, max_len, bars=(50, 60, 70, 75), seeds=6):
         solved, ftimes, entries = 0, [], 0
         for seed in range(seeds):
             t0 = time.perf_counter()
-            res = container.blocked.fill_capped_once(
-                rows, cols, max_len=max_len, min_score=bar, seed=seed
+            res = container.generator.fill(
+                GridSpec(rows=rows, cols=cols, min_score=bar, seed=seed),
+                CappedLayout(max_len=max_len),
             )
             ftimes.append(time.perf_counter() - t0)
             if res is not None:
@@ -124,8 +126,9 @@ def fill_rate(container, rows, cols, max_len, bars=(50, 60, 70, 75), seeds=6):
 def example(container, rows, cols, max_len, bar):
     print(f"\n=== example {rows}x{cols} mini, max_len={max_len}, bar>={bar} ===")
     for seed in range(20):
-        res = container.blocked.fill_capped_once(
-            rows, cols, max_len=max_len, min_score=bar, seed=seed
+        res = container.generator.fill(
+            GridSpec(rows=rows, cols=cols, min_score=bar, seed=seed),
+            CappedLayout(max_len=max_len),
         )
         if res is not None:
             present.blocked_result(res, container.writer)

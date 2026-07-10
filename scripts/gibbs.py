@@ -35,7 +35,8 @@ Run: uv run scripts/gibbs.py
 
 import time
 
-from puzzledesk.app.blocked import default_black_ceiling
+from puzzledesk.app.generate import default_black_ceiling
+from puzzledesk.app.spec import CappedLayout, GibbsLayout, GridSpec
 from puzzledesk.bootstrap import build
 from puzzledesk.cli import present
 from puzzledesk.core.engines import gibbs_layout, patterns
@@ -128,14 +129,16 @@ def compare_fill(container, rows, cols, max_len, bars=(60, 70), seeds=6):
     print(f"\n=== fill rate {rows}x{cols}, max_len={max_len}, cw list ===")
     for bar in bars:
         line = f"  bar>={bar}: "
-        for name, call in (
-            ("gen_capped", container.blocked.fill_capped_once),
-            ("gibbs", container.blocked.fill_capped_gibbs_once),
+        for name, make_layout in (
+            ("gen_capped", lambda ml=max_len: CappedLayout(max_len=ml)),
+            ("gibbs", lambda ml=max_len: GibbsLayout(max_len=ml)),
         ):
             solved, ftimes, entries = 0, [], 0
             for seed in range(seeds):
                 t0 = time.perf_counter()
-                res = call(rows, cols, max_len=max_len, min_score=bar, seed=seed)
+                res = container.generator.fill(
+                    GridSpec(rows=rows, cols=cols, min_score=bar, seed=seed), make_layout()
+                )
                 ftimes.append(time.perf_counter() - t0)
                 if res is not None:
                     solved += 1
@@ -148,8 +151,9 @@ def compare_fill(container, rows, cols, max_len, bars=(60, 70), seeds=6):
 def example(container, rows, cols, max_len, bar):
     print(f"\n=== example Gibbs-field {rows}x{cols} mini, max_len={max_len}, bar>={bar} ===")
     for seed in range(20):
-        res = container.blocked.fill_capped_gibbs_once(
-            rows, cols, max_len=max_len, min_score=bar, seed=seed
+        res = container.generator.fill(
+            GridSpec(rows=rows, cols=cols, min_score=bar, seed=seed),
+            GibbsLayout(max_len=max_len),
         )
         if res is not None:
             present.blocked_result(res, container.writer)

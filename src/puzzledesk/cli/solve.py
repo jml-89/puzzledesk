@@ -24,8 +24,9 @@ import argparse
 import sys
 from dataclasses import replace
 
-from puzzledesk.app.clue import Difficulty
+from puzzledesk.app.clue import ClueStyle, Difficulty
 from puzzledesk.app.solve import FeedbackPolicy
+from puzzledesk.app.spec import CountLayout, GridSpec, PuzzleSpec
 from puzzledesk.bootstrap import Config, Container, build
 from puzzledesk.cli import present
 
@@ -118,16 +119,18 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _run(c: Container, args: argparse.Namespace) -> None:
-    puzzle = c.puzzle.generate(
-        rows=args.rows,
-        cols=args.cols,
-        num_black=args.black,
-        min_score=args.min_score,
-        max_score=args.max_score,
-        difficulty=Difficulty[args.difficulty.upper()],
-        seed=args.seed,
-        symmetric=args.symmetric,
+    spec = PuzzleSpec(
+        grid=GridSpec(
+            rows=args.rows,
+            cols=args.cols,
+            min_score=args.min_score,
+            max_score=args.max_score,
+            seed=args.seed,
+        ),
+        layout=CountLayout(num_black=args.black, symmetric=args.symmetric),
+        clue=ClueStyle(difficulty=Difficulty[args.difficulty.upper()]),
     )
+    puzzle = c.puzzle.generate(spec)
     if puzzle is None:
         c.writer.line(
             f"no puzzle to solve: nothing fills a {args.black}-black {args.rows}x{args.cols} "

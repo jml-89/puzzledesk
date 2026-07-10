@@ -130,7 +130,7 @@ import-linter: `core < app < adapters < bootstrap < cli` (see
 | `src/puzzledesk/core/engines/patterns.py`   | **block-pattern generation** — from a black-cell *count* (D13) or a *length cap* (`gen_capped`, D24/D25) to legal layouts; `fill_by_count`/`fill_capped` tie layout search to fill |
 | `src/puzzledesk/core/engines/gibbs_layout.py` | **layout field sampler** (D27) — annealed Gibbs over the black-cell field (density/spread/no-2×2), coexisting with the complete search; `fill_gibbs` ties it to fill |
 | `src/puzzledesk/core/engines/bruteforce.py` | exhaustive enumeration (ground truth, tiny orders) |
-| `src/puzzledesk/app/`               | use-case services (`MiniService`, `BlockedGenerateService`, `ClueService`/`PuzzleService` for clues, `SolveService` for the agent probe, `difficulty` analysis), the ports they need (`LexiconSource`, `Writer`, `ClueProvider`, `SolverAgent`), and structured results |
+| `src/puzzledesk/app/`               | use-case services (`MiniService`, `GenerateService`, `ClueService`/`PuzzleService` for clues, `SolveService` for the agent probe, `difficulty` analysis), the typed generation specs (`spec.py`: `GridSpec`/`LayoutStrategy`/`FillSpec`/`PuzzleSpec`), the ports they need (`LexiconSource`, `Writer`, `ClueProvider`, `SolverAgent`), and structured results |
 | `src/puzzledesk/adapters/claude_clue.py`, `claude_solver.py` | the live Claude adapters behind the clue and solver ports (optional `clue` extra; D16/D26) |
 | `src/puzzledesk/adapters/`          | infrastructure implementing the ports: `NumpyRngFactory` (the injected Prng), `FileLexicon` (disk reads), `StreamWriter` |
 | `src/puzzledesk/bootstrap/`         | composition root — `build()` a service `Container` in stages (config → adapters → services) |

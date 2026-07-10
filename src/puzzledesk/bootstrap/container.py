@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from puzzledesk.app.blocked import BlockedGenerateService
 from puzzledesk.app.cluing import ClueService
+from puzzledesk.app.generate import GenerateService
 from puzzledesk.app.mini import MiniService
 from puzzledesk.app.ports import LexiconSource, Writer
 from puzzledesk.app.puzzle_service import PuzzleService
@@ -31,7 +31,7 @@ class Container:
     lexicon: LexiconSource
     writer: Writer
     mini: MiniService
-    blocked: BlockedGenerateService
+    generator: GenerateService
     clue: ClueService
     puzzle: PuzzleService
     solve: SolveService

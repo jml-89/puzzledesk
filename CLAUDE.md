@@ -41,9 +41,14 @@ The two grid models, the engines, the lexicon, `validate`. Rules:
 
 ### app — use-case services + ports (`src/puzzledesk/app/`)
 
-`MiniService`, `BlockedGenerateService`, and the ports they need from outside
-(`app/ports.py`: `LexiconSource`, `Writer`). Services orchestrate the core through
-ports and return structured results (`app/results.py`). **They must not import a
+`MiniService` (the square batch), `GenerateService` (one grid for any layout
+strategy), `PuzzleService` (the end-to-end compose), and the ports they need from
+outside (`app/ports.py`: `LexiconSource`, `Writer`). Services orchestrate the core
+through ports and return structured results (`app/results.py`). Generation input is
+*modelled*, not a bucket of kwargs: `app/spec.py` holds the typed request algebra —
+`GridSpec` + a closed `LayoutStrategy` union (`FullSquare`/`CountLayout`/`CappedLayout`/
+`GibbsLayout`) + `FillSpec`, bundled as `PuzzleSpec` — dispatched with `match` +
+`assert_never` (D31). **They must not import a
 concrete adapter, read a file, or print** — that inversion is the whole point and
 the linter enforces it (`app → adapters` is a broken contract). The two *soft*
 LLM-backed stages live here too, each fenced behind a port with the model in an

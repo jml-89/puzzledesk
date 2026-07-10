@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from puzzledesk.app.spec import FillSpec, GridSpec
 from puzzledesk.bootstrap import build
 from puzzledesk.cli import present
 
@@ -74,14 +75,9 @@ def main(argv: list[str] | None = None) -> None:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
 
     container = build()
-    batch = container.mini.generate(
-        args.n,
-        min_score=args.min_score,
-        max_score=args.max_score,
-        count=args.count,
-        min_hard_gets=args.min_hard_gets,
-        gimme=args.gimme,
-    )
+    grid = GridSpec(rows=args.n, cols=args.n, min_score=args.min_score, max_score=args.max_score)
+    sel = FillSpec(min_hard_gets=args.min_hard_gets, gimme=args.gimme)
+    batch = container.mini.generate(grid, sel, count=args.count)
     present.mini_batch(batch, container.writer)
 
 
