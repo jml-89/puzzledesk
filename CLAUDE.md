@@ -124,7 +124,10 @@ uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the 
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the
   code or change the shared config in `pyproject.toml` with a reason. The `select`
-  set is broad on purpose (`E W F I UP B C4 SIM ANN RUF`).
+  set is broad on purpose (`E W F I UP B C4 SIM ANN TID RUF`). `TID`
+  (`ban-relative-imports = "all"`) means **imports are absolute (`puzzledesk.*`),
+  never relative** — Ruff enforces the *spelling* of an import, import-linter the
+  *architecture*; both are structural, not review conventions. It is auto-fixable.
 - **import-linter is authoritative for the architecture.** Two contracts in
   `pyproject.toml` (`[tool.importlinter]`) *are* the boundary spec: the `layers`
   contract (D14) and a `forbidden` contract keeping the OS (`os`/`io`/`sys`/

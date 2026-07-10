@@ -58,11 +58,19 @@ select = [
     "C4",   # flake8-comprehensions
     "SIM",  # flake8-simplify
     "ANN",  # flake8-annotations (drive type-hint coverage)
+    "TID",  # flake8-tidy-imports (ban relative imports -- absolute only)
     "RUF",  # ruff-specific
 ]
 ignore = [
     "ANN401",  # allow explicit typing.Any where genuinely needed
 ]
+
+# Imports are absolute (`puzzledesk.*`), never relative -- enforced, not a
+# convention. Ruff enforces the *spelling* of an import (this rule); import-linter
+# enforces the *architecture* (which layer may import which). `all` bans both `.`
+# (same-package) and `..` (parent) forms; `TID252` is auto-fixable.
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 # Scripts are small experiment/benchmark drivers; don't require annotating the
