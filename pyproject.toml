@@ -3,7 +3,7 @@ name = "puzzledesk"
 version = "0.1.0"
 description = "Dense crossword (double word square) generation — NYT-mini style."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [{ name = "jml-89" }]
 dependencies = [
@@ -44,7 +44,7 @@ packages = ["src/puzzledesk"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py313"
 src = ["src", "scripts"]
 
 [tool.ruff.lint]
@@ -81,7 +81,7 @@ ban-relative-imports = "all"
 
 [tool.mypy]
 files = ["src/puzzledesk"]
-python_version = "3.10"
+python_version = "3.13"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 warn_redundant_casts = true

@@ -150,21 +150,25 @@ uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the 
 - In CI or any reproducible run, prefer `uv sync --frozen` / `uv run --frozen` so
   the committed `uv.lock` is honoured rather than silently resolved.
 
-## Modern Python — with one hard boundary
+## Modern Python — the floor is 3.13
 
-The house style is already modern: `from __future__ import annotations`,
-PEP-604 `X | None`, `@dataclass`, `pathlib`, keyword-only args (`def solve(sq, *,
-…)`). Keep it. Reach further where it buys clarity or immutability:
+The house style is modern: `from __future__ import annotations`, PEP-604 `X | None`,
+`@dataclass`, `pathlib`, keyword-only args (`def solve(sq, *, …)`). Keep it. Reach
+further where it buys clarity or immutability:
 
 - `@dataclass(slots=True, frozen=True)` for value types (verdicts, slot/grid records);
-- `match` + `typing.assert_never` for dispatch over the two coexisting grid models;
+- `match` + `typing.assert_never` for dispatch over closed unions (the two coexisting
+  grid models, the `LayoutStrategy` union) — the stdlib one, imported directly;
 - `Protocol` for the shared engine surface (a `solve(...) -> state | None`).
 
-**The boundary:** `requires-python = ">=3.10"` and ruff `target-version =
-"py310"`. The dev container runs 3.11, so `StrEnum`, `tomllib`, and PEP-695
-`type`/generic syntax will *import locally but break the stated floor*. Do not
-use 3.11+-only features until the floor is deliberately raised (that is a D-entry
-decision, not a drive-by). "Modern" means modern *within 3.10*.
+**The floor:** `requires-python = ">=3.13"`, ruff `target-version = "py313"`, mypy
+`python_version = "3.13"` (D32). 3.10 was security-only and is retired. The whole 3.11–3.13
+toolbox is now *in bounds* — `typing.assert_never`, `StrEnum`, `tomllib`, PEP-695
+`type X = …` alias / `class Foo[T]` generic syntax, `@typing.override`. Use them where they
+earn it (the old `NoReturn` `assert_never` shim from D31 is gone — `typing.assert_never`
+replaced it). Raising the floor again (e.g. to 3.14 once the environment can provision and
+verify it) is a deliberate D-entry decision, not a drive-by — but there is no longer a
+sub-3.13 boundary to police.
 
 ## Tests as contracts (wired — D14)
 

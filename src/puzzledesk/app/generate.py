@@ -29,6 +29,7 @@ budgeted/sampled one it is budget exhaustion.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import assert_never
 
 import numpy as np
 
@@ -42,7 +43,6 @@ from puzzledesk.app.spec import (
     GibbsLayout,
     GridSpec,
     LayoutStrategy,
-    assert_never,
 )
 from puzzledesk.core.blocked import BlockedGrid
 from puzzledesk.core.engines import backtrack, fill, gibbs_layout, patterns

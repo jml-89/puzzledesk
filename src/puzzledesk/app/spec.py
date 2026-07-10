@@ -32,21 +32,9 @@ the port speaks the canonical form, the serialization is an export concern).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NoReturn
+from typing import assert_never
 
 from puzzledesk.app.clue import ClueStyle
-
-
-def assert_never(value: NoReturn) -> NoReturn:
-    """Exhaustiveness guard for a ``match`` over a closed union: reaching it is a type
-    error mypy catches (the parameter is ``NoReturn``), so adding a new
-    :data:`LayoutStrategy` variant fails the type check at every dispatch until handled.
-
-    Hand-rolled rather than imported from ``typing`` on purpose: ``typing.assert_never``
-    is 3.11+, and the project floor is a hard 3.10 (CLAUDE.md, "Modern Python -- with one
-    hard boundary"). The ``NoReturn`` idiom gives the identical static check on 3.10.
-    """
-    raise AssertionError(f"unhandled case: {value!r}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +106,7 @@ class GibbsLayout:
 
 
 #: The closed set of layout strategies. Dispatch over it with ``match`` +
-#: :func:`assert_never` so a new engine is a compile-time obligation at every call site.
+#: ``typing.assert_never`` so a new engine is a compile-time obligation at every call site.
 LayoutStrategy = FullSquare | CountLayout | CappedLayout | GibbsLayout
 
 
