@@ -360,6 +360,32 @@ solver, not the setter. Consequence for the difficulty model: layer A should be 
 *fairness floor + Natick-avoidance constraint*, and graded difficulty should be sought in layer B
 (clue) with the fill held above the floor.
 
+### Haiku 2D matrix -- the completion signal un-saturates, along the CLUE axis
+
+Same 2x2 with the weaker solver (Haiku 4.5, enabled thinking budget 10k, opus-written clues),
+`--policy none`, solved/4 per cell:
+
+    solved/4     Monday   Saturday
+    common       3/4      1/4      <- most failures
+    obscure      4/4      3/4
+
+- **Failures track obliqueness, not obscurity.** Saturday = 4/8 fails; Monday = 1/8. And
+  **obscure/Monday is a clean 4/4 sweep** -- the weaker solver had *zero* trouble with the "obscure"
+  band under precise clues. The word axis stayed dormant *even for Haiku*, because [60,75] is still
+  *famous* crossword vocabulary (AMMAN/LORRE/NOME/ENOS) it knows -- the cliff is beyond our band for
+  both models. Third independent confirmation (Opus tokens, Haiku failures, human experience) that
+  obscurity within the known-word regime is not a difficulty axis.
+- **The failures are genuine, verified by transcript** (not another artifact): on a failed
+  common/Saturday grid Haiku places a *complete but wrong* fill each turn and, with no feedback,
+  second-guesses itself into *different* wrong fills (6A cycled DRYAD->DRUID->NOMAD->REBEL) without
+  converging -- a real solver defeated by oblique clues, not an empty-move stop. (Only the final turn
+  truncated; the failure predates it.)
+- Caveat on the Haiku numbers: enabled-mode thinking (fixed 10k budget) plus Haiku's verbosity
+  occasionally overflows the 16k non-streaming cap on a late turn (annotated). It hampers the tail,
+  not the qualitative verdict. A cleaner weak-solver probe would *restrict the solver's word list*
+  (the real analogue of a bounded-vocabulary human) rather than lean on model weakness, which is
+  erratic rather than cleanly bounded.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed
