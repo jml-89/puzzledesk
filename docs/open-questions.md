@@ -98,18 +98,27 @@ The one thing that would unblock B and C, and grow A′ into the trajectory mode
 **human solve-time signal** (playtesting or logged solves) to calibrate IRT `θ`/`b`
 against. Until then difficulty is what we can compute and prove, and no more.
 
-**Empirical probe — SPIKED (D24).** `app/solve_service.SolveService` now puts a *soft*
-solver (a Claude agent, `adapters/claude_solver.py`) in a feedback loop against a generated
-puzzle (`uv run solve`), and records whether it finished and — the richer read — its
-turn-by-turn **reasoning**. This is a cheap *proxy* for the missing human signal: the
-empirical counterpart to `solve_order`'s modelled bottleneck. Open follow-ups: (i) it is not
-yet *calibrated* against or *compared* to `solve_order` (the payoff is closing that loop — a
-solver stalling where the model predicts a Natick validates the model); (ii) there is no
-**judge** reading the transcript into a difficulty number (another soft stage; human
-inspection for now); (iii) the feedback policy (the empirical `gimme`) and turn budget are
-uncalibrated knobs — an LLM agent is a proxy for *a* solver, not *the* human distribution, so
-it brackets difficulty, it does not measure it (the same honesty `solve_order` keeps about
-`gimme`). A budget miss is "not solved in N turns", never a proof (unlike the fill engines).
+**Empirical probe — SPIKED (D24).** `app/solve_service.SolveService` puts a *soft* solver (a
+Claude agent, `adapters/claude_solver.py`) in a feedback loop against a generated puzzle
+(`uv run solve`) and records whether it finished and, the richer read, its reasoning — with
+**reasoning-token spend** the graded difficulty tell (completion saturates: a strong model
+one-shots every mini). What it found (full write-up in notes.md, "Agent solve loop"):
+
+- **Clue obliqueness is the fair, graded difficulty axis** (Mon→Sat ≈ 2× reasoning); the
+  Mon..Sat enum now drives it in the clue prompt.
+- **Word obscurity is not a slope but a cliff.** Within the known-word regime it is inert (for
+  Opus *and* Haiku); it only bites at an **unknown × unknown crossing** — a Natick — which the
+  vocabulary-floor probe reproduced *empirically* (the solver failed at exactly the cell
+  `analyze` flags). So D21 layer A is really the fairness floor + Natick-avoidance, not a dial.
+- Method caution earned twice (reading transcripts, not the table): a `max_tokens` truncation
+  once faked a difficulty spike; and a score-floor is a leaky proxy for an LLM's vocabulary
+  (it knows famous low-score names). A budget miss is "not solved in N turns", never a proof.
+
+Still open: (i) a **judge** turning a transcript into a difficulty number (another soft stage;
+human inspection for now); (ii) calibrating the policy/budget knobs against *human* solve
+times (an LLM brackets *a* solver, not *the* distribution); (iii) the faithful bounded-human
+solver is the deterministic `solve_order` run against a **vocabulary-floored** lexicon (an LLM
+cannot truly forget words), which would give the bounded-difficulty curve directly.
 
 ## Puzzle quality beyond word-score
 

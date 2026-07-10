@@ -7,15 +7,22 @@ the credential (resolved by the composition root from ``Config.clue_api_key_env`
 injected), and the reasoning capture all live *here*, beside ``ClaudeClueProvider``.
 
 **Reasoning is the measurement, so the call is shaped to expose it** (D24; verified live,
-see notes.md "Agent solve loop"). The solver runs with **adaptive thinking**
-(``thinking={"type":"adaptive"}`` + ``output_config={"effort":...}``) and, deliberately,
-*without* a forced JSON schema: structured output suppresses the extended-thinking pass and
-zeros ``thinking_tokens``, which is exactly the signal we are after -- for a model that
-solves every mini, *how much it had to think* is the graded difficulty tell, not whether it
-finished. So the model reasons freely in the text block (readable prose) and ends with a
-JSON object we parse leniently; ``SolverMove.reasoning_tokens`` carries the thinking-token
-count from ``usage``. (The thinking block itself is returned redacted/empty on current
-models, so the readable reasoning is the text block; the token *count* is the scalar.)
+see notes.md "Agent solve loop"). Two shaping choices:
+
+  * **Thinking is on, and its mode is per model** (``_thinking_kwargs``): Opus-family
+    ``adaptive`` (+ ``output_config.effort``), Haiku-family ``enabled`` (+ a token budget) --
+    each 400s on the other's mode, hence the ``Config.solve_thinking`` knob.
+  * **No forced JSON schema.** Structured output suppresses the thinking pass and zeros
+    ``thinking_tokens`` -- exactly the signal we want: for a model that solves every mini,
+    *how much it had to think* is the graded difficulty tell, not whether it finished. So the
+    model reasons freely in the text block (readable prose) and ends with a JSON object we
+    parse leniently; ``SolverMove.reasoning_tokens`` carries ``usage``'s thinking-token count.
+    (The thinking *block* is returned redacted/empty, so the prose is the readable trace and
+    the count is the scalar.)
+
+The call stays **non-streaming** with ``max_tokens`` under the SDK's ~21.3k non-streaming
+ceiling, because only the non-streaming ``Message`` surfaces ``thinking_tokens``; the budget
+must still dwarf the thinking spend or the answer is starved (D24 -- surfaced, not looped on).
 
 ``anthropic`` is the optional ``clue`` extra, imported lazily; the container builds without
 it and only a live solve needs the SDK and a key. The pure helpers (render/prompt/parse) are
@@ -159,8 +166,8 @@ def _thinking_tokens(usage: Any) -> int | None:
 
 
 class ClaudeSolverAgent:
-    """``app.solver.SolverAgent`` backed by the Anthropic SDK, running with adaptive
-    thinking so the reasoning-token count (the difficulty tell) is exposed."""
+    """``app.solver.SolverAgent`` backed by the Anthropic SDK, with thinking on (mode per
+    model) so the reasoning-token count (the difficulty tell) is exposed."""
 
     def __init__(
         self,

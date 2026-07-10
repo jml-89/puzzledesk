@@ -145,10 +145,6 @@ class EntryView:
     letters: tuple[str | None, ...]
 
     @property
-    def ref(self) -> EntryRef:
-        return (self.number, self.direction)
-
-    @property
     def length(self) -> int:
         return len(self.letters)
 
@@ -178,10 +174,6 @@ class SolveView:
     @property
     def solved(self) -> bool:
         return self.feedback.solved
-
-    def numbering(self) -> dict[Cell, int]:
-        """Start-cell -> clue number, derived from the entries (public geometry)."""
-        return {e.cells[0]: e.number for e in (*self.across, *self.down)}
 
     def letter_grid(self) -> tuple[tuple[str | None, ...], ...]:
         """The display grid: ``None`` per black square, ``""`` per blank white cell,

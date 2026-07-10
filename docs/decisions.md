@@ -974,7 +974,9 @@ count is the scalar). `SolveReport.total_reasoning_tokens` sums it; the presente
 This is why the solver adapter is free-form while the clue adapter stays structured — cluing
 does not need a thinking measurement, solving *is* one. `--model`/`--effort` (and
 `Config.solve_model`) let a weaker/cheaper solver be pitted against the same grid, since a
-harder-for-this-solver puzzle should cost more reasoning.
+harder-for-this-solver puzzle should cost more reasoning; `Config.solve_thinking` selects the
+thinking mode per model family (Opus `adaptive`, Haiku `enabled`), since each 400s on the
+other's.
 
 **Live check + first findings.** The whole path runs against the real API in-container.
 Confirmed: at mini scale Opus 4.8 **one-shots the grid even under `--policy none` (no

@@ -380,9 +380,14 @@ work (D21/D22) is blocked on.
   (the difficulty artifact). **A turn-budget miss is `exhausted`, never a proof** — the
   completeness epistemics (D23) restated on the solving side; only the fill engines prove UNSAT.
 - `adapters/claude_solver.py` is the live agent behind the port (the *second* LLM consumer,
-  D16/D24; extended-thinking captured as the reasoning trace); `cli/solve.py` composes it end
-  to end (generate a clued puzzle, then solve it), `present.solve_report` renders the transcript.
-  Tests drive the whole loop with a `FakeSolverAgent` — no model, no network.
+  D16/D24). It runs with thinking on (mode per model) and *without* a forced JSON schema, so
+  `SolverMove.reasoning_tokens` can carry the model's thinking-token count — **the difficulty
+  tell**: for a solver that finishes every mini, *how much it had to think* is the graded
+  signal, not whether it solved (`SolveReport.total_reasoning_tokens` sums it). `cli/solve.py`
+  composes it end to end (generate a clued puzzle, then solve it), `present.solve_report`
+  renders the transcript. Tests drive the whole loop with a `FakeSolverAgent` — no model, no
+  network. What difficulty this actually measures is recorded in notes.md (short version: clue
+  obliqueness is the graded axis; word obscurity is a structural cliff, not a slope).
 
 ## Entry points
 
