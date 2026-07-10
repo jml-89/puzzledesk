@@ -72,9 +72,10 @@ blocks fills from the curated list (bar>=50) in a few ms per seed; raising the b
 on a fixed pattern the length-3 bucket empties between bar 90 (SAT, ~200 ms real
 search) and 92 (0 three-letter words -> UNSAT), the blocked echo of "the lexicon
 is the ceiling". Tiny 2x3 blocked grid: 66,201 distinct fills brute-forced as
-ground truth, solver output a strict subset over 60 seeds. Data covers lengths
-2..5, so demos use slots <= 5; the curated list has no 2-letter entry above any
-real bar (length-2 slots are UNSAT on it).
+ground truth, solver output a strict subset over 60 seeds. (These demos used slots
+<= 5 because that was the data reach at the time; data now covers 2..15 — D36 /
+lesson-length-ceiling.md.) The curated list has no 2-letter entry above any real bar
+(length-2 slots are UNSAT on it).
 
 ## Large capped minis — 10x10+ (D24, scripts/largemini.py)
 

@@ -7,12 +7,17 @@ does **not** restate the design — that lives in `docs/`, and you should read i
 - `docs/roadmap.md` — the chosen forward **direction** (D34): ship a playable product and
   close the human-solve loop. The one forward-looking doc; everything else here is memory.
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D35). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D36). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution
   counting + distinctness pruning), measured and tombstoned. Read before re-attempting
   either, and for a synthesis of the whole methods arc.
+- `docs/lesson-length-ceiling.md` — why the 2..5 word-length ceiling was a *data* accident,
+  not a design limit (closed at D36), and the load-bearing distinction between **max word
+  length** (vocabulary → less-dense grids) and **double-square order** (density/search).
+  Read before reasoning about grid size or "how long a word can we hold"; it indexes the
+  older, assumption-laden decisions so you read them right.
 - `CONTRIBUTING.md` — branch/commit/PR etiquette. Read before you push.
 
 When this file and `docs/architecture.md` seem to disagree, `architecture.md`
