@@ -1,25 +1,10 @@
-"""Build the site/ sample pages from puzzles.json.
-
-Emits one self-contained playable HTML page per puzzle plus an index gallery.
-The player is black-cell aware and derives all structure (entries, numbering,
-navigation) from the embedded puzzle data.
-"""
-from __future__ import annotations
-
-import json
-import re
-import sys
-from pathlib import Path
-
-
-def emph(text: str) -> str:
-    """Render *word* markdown emphasis as <em>."""
-    return re.sub(r"\*([^*]+)\*", r"<em>\1</em>", text)
-
-SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent / "puzzles.json"
-OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).parent
-
-CSS = r"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Freeform Mini — puzzledesk sample</title>
+<style>
 :root{
   --bg:#ece9e2;--surface:#f7f5ef;--cell:#fcfbf7;--ink:#1b1915;--muted:#6c665b;
   --faint:#928b7d;--line:#cec9bd;--line-strong:#2a2620;--accent:#8f2734;
@@ -148,10 +133,55 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
 .thumb .tg{display:grid;background:var(--line-strong);border:2px solid var(--line-strong);gap:1px}
 .thumb .tc{background:var(--cell)}
 .thumb .tc.b{background:var(--black)}
-"""
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">
+      <span>5×5 · Asymmetric black cells · <span class="day">Tuesday</span></span>
+      <span><a href="index.html">← all samples</a> &nbsp; <button class="theme-toggle" id="themeBtn" type="button">Theme</button></span>
+    </div>
+    <h1>The Freeform Mini</h1>
+    <p class="dek">The same 5×5, four-black search as <em>The Blocked Mini</em> — but with the 180° symmetry requirement switched off. The blacks fall where the grid wants them, not in mirrored pairs, and the whole layout tilts.</p>
+  </header>
 
-# ---- shared player JS (black-cell aware) ------------------------------------------
-PLAYER_JS = r"""
+  <section class="play">
+    <div class="board-col">
+      <div class="grid" id="grid" role="group" aria-label="Crossword grid"></div>
+      <div class="curclue" id="curclue"></div>
+      <div class="controls">
+        <button class="btn primary" id="checkBtn" type="button">Check</button>
+        <button class="btn" id="revealBtn" type="button">Reveal</button>
+        <button class="btn" id="clearBtn" type="button">Clear</button>
+      </div>
+      <div class="status" id="status" aria-live="polite">Click a square and type. Click again — or press space — to switch direction.</div>
+    </div>
+    <div class="clues">
+      <div><h2>Across</h2><ol class="clue-list" id="acrossClues"></ol></div>
+      <div><h2>Down</h2><ol class="clue-list" id="downClues"></ol></div>
+    </div>
+  </section>
+
+  <section class="note">
+    <div><span class="thumb"><span class="tg" style="width:120px;height:120px;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr)"><span class="tc b"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc b"></span><span class="tc"></span><span class="tc"></span><span class="tc"></span><span class="tc b"></span><span class="tc b"></span></span></span>
+      <div class="facts"><span><b>5×5</b></span><span><b>4</b> black</span><span><b>10</b> entries</span></div>
+    </div>
+    <div>
+      <div class="kicker">How it was made</div>
+      <h3>Asymmetric black cells</h3>
+      <p>The same count-driven complete search as its neighbour, with one constraint lifted: pass <em>--nonsymmetric</em> and the layout is no longer restricted to 180°-rotation orbits, so the four blacks land wherever a legal, connected, fully-checked grid allows. Symmetry was always a default-on toggle here, not a hardwired rule (D13). The search stays complete and the fill still solves it above the bar, every entry distinct — only the mirror is gone.</p>
+      <p>Every entry cleared the quality bar and all entries are distinct — enforced by the generator, not curated after the fact. Regenerate an equivalent with <code>uv run generate 5 5 4 72 1 --nonsymmetric</code>.</p>
+    </div>
+  </section>
+
+  <p class="colophon">
+    puzzledesk · the grid is computed by the engines; the clues are written live by the model behind the clue port.
+    Answers are checked in your browser, never stored — <a href="index.html">back to the gallery</a>.
+  </p>
+</div>
+<script>var DATA={"rows": 5, "cols": 5, "cells": [[null, "M", "A", "M", "A"], ["L", "U", "C", "I", "D"], ["A", "C", "T", "E", "D"], ["S", "H", "U", "N", null], ["H", "O", "P", null, null]], "numbering": {"0,1": 1, "0,2": 2, "0,3": 3, "0,4": 4, "1,0": 5, "2,0": 6, "3,0": 7, "4,0": 8}, "across": [{"num": 1, "clue": "Word before or after \"mia\"", "answer": "MAMA", "len": 4, "cells": [[0, 1], [0, 2], [0, 3], [0, 4]]}, {"num": 5, "clue": "Clear and easy to understand", "answer": "LUCID", "len": 5, "cells": [[1, 0], [1, 1], [1, 2], [1, 3], [1, 4]]}, {"num": 6, "clue": "Performed on stage", "answer": "ACTED", "len": 5, "cells": [[2, 0], [2, 1], [2, 2], [2, 3], [2, 4]]}, {"num": 7, "clue": "Deliberately avoid", "answer": "SHUN", "len": 4, "cells": [[3, 0], [3, 1], [3, 2], [3, 3]]}, {"num": 8, "clue": "Bunny's movement", "answer": "HOP", "len": 3, "cells": [[4, 0], [4, 1], [4, 2]]}], "down": [{"num": 1, "clue": "A lot, in Spanish", "answer": "MUCHO", "len": 5, "cells": [[0, 1], [1, 1], [2, 1], [3, 1], [4, 1]]}, {"num": 2, "clue": "Misbehave, as a kid", "answer": "ACTUP", "len": 5, "cells": [[0, 2], [1, 2], [2, 2], [3, 2], [4, 2]]}, {"num": 3, "clue": "Person's demeanor", "answer": "MIEN", "len": 4, "cells": [[0, 3], [1, 3], [2, 3], [3, 3]]}, {"num": 4, "clue": "Do some arithmetic", "answer": "ADD", "len": 3, "cells": [[0, 4], [1, 4], [2, 4]]}, {"num": 5, "clue": "Whip stroke", "answer": "LASH", "len": 4, "cells": [[1, 0], [2, 0], [3, 0], [4, 0]]}]};</script>
+<script>
 (function(){
   var P = DATA;
   var R = P.rows, C = P.cols;
@@ -285,182 +315,6 @@ PLAYER_JS = r"""
 
   var f=firstWhite();if(f)setActive(f[0],f[1],true);
 })();
-"""
-
-
-def thumb(cells, size=120):
-    r = len(cells)
-    c = len(cells[0])
-    px = size
-    tiles = []
-    for row in cells:
-        for x in row:
-            tiles.append(f'<span class="tc{" b" if x is None else ""}"></span>')
-    return (f'<span class="thumb"><span class="tg" style="width:{px}px;height:{px}px;'
-            f'grid-template-columns:repeat({c},1fr);grid-template-rows:repeat({r},1fr)">'
-            + "".join(tiles) + "</span></span>")
-
-
-PAGE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title} — puzzledesk sample</title>
-<style>{css}</style>
-</head>
-<body>
-<div class="wrap">
-  <header class="masthead">
-    <div class="eyebrow">
-      <span>{sizelabel} · {tag} · <span class="day">{difficulty}</span></span>
-      <span><a href="index.html">← all samples</a> &nbsp; <button class="theme-toggle" id="themeBtn" type="button">Theme</button></span>
-    </div>
-    <h1>{title}</h1>
-    <p class="dek">{blurb}</p>
-  </header>
-
-  <section class="play">
-    <div class="board-col">
-      <div class="grid" id="grid" role="group" aria-label="Crossword grid"></div>
-      <div class="curclue" id="curclue"></div>
-      <div class="controls">
-        <button class="btn primary" id="checkBtn" type="button">Check</button>
-        <button class="btn" id="revealBtn" type="button">Reveal</button>
-        <button class="btn" id="clearBtn" type="button">Clear</button>
-      </div>
-      <div class="status" id="status" aria-live="polite">Click a square and type. Click again — or press space — to switch direction.</div>
-    </div>
-    <div class="clues">
-      <div><h2>Across</h2><ol class="clue-list" id="acrossClues"></ol></div>
-      <div><h2>Down</h2><ol class="clue-list" id="downClues"></ol></div>
-    </div>
-  </section>
-
-  <section class="note">
-    <div>{thumb}
-      <div class="facts"><span><b>{rows}×{cols}</b></span><span><b>{black}</b> black</span><span><b>{entries}</b> entries</span></div>
-    </div>
-    <div>
-      <div class="kicker">How it was made</div>
-      <h3>{tag}</h3>
-      <p>{note}</p>
-      <p>Every entry cleared the quality bar and all entries are distinct — enforced by the generator, not curated after the fact. Regenerate an equivalent with <code>{make}</code>.</p>
-    </div>
-  </section>
-
-  <p class="colophon">
-    puzzledesk · the grid is computed by the engines; the clues are written live by the model behind the clue port.
-    Answers are checked in your browser, never stored — <a href="index.html">back to the gallery</a>.
-  </p>
-</div>
-<script>var DATA={data};</script>
-<script>{js}</script>
-</body>
-</html>
-"""
-
-
-def size_label(p):
-    n = p["rows"]
-    if p["black"] == 0:
-        return f'{n}×{p["cols"]} · themeless'
-    return f'{n}×{p["cols"]}'
-
-
-def build_page(p):
-    return PAGE.format(
-        title=p["title"], css=CSS, js=PLAYER_JS,
-        tag=p["tag"], difficulty=p["difficulty"], blurb=emph(p["blurb"]),
-        sizelabel=f'{p["rows"]}×{p["cols"]}' + (" · themeless" if p["stats"]["black"] == 0 else ""),
-        note=emph(p["note"]), make=p["make"],
-        rows=p["rows"], cols=p["cols"], black=p["stats"]["black"], entries=p["stats"]["entries"],
-        thumb=thumb(p["cells"]),
-        data=json.dumps({
-            "rows": p["rows"], "cols": p["cols"], "cells": p["cells"],
-            "numbering": p["numbering"], "across": p["across"], "down": p["down"],
-        }, ensure_ascii=False),
-    )
-
-
-INDEX = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>puzzledesk — playable samples</title>
-<style>{css}</style>
-</head>
-<body>
-<div class="wrap">
-  <header class="masthead">
-    <div class="eyebrow">
-      <span>puzzledesk · <span class="day">playable samples</span></span>
-      <button class="theme-toggle" id="themeBtn" type="button">Theme</button>
-    </div>
-    <h1>Seven ways to build a crossword</h1>
-    <p class="lede">Every grid below was <b>generated by the engines</b> and <b>clued live</b> by the
-    model behind the clue port — nothing hand-placed. Each one is playable, and each demonstrates a
-    different piece of the system: the dense word-square, black cells found from a count, a 10×10 that
-    fills from a short word list, a black-cell pattern sampled from an energy field, and the difficulty
-    model that can prove a mini is a Saturday. Two of them come in pairs — the same search with
-    <b>180° symmetry switched off</b>, so you can see how a freeform, asymmetric layout looks and
-    feels next to the mirrored convention.</p>
-  </header>
-  <div class="gallery">
-    {cards}
-  </div>
-  <p class="colophon">
-    puzzledesk · grids computed, clues generated, answers checked in the browser and never stored.
-    See the <a href="https://github.com/jml-89/puzzledesk">repository</a> and its
-    <code style="font-family:var(--mono)">docs/</code> for how each engine works.
-  </p>
-</div>
-<script>
-(function(){{var root=document.documentElement;document.getElementById("themeBtn").addEventListener("click",function(){{
-  var cur=root.getAttribute("data-theme");if(!cur)cur=window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light";
-  root.setAttribute("data-theme",cur==="dark"?"light":"dark");}});}})();
 </script>
 </body>
 </html>
-"""
-
-CARD = """<a class="card" href="{href}">
-  <div class="top">{thumb}
-    <div><div class="tag">{tag}</div><h2>{title}</h2><div class="day">{sub}</div></div>
-  </div>
-  <p>{blurb}</p>
-  <div class="go">Play →</div>
-</a>"""
-
-
-def main():
-    puzzles = json.loads(SRC.read_text())
-    OUT.mkdir(exist_ok=True)
-    for p in puzzles:
-        # normalise stats access
-        p.setdefault("stats", {"black": p.get("black", 0), "entries": p.get("entries", 0)})
-        (OUT / f'{p["id"]}.html').write_text(build_page(p))
-
-    # gallery cards: the four generated + the featured saturday
-    cards = []
-    for p in puzzles:
-        cards.append(CARD.format(
-            href=f'{p["id"]}.html', thumb=thumb(p["cells"], 74), tag=p["tag"],
-            title=p["title"], sub=f'{p["rows"]}×{p["cols"]} · {p["difficulty"]} clues',
-            blurb=emph(p["blurb"]),
-        ))
-    # Saturday featured card (hand-made difficulty showcase, existing page)
-    sat_cells = [["S", "S", "S", "S", "S"]] * 5  # solid preview stands in for the full square
-    cards.append(CARD.format(
-        href="saturday-mini.html", thumb=thumb([[c for c in "XXXXX"] for _ in range(5)], 74),
-        tag="Difficulty model", title="The Saturday Mini", sub="5×5 · Saturday, proven",
-        blurb="The difficulty engine picks and clues a 5×5, then the solver model proves it "
-              "is a Saturday: the same grid needs 8 hard gets under Saturday cluing, 1 under weekday.",
-    ))
-    (OUT / "index.html").write_text(INDEX.format(css=CSS, cards="\n    ".join(cards)))
-    print(f"wrote {len(puzzles)} pages + index to {OUT}")
-
-
-if __name__ == "__main__":
-    main()
