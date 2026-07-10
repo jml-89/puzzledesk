@@ -1815,11 +1815,20 @@ Context: every list shipped covered lengths 2..5 only, and the docs repeatedly f
 "word lists longer than 5" as an open, un-built item (architecture.md, open-questions.md).
 This was never an engine limit -- `Lexicon` is length-agnostic and `MultiLexicon` buckets
 over whatever `range(min_len, max_len+1)` a service asks for; a missing length just becomes
-an empty (unfillable) bucket. So the 5-letter ceiling was purely a *data* gap. It capped
-the interesting-grid space in two ways: no fully-checked word squares above 5x5 (a 6x6/7x7
-`FullSquare` needs 6-/7-letter lists), and no capped/Gibbs large grid could set `max_len > 5`
-(the knob existed, the data did not back it). The user's ask: support longer words as an
-ordinary configuration option -- "just a different max length" -- for more interesting grids.
+an empty (unfillable) bucket. So the 5-letter ceiling was purely a *data* gap.
+
+**What longer words are for -- and what they are *not*.** Keep two axes separate: the
+**maximum word length** we stock (a vocabulary property) is not the same as **which
+double-word grids we can support** (a constraint-density property). Longer lists buy us the
+*less-dense* end of the blocked/capped design space: a larger `max_len` permits longer runs,
+which lets a big grid hold entries legal with **fewer** black cells -- sparser, more open
+textures than the short-word cap forced. That is the whole payoff. It is *not* a lever on
+double-word-*square* order: a fully-checked N x N square forces every row and column to be a
+word at once, and that frontier is governed by how rare simultaneous solutions get (order 7+
+is rare in English), not by vocabulary reach. A 6x6 square happening to fill is incidental --
+squares stay density-bound whatever the list length. The user's ask, read correctly: support
+longer words as an ordinary configuration knob so the *less-dense large-grid* explorations
+are possible -- "just a different max length" -- not to push the square order up.
 
 Decision: generate and ship `cw`/`scored`/`words` for **lengths 2..15**, and make the whole
 data pipeline **reproducible in-repo** (it previously was not -- only `scored_N` had a
@@ -1843,12 +1852,14 @@ or invariant change -- this is data + drivers.
   `GibbsLayout` and the grid order on `FullSquare` are now the only things gating length --
   a search-cost concern, not a data one.
 
-Findings (this container): a 12x12 capped at `max_len=7`, bar 60, fills with real 7-letter
-entries (SEVENPM, IBETCHA, TVEXECS, TRUSTEE, LENDOUT, ...) in ~3.9 s -- the "more interesting
-grids" payoff. A 6x6 fully-checked double square fills at bar 40 (~length-6 lists). Order-7
-double squares stay hard/rare (a 7x7 `mini` did not finish in 180 s) -- but that is the
-pre-existing search-scaling limit (architecture.md "order 8+ gets rare fast"), now cleanly
-separated from the data gap this closes. Data footprint: ~7.7 MB added (cw 6..15), 9.7 MB total.
+Findings (this container). The intended payoff -- a *less-dense* large grid -- lands: a 12x12
+capped at `max_len=7`, bar 60, fills with real 7-letter entries (SEVENPM, IBETCHA, TVEXECS,
+TRUSTEE, LENDOUT, ...) in ~3.9 s, an aesthetic the `max_len<=5` cap could not reach (it forced
+denser black). As a *data-reach* sanity check only, a 6x6 fully-checked double square also
+fills at bar 40 -- but that is not the point of the change (see the two-axes note above):
+order-7 double squares stay hard/rare (a 7x7 `mini` did not finish in 180 s), a density/
+search-scaling limit (architecture.md "order 8+ gets rare fast"), *not* something longer lists
+were ever going to fix. Data footprint: ~7.7 MB added (cw 6..15), 9.7 MB raw / ~3-4 MB packed.
 
 Alternatives considered:
 - **Cap the length forever and never ship longer lists (the D24 stance, taken further):**

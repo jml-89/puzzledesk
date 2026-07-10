@@ -663,9 +663,11 @@ Curated real list — `data/cw_N.txt`:
   `cw_5.txt` **byte-exact** (20,292 words) — the reproduction gate that pins the rules.
 - Provenance/licenses also recorded in data/SOURCES.md.
 - Only the DERIVED length lists are committed; the raw dumps are not.
-- Length reach (D36): a 12x12 capped at `max_len=7` (bar 60) fills with real 7-letter
-  entries in ~3.9 s; a 6x6 fully-checked double square fills at bar 40. Order-7 double
-  squares stay hard (a 7x7 `mini` did not finish in 180 s) — a search limit, not a data one.
+- Length reach (D36): the payoff is *less-dense* large grids, not bigger squares (max word
+  length and double-square order are separate axes — see D36). A 12x12 capped at `max_len=7`
+  (bar 60) fills with real 7-letter entries in ~3.9 s — an open texture the `max_len<=5` cap
+  could not reach. A 6x6 double square filling at bar 40 is only a data-reach check; order-7
+  squares stay hard (a 7x7 `mini` did not finish in 180 s) — a density/search limit, not data.
 - QA finding (D20): for *generating* clean puzzles the practical floor is ~75, not
   the list's "60+ solid" convention. At `min_score 60`, a 5x5 fill admitted `LEDON`
   (a non-word the list rates 60); `min_score 75` produced only real words across
