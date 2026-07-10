@@ -4,8 +4,10 @@ Operating manual for an agent working in this repo. It tells you how the code is
 *layered*, which invariants are load-bearing, and how to use the toolchain. It
 does **not** restate the design — that lives in `docs/`, and you should read it:
 
+- `docs/roadmap.md` — the chosen forward **direction** (D34): ship a playable product and
+  close the human-solve loop. The one forward-looking doc; everything else here is memory.
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D33). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D34). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution

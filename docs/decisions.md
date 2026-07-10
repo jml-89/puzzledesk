@@ -1671,3 +1671,66 @@ Reversal: lowering the floor again would re-import the shim (D32's form is in gi
 to 3.14 is the intended next step and needs only the three config lines + retesting on a 3.14
 interpreter — no code change (the shim is already gone).
 
+
+## D34. Direction: ship a playable product; close the human-solve loop
+
+Context: with the generation arc essentially closed (square → blocked → capped → Gibbs,
+D13/D24–D28) and the difficulty arc built to the edge of its data blocker (D21/D22/D26),
+the project reached a genuine fork: (a) an engineering "revamp", (b) more of the
+dynamic-programming / field exploration (WFC, ASP, 15×15, a template library), or (c)
+something with *a product at the end that we can feedback-loop*. The user asked, explicitly,
+for help choosing — and named the preference: a product, not another inward spike.
+
+Decision: **build a playable product, and use it to close the one feedback loop the project
+has never closed** — a real human solving a real puzzle, whose solve-time becomes the ground
+truth the difficulty work is blocked on. The staged plan lives in `docs/roadmap.md` (the
+first forward-looking doc in `docs/`); this entry records the call and its reasoning.
+
+The load-bearing argument (why this is not merely "a product"): both cybernetic streams the
+project built — generation and the LLM-agent difficulty probe — are **internal** feedback
+loops. The **external** loop (a person plays) is missing, and the difficulty stream is
+*explicitly blocked on exactly its output*: `open-questions.md` repeats "the one thing that
+would unblock B and C … is a human solve-time signal", and D26's agent-solver was always a
+**proxy** for it ("an LLM brackets *a* solver, not *the* distribution"). So shipping a
+playable puzzle is the **instrument that produces the missing measurement**; one loop unifies
+both streams (generate → clue → serve → human plays → solve-time → calibrate difficulty →
+target better → generate). The architecture already aimed here: D32's typed spec algebra was
+built as the forcing function for a REST body, `open-questions.md` names "*A REST API — the
+next front*" plus a `PuzzleRepository` port, and `site/` already ships a black-cell-aware
+player (static today).
+
+Sequencing honours D15 ("model structure only where an external contract forces it"): the
+`PuzzleRepository` port and the wire schema arrive **with** the web layer that forces them,
+never speculatively ahead — which is *why* this branch records the direction rather than
+pre-building an inert repository port. Three phases (roadmap.md): (1) the API seam — `web/`
+FastAPI behind a `web` extra, a Pydantic wire schema parsing into `PuzzleSpec`, a
+`PuzzleRepository` port + in-memory adapter, `POST`/`GET /puzzles`; (2) the playable loop —
+fold `site/`'s player against the live API, add a solve-telemetry endpoint (the human
+signal); (3) close the cybernetics — calibrate D21/D22 against human times, validate the D26
+proxy against reality, feed the batch scheduler.
+
+Rationale: it is the only option that ends in a product *and* advances the research (the human
+signal is the difficulty work's blocker, not a detour from it); it exercises the last unbuilt
+architectural seam (a second adapter) and cashes in D32's spec algebra; and it composes with —
+does not foreclose — the generation stream, which resumes when the loop earns the attention.
+
+Alternatives considered:
+- **More generation/field methods** (WFC vs Gibbs bake-off, ASP for native connectivity,
+  a curated template library, scaling past 12×12): deferred, not rejected — it is the natural
+  continuation of stream 1 and stays open in `open-questions.md`, but it is inward-facing and
+  produces no product or human signal. The D27 field/complete split means it composes later
+  rather than conflicting now.
+- **Deepen the difficulty cybernetics without shipping** (a transcript→difficulty judge,
+  calibrating the LLM-solver against the deterministic vocabulary-floored solver): rejected as
+  the *primary* direction — it sharpens the proxy but stays a proxy, still blocked on the human
+  data that only shipping produces. It becomes Phase 3, *after* the loop exists.
+- **An engineering revamp**: rejected as lowest-value — the codebase is already hexagonal,
+  DI'd, strict-typed, and import-linted (D14/D18/D32/D33) with little real debt; a revamp would
+  polish a clean floor while the product loop stayed unbuilt.
+
+Reversal: this is a *scope/priority* call, not an engine or invariant (0–5) change, so it
+reverses by deprioritisation, not by removing code — the API and persistence seams are
+additive and live at the `cli`/adapter edge. If the human-signal loop proves too sparse or
+noisy to calibrate against (Phase 3's premise), the project falls back to the LLM-proxy
+difficulty work or the generation stream, while the served/playable/persisted puzzle (Phases
+1–2) stands as the product regardless.

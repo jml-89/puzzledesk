@@ -401,7 +401,9 @@ The hexagonal layering + DI is in (D14). Left open:
   `PuzzleSpec`), and the four `BlockedGenerateService.fill_*` methods collapsed into one
   strategy-dispatched `GenerateService.fill`/`fill_grid`. This is the forcing move D15
   named ("model only where a contract forces it") arriving early because the next front
-  needs it. Left open, and the reason the spec exists:
+  needs it. **The two items below are no longer loose questions: they are the committed
+  direction (D34) — sequenced as Phase 1 in `docs/roadmap.md`. Read the roadmap for how
+  they fit the whole product loop; kept here for the technical detail.**
   - **A REST API — the next front (not built).** A `web/` entry point beside `cli/`,
     reusing `build()`'s container: `POST /puzzles` parses a JSON body into a `PuzzleSpec`
     (a *separate* wire schema — FastAPI + Pydantic behind a `web` extra, isolated like
