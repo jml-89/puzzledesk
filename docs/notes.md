@@ -331,6 +331,35 @@ Implications for the composition-of-difficulty framing:
 - Follow-up still open: correlate per-grid thinking-token spend against `solve_order`'s predicted
   hard-gets (the analytical<->empirical loop), controlling for the grid-specific variance seen here.
 
+### Design principle: obscurity is a fairness cliff, not a difficulty slope
+
+A human observation crystallised this: in real minis you never meet a word you *don't know* — the
+answers are always in your vocabulary; the difficulty is recall + misdirection on a *known* word.
+That is the crossword setter's cardinal rule, and its violation is the **Natick** (D21 A': two
+unknown words crossing where neither pins the shared letter). It reframes the two difficulty axes:
+
+- **Word obscurity is a *cliff*, not a slope.** While the word is known, obscurity does nothing
+  (Opus: inert across the whole band). The instant it is *unknown*, the puzzle is not "harder" --
+  it is *unfair*; effective difficulty jumps discontinuously. There is no graded middle, so a fair
+  puzzle never approaches the edge. This is why the obscurity band produced no graded signal.
+- **The `min_score` floor is a *fairness* boundary, not a difficulty dial** -- it keeps answers
+  inside the assumed solver vocabulary (IRT theta). The two-sided obscurity *band* (D21 layer A) is
+  therefore not a fair-difficulty tool; it is a way to deliberately step *past* the floor and
+  manufacture Naticks -- useful for *studying* the unfair regime, wrong for "make a good mini
+  harder".
+- **The only fair difficulty axis is clue obliqueness** (D21 layer B) -- tricky clues on known
+  words. The Opus 2D probe found exactly this (obliqueness dominant, obscurity inert), so the human
+  design rule and the LLM measurement agree.
+
+Why the Haiku arm is a poor proxy for "limited-vocabulary human": a human is *reliable within* their
+word list and hits a clean wall *outside* it (a sharp theta-boundary). A weak LLM is *erratic
+everywhere* -- Haiku fails common/Monday seed 0 (the easiest cell) while acing seeds 1-3 -- so it has
+noise, not a crisp boundary. Modelling "limited-but-reliable vocabulary" wants a solver whose *word
+list* is restricted, not whose reasoning is weakened -- i.e. the fairness floor applied to the
+solver, not the setter. Consequence for the difficulty model: layer A should be read as the
+*fairness floor + Natick-avoidance constraint*, and graded difficulty should be sought in layer B
+(clue) with the fill held above the floor.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed
