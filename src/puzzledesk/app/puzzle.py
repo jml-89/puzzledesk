@@ -29,9 +29,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..core.blocked import BlockedGrid
-from ..core.engines import fill
-from ..core.square import DoubleSquare
+from puzzledesk.core.blocked import BlockedGrid
+from puzzledesk.core.engines import fill
+from puzzledesk.core.square import DoubleSquare
 
 Cell = tuple[int, int]
 TargetId = tuple[Cell, str]

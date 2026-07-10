@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..core.rng import Rng
+from puzzledesk.core.rng import Rng
 
 
 class NumpyRngFactory:

@@ -19,22 +19,22 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from ..adapters.claude_clue import ClaudeClueProvider
-from ..adapters.claude_solver import ClaudeSolverAgent
-from ..adapters.file_lexicon import FileLexicon
-from ..adapters.numpy_rng import NumpyRngFactory
-from ..adapters.writer import StreamWriter
-from ..app.blocked import BlockedGenerateService
-from ..app.clue import ClueProvider
-from ..app.cluing import ClueService
-from ..app.mini import MiniService
-from ..app.ports import LexiconSource, Writer
-from ..app.puzzle_service import PuzzleService
-from ..app.solve_service import SolveService
-from ..app.solver import SolverAgent
-from ..core.rng import RngFactory
-from .config import Config
-from .container import Container
+from puzzledesk.adapters.claude_clue import ClaudeClueProvider
+from puzzledesk.adapters.claude_solver import ClaudeSolverAgent
+from puzzledesk.adapters.file_lexicon import FileLexicon
+from puzzledesk.adapters.numpy_rng import NumpyRngFactory
+from puzzledesk.adapters.writer import StreamWriter
+from puzzledesk.app.blocked import BlockedGenerateService
+from puzzledesk.app.clue import ClueProvider
+from puzzledesk.app.cluing import ClueService
+from puzzledesk.app.mini import MiniService
+from puzzledesk.app.ports import LexiconSource, Writer
+from puzzledesk.app.puzzle_service import PuzzleService
+from puzzledesk.app.solve_service import SolveService
+from puzzledesk.app.solver import SolverAgent
+from puzzledesk.bootstrap.config import Config
+from puzzledesk.bootstrap.container import Container
+from puzzledesk.core.rng import RngFactory
 
 
 @dataclass(frozen=True, slots=True)

@@ -31,8 +31,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from ..app.clue import Clue, ClueStyle, Difficulty
-from ..app.puzzle import FilledGrid, Target, TargetId
+from puzzledesk.app.clue import Clue, ClueStyle, Difficulty
+from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
 
 _DEFAULT_MODEL = "claude-opus-4-8"
 _KIND = {"A": "Across", "D": "Down", "meta": "Meta"}

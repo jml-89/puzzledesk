@@ -35,7 +35,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .puzzle import Cell, FilledGrid, TargetId
+from puzzledesk.app.puzzle import Cell, FilledGrid, TargetId
 
 Options = Callable[[str, int], int]
 """``options(answer, pos)`` -> how many distinct letters the lexicon admits at ``pos``

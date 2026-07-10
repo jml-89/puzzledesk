@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
-from ..core.lexicon import Lexicon, MultiLexicon
+from puzzledesk.core.lexicon import Lexicon, MultiLexicon
 
 
 @runtime_checkable

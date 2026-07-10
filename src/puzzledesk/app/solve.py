@@ -46,8 +46,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 
-from .cluing import CluedPuzzle
-from .puzzle import Cell
+from puzzledesk.app.cluing import CluedPuzzle
+from puzzledesk.app.puzzle import Cell
 
 EntryRef = tuple[int, str]
 """The solver-facing identity of an entry: ``(clue number, "A"|"D")`` -- friendlier

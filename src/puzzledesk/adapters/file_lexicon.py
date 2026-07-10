@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from ..core.lexicon import Lexicon, MultiLexicon
+from puzzledesk.core.lexicon import Lexicon, MultiLexicon
 
 _SCORED_LISTS = frozenset({"cw", "scored"})
 

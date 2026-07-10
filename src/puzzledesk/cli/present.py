@@ -7,12 +7,12 @@ Pure string-building plus ``writer.line`` calls -- no generation, no numpy.
 
 from __future__ import annotations
 
-from ..app.cluing import CluedPuzzle
-from ..app.ports import Writer
-from ..app.puzzle import FilledGrid
-from ..app.results import BlockedResult, MiniBatch, MiniResult
-from ..app.solve import SolveView
-from ..app.solve_service import SolveReport, SolveTurn
+from puzzledesk.app.cluing import CluedPuzzle
+from puzzledesk.app.ports import Writer
+from puzzledesk.app.puzzle import FilledGrid
+from puzzledesk.app.results import BlockedResult, MiniBatch, MiniResult
+from puzzledesk.app.solve import SolveView
+from puzzledesk.app.solve_service import SolveReport, SolveTurn
 
 
 def mini_batch(batch: MiniBatch, writer: Writer) -> None:

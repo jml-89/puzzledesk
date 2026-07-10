@@ -33,10 +33,10 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Iterator
 
-from ..blocked import BLOCK, WHITE, BlockedGrid
-from ..lexicon import MultiLexicon
-from ..rng import Rng, RngFactory
-from . import fill
+from puzzledesk.core.blocked import BLOCK, WHITE, BlockedGrid
+from puzzledesk.core.engines import fill
+from puzzledesk.core.lexicon import MultiLexicon
+from puzzledesk.core.rng import Rng, RngFactory
 
 # gen_capped's randomized cell order is white-biased: black-first this % of the
 # time, white-first otherwise. Low => fewer, less-clustered blacks (cleaner grids);

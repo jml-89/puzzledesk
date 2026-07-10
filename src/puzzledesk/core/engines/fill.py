@@ -21,9 +21,9 @@ gives distinct grids per seed, as before.
 
 from __future__ import annotations
 
-from ..blocked import BlockedGrid, Slot
-from ..lexicon import MultiLexicon
-from ..rng import Rng
+from puzzledesk.core.blocked import BlockedGrid, Slot
+from puzzledesk.core.lexicon import MultiLexicon
+from puzzledesk.core.rng import Rng
 
 
 def _pattern(cell: dict[tuple[int, int], int], slot: Slot) -> list[int | None]:

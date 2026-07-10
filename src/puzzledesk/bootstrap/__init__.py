@@ -7,8 +7,8 @@ Entry points (``cli``) call :func:`build` and then just use the graph.
 
 from __future__ import annotations
 
-from .build import build
-from .config import Config
-from .container import Container
+from puzzledesk.bootstrap.build import build
+from puzzledesk.bootstrap.config import Config
+from puzzledesk.bootstrap.container import Container
 
 __all__ = ["Config", "Container", "build"]
