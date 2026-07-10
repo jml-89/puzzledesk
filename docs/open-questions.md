@@ -98,9 +98,9 @@ ones are built, the two *soft* ones are recorded and blocked on data:
   and curation across a batch" (below). D23 gives the per-puzzle number (`hard_gets`);
   what is missing is the scheduler that shapes a batch to a target distribution.
 
-**Generate-to-a-difficulty — BUILT (D23), with a caveat.** `MiniService.generate(...,
-min_hard_gets=K, gimme=G)` selects grids by `solve_order` and returns them
-hardest-first (`mini --hard K --gimme G`). Two open edges: (i) selection is
+**Generate-to-a-difficulty — BUILT (D23), with a caveat.** `MiniService.generate(grid,
+FillSpec(min_hard_gets=K, gimme=G))` selects grids by `solve_order` and returns them
+hardest-first (`mini --hard K --gimme G`; the knobs are now a `FillSpec`, D32). Two open edges: (i) selection is
 best-of-a-seed-budget over a *soft* score — a short return is budget exhaustion, never a
 proof, and there is no completeness here (unlike the fill); (ii) the target is two raw
 knobs (`min_hard_gets`, `gimme`), not a calibrated Mon–Sat preset — building the preset
@@ -396,3 +396,20 @@ The hexagonal layering + DI is in (D14). Left open:
 - **Wiring config.** `bootstrap` has a single `build()` with defaults and no config
   file. If tools grow options (list choice, data dir, output format) a small typed
   config surface (env/flags → `Config`) is the natural next step.
+- **Generation specs — BUILT (D32).** Generation *input* is now a typed algebra
+  (`app/spec.py`: `GridSpec` + the closed `LayoutStrategy` union + `FillSpec`, bundled as
+  `PuzzleSpec`), and the four `BlockedGenerateService.fill_*` methods collapsed into one
+  strategy-dispatched `GenerateService.fill`/`fill_grid`. This is the forcing move D15
+  named ("model only where a contract forces it") arriving early because the next front
+  needs it. Left open, and the reason the spec exists:
+  - **A REST API — the next front (not built).** A `web/` entry point beside `cli/`,
+    reusing `build()`'s container: `POST /puzzles` parses a JSON body into a `PuzzleSpec`
+    (a *separate* wire schema — FastAPI + Pydantic behind a `web` extra, isolated like
+    `anthropic` behind `clue` — parsing into the app spec, never *being* it), generates,
+    stores, and returns the `CluedPuzzle` aggregate as JSON (another *view*, beside
+    `present.playable` and the deferred `.ipuz` export). `GET /puzzles/{id}` reads it back.
+  - **Persistence — a `PuzzleRepository` port (not built).** "Get a previously created
+    puzzle" needs a new port in `app` (`save`/`get`) with adapters (in-memory, then a DB)
+    — the "Second adapters" seam above, at last exercised. Note the determinism nuance: the
+    *fill* is reproducible from `(lists, spec, seed)`, but the *clues* are soft (LLM), so
+    the clued aggregate must be stored as data, not regenerated from the spec.

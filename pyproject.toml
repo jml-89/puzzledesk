@@ -3,21 +3,26 @@ name = "puzzledesk"
 version = "0.1.0"
 description = "Dense crossword (double word square) generation — NYT-mini style."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [{ name = "jml-89" }]
 dependencies = [
-    "numpy>=1.26",
+    # 2.1 is the first numpy with cp313 wheels, so it is the true floor under
+    # requires-python >=3.13 (D33); <2.1 simply won't install. Locked at 2.5.x.
+    "numpy>=2.1",
 ]
 
 [project.optional-dependencies]
 # Only needed to (re)generate data/scored_N.txt; the solvers read the files, not
 # wordfreq itself (see scripts/gen_scored.py).
 scoring = ["wordfreq>=3.0"]
-# Only needed for live clue generation (the ClaudeClueProvider adapter). The grid
-# generator has zero LLM dependency; the SDK is imported lazily and resolves the
-# API key from the environment. `uv sync --extra clue`.
-clue = ["anthropic>=0.40"]
+# Only needed for live clue generation (the ClaudeClueProvider adapter) and the
+# solver probe. The grid generator has zero LLM dependency; the SDK is imported
+# lazily and resolves the API key from the environment. `uv sync --extra clue`.
+# Floor is 0.116 (the locked, known-good line): the adapters use `output_config`
+# structured output and adaptive-thinking `effort` (D16/D26), which predate no
+# 0.40-era SDK -- an old resolve would crash on the first live call, not at import.
+clue = ["anthropic>=0.116"]
 
 [project.scripts]
 # Console entry points for the tools (the front). `uv run mini 5 70 3` works
@@ -44,7 +49,7 @@ packages = ["src/puzzledesk"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py313"
 src = ["src", "scripts"]
 
 [tool.ruff.lint]
@@ -81,7 +86,7 @@ ban-relative-imports = "all"
 
 [tool.mypy]
 files = ["src/puzzledesk"]
-python_version = "3.10"
+python_version = "3.13"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 warn_redundant_casts = true

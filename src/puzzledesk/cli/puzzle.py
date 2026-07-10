@@ -26,7 +26,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from puzzledesk.app.clue import Difficulty
+from puzzledesk.app.clue import ClueStyle, Difficulty
+from puzzledesk.app.spec import CountLayout, GridSpec, PuzzleSpec
 from puzzledesk.bootstrap import Container, build
 from puzzledesk.cli import present
 
@@ -94,18 +95,24 @@ def main(argv: list[str] | None = None) -> None:
     _run(build(), args)
 
 
-def _run(c: Container, args: argparse.Namespace) -> None:
-    puzzle = c.puzzle.generate(
-        rows=args.rows,
-        cols=args.cols,
-        num_black=args.black,
-        min_score=args.min_score,
-        max_score=args.max_score,
-        difficulty=Difficulty[args.difficulty.upper()],
-        instructions=args.instructions,
-        seed=args.seed,
-        symmetric=args.symmetric,
+def _spec(args: argparse.Namespace) -> PuzzleSpec:
+    return PuzzleSpec(
+        grid=GridSpec(
+            rows=args.rows,
+            cols=args.cols,
+            min_score=args.min_score,
+            max_score=args.max_score,
+            seed=args.seed,
+        ),
+        layout=CountLayout(num_black=args.black, symmetric=args.symmetric),
+        clue=ClueStyle(
+            difficulty=Difficulty[args.difficulty.upper()], instructions=args.instructions
+        ),
     )
+
+
+def _run(c: Container, args: argparse.Namespace) -> None:
+    puzzle = c.puzzle.generate(_spec(args))
     if puzzle is None:
         _explain_no_puzzle(c, args)
         return
@@ -122,7 +129,9 @@ def _explain_no_puzzle(c: Container, args: argparse.Namespace) -> None:
     above the bar (complete search, so one attempt settles it)."""
     w = c.writer.line
     kind = "symmetric" if args.symmetric else "non-symmetric"
-    if not c.blocked.layout_exists(args.rows, args.cols, args.black, symmetric=args.symmetric):
+    grid = GridSpec(rows=args.rows, cols=args.cols)
+    layout = CountLayout(num_black=args.black, symmetric=args.symmetric)
+    if not c.generator.layout_exists(grid, layout):
         w(
             f"no legal {args.black}-black layout exists for a {kind} {args.rows}x{args.cols} "
             f"grid (min-length{' or symmetry' if args.symmetric else ''} forbids it)."

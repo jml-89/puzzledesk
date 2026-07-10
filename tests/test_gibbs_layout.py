@@ -20,7 +20,8 @@ from __future__ import annotations
 import numpy as np
 from fakes import InMemoryLexiconSource, RecordingRngFactory
 
-from puzzledesk.app.blocked import BlockedGenerateService
+from puzzledesk.app.generate import GenerateService
+from puzzledesk.app.spec import GibbsLayout, GridSpec
 from puzzledesk.core.engines import gibbs_layout as gibbs
 from puzzledesk.core.engines import patterns
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
@@ -171,11 +172,14 @@ _LEX3 = Lexicon(["bad", "one", "yes", "boy", "ane", "des"], [90.0] * 6)
 def test_gibbs_service_fills_within_cap_distinct_and_uses_the_factory() -> None:
     source = InMemoryLexiconSource(multi=MultiLexicon({3: _LEX3}))
     rng = RecordingRngFactory()
-    service = BlockedGenerateService(source, rng)
+    service = GenerateService(source, rng)
     # The sampler finds the bordered-3x3 layout on most seeds; the 3x3 lexicon fills it.
     # Loop a few seeds and require at least one honest success (others may miss -- budget).
     results = [
-        service.fill_capped_gibbs_once(5, 5, max_len=4, min_score=0.0, seed=seed, num_black=0)
+        service.fill(
+            GridSpec(rows=5, cols=5, min_score=0.0, seed=seed),
+            GibbsLayout(max_len=4, num_black=0),
+        )
         for seed in range(8)
     ]
     filled = [r for r in results if r is not None]

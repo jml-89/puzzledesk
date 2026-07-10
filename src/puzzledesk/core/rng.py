@@ -47,10 +47,13 @@ class Rng(Protocol):
         """Random integers in ``[0, low)`` or ``[low, high)``."""
         ...
 
-    def random(self, size: int | None = ...) -> Any:
-        """A uniform float in ``[0, 1)`` (or an array of them). The Gibbs sampler's
-        accept draw: black iff ``random() < P(black | rest)`` (D27). ``numpy``'s
-        ``Generator.random`` matches this exactly, so the adapter is unchanged."""
+    def random(self) -> float:
+        """A single uniform float in ``[0, 1)`` -- the Gibbs sampler's accept draw:
+        black iff ``random() < P(black | rest)`` (D27). Declared no-arg (we never draw
+        an array through this port), which is exactly ``numpy.random.Generator.random``'s
+        no-``size`` overload, so a real ``Generator`` still satisfies it structurally --
+        and does so unambiguously under numpy 2.x's stricter, overload-split stubs, where
+        a broad ``size: int | None`` signature no longer matched a single overload (D33)."""
         ...
 
 

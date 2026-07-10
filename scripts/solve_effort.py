@@ -22,8 +22,9 @@ import argparse
 import sys
 from dataclasses import replace
 
-from puzzledesk.app.clue import Difficulty
+from puzzledesk.app.clue import ClueStyle, Difficulty
 from puzzledesk.app.solve import FeedbackPolicy
+from puzzledesk.app.spec import CountLayout, GridSpec, PuzzleSpec
 from puzzledesk.bootstrap import Config, build
 
 
@@ -60,15 +61,18 @@ def main(argv=None):
     for difficulty in args.difficulties:
         diff = Difficulty[difficulty.upper()]
         for seed in args.seeds:
-            puzzle = c.puzzle.generate(
-                rows=5,
-                cols=5,
-                num_black=args.black,
-                min_score=args.min_score,
-                max_score=args.max_score,
-                difficulty=diff,
-                seed=seed,
+            spec = PuzzleSpec(
+                grid=GridSpec(
+                    rows=5,
+                    cols=5,
+                    min_score=args.min_score,
+                    max_score=args.max_score,
+                    seed=seed,
+                ),
+                layout=CountLayout(num_black=args.black),
+                clue=ClueStyle(difficulty=diff),
             )
+            puzzle = c.puzzle.generate(spec)
             if puzzle is None:
                 print(f"{difficulty:<10} {seed:>4}  (no puzzle at this bar)")
                 continue

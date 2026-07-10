@@ -24,9 +24,9 @@ from puzzledesk.adapters.claude_solver import ClaudeSolverAgent
 from puzzledesk.adapters.file_lexicon import FileLexicon
 from puzzledesk.adapters.numpy_rng import NumpyRngFactory
 from puzzledesk.adapters.writer import StreamWriter
-from puzzledesk.app.blocked import BlockedGenerateService
 from puzzledesk.app.clue import ClueProvider
 from puzzledesk.app.cluing import ClueService
+from puzzledesk.app.generate import GenerateService
 from puzzledesk.app.mini import MiniService
 from puzzledesk.app.ports import LexiconSource, Writer
 from puzzledesk.app.puzzle_service import PuzzleService
@@ -90,9 +90,9 @@ def _stage_adapters(config: Config) -> _Adapters:
 
 def _stage_services(config: Config, adapters: _Adapters) -> Container:
     mini = MiniService(adapters.lexicon, adapters.rng_factory)
-    blocked = BlockedGenerateService(adapters.lexicon, adapters.rng_factory)
+    generator = GenerateService(adapters.lexicon, adapters.rng_factory)
     clue = ClueService(adapters.clue_provider)
-    puzzle = PuzzleService(blocked, clue)
+    puzzle = PuzzleService(generator, clue)
     solve = SolveService(adapters.solver_agent, max_turns=config.solve_max_turns)
     return Container(
         config=config,
@@ -100,7 +100,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
         lexicon=adapters.lexicon,
         writer=adapters.writer,
         mini=mini,
-        blocked=blocked,
+        generator=generator,
         clue=clue,
         puzzle=puzzle,
         solve=solve,

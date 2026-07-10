@@ -11,6 +11,7 @@ from __future__ import annotations
 from fakes import InMemoryLexiconSource, RecordingRngFactory
 
 from puzzledesk.app.mini import MiniService
+from puzzledesk.app.spec import GridSpec
 from puzzledesk.core.lexicon import Lexicon
 
 # ab/cd across induce ac/bd down: a genuine distinct 2x2 double square exists.
@@ -25,7 +26,7 @@ def _service() -> tuple[MiniService, RecordingRngFactory]:
 
 def test_service_emits_distinct_grids_above_the_bar() -> None:
     service, _ = _service()
-    batch = service.generate(2, min_score=0.0, count=1)
+    batch = service.generate(GridSpec(rows=2, cols=2, min_score=0.0), count=1)
     assert batch.eligible == len(_LEX)
     assert len(batch.results) == 1
     r = batch.results[0]
@@ -40,7 +41,7 @@ def test_batch_has_no_duplicate_grids() -> None:
     # still never repeat a grid -- invariant 3 (distinctness) applied grid-wide across
     # the batch, not only within one grid.
     service, _ = _service()
-    batch = service.generate(2, min_score=0.0, count=5)
+    batch = service.generate(GridSpec(rows=2, cols=2, min_score=0.0), count=5)
     grids = [tuple(w.word for w in r.across) for r in batch.results]
     assert grids  # the lexicon admits at least one distinct square
     assert len(grids) == len(set(grids))  # ...and no grid is emitted twice
@@ -49,12 +50,12 @@ def test_batch_has_no_duplicate_grids() -> None:
 def test_service_uses_the_injected_factory() -> None:
     _, rng = _service()[0], _service()[1]
     service = MiniService(InMemoryLexiconSource(single={2: _LEX}), rng)
-    service.generate(2, min_score=0.0, count=1)
+    service.generate(GridSpec(rows=2, cols=2, min_score=0.0), count=1)
     # The service pulled at least one stream from the injected factory, by seed.
     assert rng.seeds and rng.seeds[0] == 0
 
 
 def test_service_is_reproducible() -> None:
-    a = _service()[0].generate(2, min_score=0.0, count=1)
-    b = _service()[0].generate(2, min_score=0.0, count=1)
+    a = _service()[0].generate(GridSpec(rows=2, cols=2, min_score=0.0), count=1)
+    b = _service()[0].generate(GridSpec(rows=2, cols=2, min_score=0.0), count=1)
     assert [w.word for w in a.results[0].across] == [w.word for w in b.results[0].across]

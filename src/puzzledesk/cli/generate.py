@@ -37,8 +37,10 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from dataclasses import replace
 
-from puzzledesk.app import blocked
+from puzzledesk.app.generate import default_black_ceiling
+from puzzledesk.app.spec import CappedLayout, CountLayout, GibbsLayout, GridSpec, LayoutStrategy
 from puzzledesk.bootstrap import Container, build
 from puzzledesk.cli import present
 
@@ -139,6 +141,8 @@ def _run(
 ) -> None:
     w = c.writer.line
     kind = "symmetric" if symmetric else "non-symmetric"
+    grid = GridSpec(rows=rows, cols=cols, min_score=min_score)
+    layout = CountLayout(num_black=num_black, symmetric=symmetric)
     w()
     w(
         f"{rows}x{cols} {kind} blocked minis, {num_black} black cells, every "
@@ -148,7 +152,7 @@ def _run(
 
     # Structural feasibility first: does any legal layout exist at all? A property
     # of the shape + symmetry + min-length, independent of the word list.
-    if not c.blocked.layout_exists(rows, cols, num_black, symmetric=symmetric):
+    if not c.generator.layout_exists(grid, layout):
         w(
             f"no legal {num_black}-black layout exists for a {kind} {rows}x{cols} "
             f"grid (min-length{' or symmetry' if symmetric else ''} forbids it)."
@@ -168,9 +172,7 @@ def _run(
 
     for seed in range(count * 20):
         t0 = time.perf_counter()
-        res = c.blocked.fill_once(
-            rows, cols, num_black, min_score=min_score, seed=seed, symmetric=symmetric
-        )
+        res = c.generator.fill(replace(grid, seed=seed), layout)
         dt = time.perf_counter() - t0
         if res is None:
             if seed == 0:  # complete search over layouts: one run settles it
@@ -206,12 +208,23 @@ def _run_capped(
     w = c.writer.line
     kind = "symmetric" if symmetric else "non-symmetric"
     target = None if num_black <= 0 else num_black
+    grid = GridSpec(rows=rows, cols=cols, min_score=min_score)
+    # One tagged strategy object carries the density knobs each engine actually admits:
+    # the Gibbs field has no `max_black` (it is a soft count spring), the complete search
+    # does -- exactly the illegal-combination the flat kwargs used to leave ambiguous.
+    layout: LayoutStrategy = (
+        GibbsLayout(max_len=max_len, num_black=target, symmetric=symmetric)
+        if gibbs
+        else CappedLayout(
+            max_len=max_len, num_black=target, max_black=max_black, symmetric=symmetric
+        )
+    )
     if target is not None:
         density = f", {target} black cells"
     elif max_black is not None:
         density = f", <= {max_black} black cells"
     else:
-        density = f", ~{blocked.default_black_ceiling(rows, cols)} black cells (default)"
+        density = f", ~{default_black_ceiling(rows, cols)} black cells (default)"
     source = " [Gibbs field]" if gibbs else ""
     w()
     w(
@@ -220,9 +233,7 @@ def _run_capped(
     )
     w()
 
-    if not c.blocked.capped_layout_exists(
-        rows, cols, max_len=max_len, symmetric=symmetric, num_black=target, max_black=max_black
-    ):
+    if not c.generator.layout_exists(grid, layout):
         w(
             f"no legal length-<= {max_len} layout exists for a {kind} {rows}x{cols} grid"
             f"{density} (the cap, count bound, or symmetry forbids it)."
@@ -235,27 +246,7 @@ def _run_capped(
     # The Gibbs path is a sampler, so it is a budget for the same reason -- more so.
     for seed in range(count * 20):
         t0 = time.perf_counter()
-        if gibbs:
-            res = c.blocked.fill_capped_gibbs_once(
-                rows,
-                cols,
-                max_len=max_len,
-                min_score=min_score,
-                seed=seed,
-                symmetric=symmetric,
-                num_black=target,
-            )
-        else:
-            res = c.blocked.fill_capped_once(
-                rows,
-                cols,
-                max_len=max_len,
-                min_score=min_score,
-                seed=seed,
-                symmetric=symmetric,
-                num_black=target,
-                max_black=max_black,
-            )
+        res = c.generator.fill(replace(grid, seed=seed), layout)
         dt = time.perf_counter() - t0
         if res is None:
             continue

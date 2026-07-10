@@ -5,7 +5,7 @@ Operating manual for an agent working in this repo. It tells you how the code is
 does **not** restate the design — that lives in `docs/`, and you should read it:
 
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D31). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D33). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution
@@ -44,9 +44,14 @@ The two grid models, the engines, the lexicon, `validate`. Rules:
 
 ### app — use-case services + ports (`src/puzzledesk/app/`)
 
-`MiniService`, `BlockedGenerateService`, and the ports they need from outside
-(`app/ports.py`: `LexiconSource`, `Writer`). Services orchestrate the core through
-ports and return structured results (`app/results.py`). **They must not import a
+`MiniService` (the square batch), `GenerateService` (one grid for any layout
+strategy), `PuzzleService` (the end-to-end compose), and the ports they need from
+outside (`app/ports.py`: `LexiconSource`, `Writer`). Services orchestrate the core
+through ports and return structured results (`app/results.py`). Generation input is
+*modelled*, not a bucket of kwargs: `app/spec.py` holds the typed request algebra —
+`GridSpec` + a closed `LayoutStrategy` union (`FullSquare`/`CountLayout`/`CappedLayout`/
+`GibbsLayout`) + `FillSpec`, bundled as `PuzzleSpec` — dispatched with `match` +
+`assert_never` (D32). **They must not import a
 concrete adapter, read a file, or print** — that inversion is the whole point and
 the linter enforces it (`app → adapters` is a broken contract). The two *soft*
 LLM-backed stages live here too, each fenced behind a port with the model in an
@@ -148,21 +153,25 @@ uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the 
 - In CI or any reproducible run, prefer `uv sync --frozen` / `uv run --frozen` so
   the committed `uv.lock` is honoured rather than silently resolved.
 
-## Modern Python — with one hard boundary
+## Modern Python — the floor is 3.13
 
-The house style is already modern: `from __future__ import annotations`,
-PEP-604 `X | None`, `@dataclass`, `pathlib`, keyword-only args (`def solve(sq, *,
-…)`). Keep it. Reach further where it buys clarity or immutability:
+The house style is modern: `from __future__ import annotations`, PEP-604 `X | None`,
+`@dataclass`, `pathlib`, keyword-only args (`def solve(sq, *, …)`). Keep it. Reach
+further where it buys clarity or immutability:
 
 - `@dataclass(slots=True, frozen=True)` for value types (verdicts, slot/grid records);
-- `match` + `typing.assert_never` for dispatch over the two coexisting grid models;
+- `match` + `typing.assert_never` for dispatch over closed unions (the two coexisting
+  grid models, the `LayoutStrategy` union) — the stdlib one, imported directly;
 - `Protocol` for the shared engine surface (a `solve(...) -> state | None`).
 
-**The boundary:** `requires-python = ">=3.10"` and ruff `target-version =
-"py310"`. The dev container runs 3.11, so `StrEnum`, `tomllib`, and PEP-695
-`type`/generic syntax will *import locally but break the stated floor*. Do not
-use 3.11+-only features until the floor is deliberately raised (that is a D-entry
-decision, not a drive-by). "Modern" means modern *within 3.10*.
+**The floor:** `requires-python = ">=3.13"`, ruff `target-version = "py313"`, mypy
+`python_version = "3.13"` (D33). 3.10 was security-only and is retired. The whole 3.11–3.13
+toolbox is now *in bounds* — `typing.assert_never`, `StrEnum`, `tomllib`, PEP-695
+`type X = …` alias / `class Foo[T]` generic syntax, `@typing.override`. Use them where they
+earn it (the old `NoReturn` `assert_never` shim from D32 is gone — `typing.assert_never`
+replaced it). Raising the floor again (e.g. to 3.14 once the environment can provision and
+verify it) is a deliberate D-entry decision, not a drive-by — but there is no longer a
+sub-3.13 boundary to police.
 
 ## Tests as contracts (wired — D14)
 

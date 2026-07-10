@@ -14,6 +14,7 @@ from fakes import InMemoryLexiconSource, RecordingRngFactory
 from puzzledesk.app.difficulty import analyze, solve_order
 from puzzledesk.app.mini import MiniService
 from puzzledesk.app.puzzle import FilledGrid
+from puzzledesk.app.spec import FillSpec, GridSpec
 from puzzledesk.core.lexicon import Lexicon
 
 # A fully-checked 2x2: across ab/cd induce down ac/bd; four entries, four crossings.
@@ -39,7 +40,9 @@ def _service(lex: Lexicon) -> MiniService:
 
 
 def test_service_threads_the_band() -> None:
-    batch = _service(_SCORED).generate(2, min_score=60.0, max_score=80.0, count=1)
+    batch = _service(_SCORED).generate(
+        GridSpec(rows=2, cols=2, min_score=60.0, max_score=80.0), count=1
+    )
     assert batch.max_score == 80.0
     assert batch.eligible == 4  # all four words fall in [60, 80]
     assert batch.results  # so a distinct square exists
@@ -49,7 +52,9 @@ def test_service_threads_the_band() -> None:
 
 def test_band_upper_bound_can_starve_the_grid() -> None:
     # Raising the floor past ab(60)/cd(65) leaves only ac/bd -- no square is possible.
-    batch = _service(_SCORED).generate(2, min_score=66.0, max_score=80.0, count=1)
+    batch = _service(_SCORED).generate(
+        GridSpec(rows=2, cols=2, min_score=66.0, max_score=80.0), count=1
+    )
     assert batch.eligible == 2
     assert not batch.results  # honest UNSAT, not an error
 
@@ -153,7 +158,9 @@ def test_all_obscure_needs_one_cold_ice_breaker_then_cascades() -> None:
 def test_generate_targets_a_difficulty() -> None:
     # Under a gimme above every score, this 2x2 needs one hard get (a cold ice-breaker),
     # so a min_hard_gets=1 target is met and the difficulty is attached, hardest-first.
-    batch = _service(_SCORED).generate(2, min_score=0.0, count=1, min_hard_gets=1, gimme=100.0)
+    batch = _service(_SCORED).generate(
+        GridSpec(rows=2, cols=2, min_score=0.0), FillSpec(min_hard_gets=1, gimme=100.0), count=1
+    )
     assert batch.min_hard_gets == 1 and batch.gimme == 100.0
     assert batch.results
     d = batch.results[0].difficulty
@@ -163,11 +170,13 @@ def test_generate_targets_a_difficulty() -> None:
 def test_unmeetable_target_returns_nothing_and_is_not_a_proof() -> None:
     # The 2x2 tops out at one hard get; asking for three finds none in the seed budget.
     # That is budget exhaustion, NOT a UNSAT proof (unlike a backtracker None) -- D23.
-    batch = _service(_SCORED).generate(2, min_score=0.0, count=1, min_hard_gets=3, gimme=100.0)
+    batch = _service(_SCORED).generate(
+        GridSpec(rows=2, cols=2, min_score=0.0), FillSpec(min_hard_gets=3, gimme=100.0), count=1
+    )
     assert batch.results == []
 
 
 def test_untargeted_generation_leaves_difficulty_unset() -> None:
-    batch = _service(_SCORED).generate(2, min_score=0.0, count=1)
+    batch = _service(_SCORED).generate(GridSpec(rows=2, cols=2, min_score=0.0), count=1)
     assert batch.min_hard_gets == 0
     assert batch.results and batch.results[0].difficulty is None

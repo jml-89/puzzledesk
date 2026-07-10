@@ -1510,3 +1510,164 @@ Alternatives considered:
 Reversal: n/a for the design (nothing in the kernel changed). To resurrect the counter or the
 prune, `git show` the spike commit; the post-mortem records what they found so the resurrection
 starts from the verdict, not from scratch.
+
+## D32. Generation input becomes a typed spec algebra; the four fill methods collapse to one
+
+Context: the next front is a REST API (basic puzzle aggregate: create + get). Before wiring
+it, the internal shape it will consume needed formalising. The blocked generator carried the
+smell a serialized API would expose immediately: four near-duplicate methods
+(`BlockedGenerateService.fill_once` / `fill_capped_once` / `fill_capped_gibbs_once` /
+`fill_grid_once`), each a flat bag of overlapping-but-different keyword arguments (rows, cols,
+min_score, max_score, seed, symmetric, min_len shared; num_black / max_len / max_black /
+max_patterns / max_layouts varying), plus `MiniService.generate` and `PuzzleService.generate`
+re-declaring the bag again. Two structural problems: (a) **strategy selection lived in the
+caller as method-name dispatch** — `cli/generate.py` chose which of the four to call with
+`if args.max_len is not None: ... if gibbs: ...`, and the knobs illegal for a given engine
+(`max_black` on Gibbs, `max_layouts` on the count search) were merely absent-or-ignored
+kwargs; (b) **the load-bearing epistemic distinction** — is a `None` a UNSAT *proof*
+(complete search) or budget exhaustion (a sampler)? — was encoded only in the method name
+and a docstring (`cli/puzzle.py::_explain_no_puzzle` reconstructed it by hand).
+
+Decision: model generation input as a typed algebra (`app/spec.py`) and collapse the four
+methods into one strategy-dispatched search (`app/generate.py`, `GenerateService`). This is
+D15's own rule — *"introduce a modelled structure only where an external contract forces
+it"* — applied to generation input. argparse never forced it (named flags are free; D20/D30
+kept the tools positional on purpose), so the services got away with the flat bag. A
+serialized API body *does* force it: the request must be one validatable, versionable
+object. So we model it now, and the internal call sites get the clarity for free.
+
+- **The algebra.** `GridSpec` (the shape + quality band + seed every strategy shares); a
+  **closed, tagged `LayoutStrategy` union** — `FullSquare` / `CountLayout` / `CappedLayout`
+  / `GibbsLayout`, each a frozen record carrying *only its own* knobs; `FillSpec` (the
+  fill-selection knobs `min_hard_gets`/`gimme`, D23 — distinctness is not a knob, always on);
+  and `PuzzleSpec` bundling all four plus a `ClueStyle`. The illegal knob combinations the
+  flat kwargs allowed are now **unrepresentable** (a `GibbsLayout` has no `max_black`), and
+  the proof-vs-budget epistemic tag is `layout_is_complete(layout)` — a property of the
+  *type*, so a caller (the API's future "no puzzle" response) words it honestly from the tag.
+
+- **One dispatched search.** `GenerateService._search(grid, layout)` is a single `match` over
+  the union; `fill_grid` projects it into the model-agnostic `FilledGrid` (D15) for *every*
+  strategy — square or blocked, one call — and `fill` shapes the scored `BlockedResult` for
+  the blocked ones. `layout_exists` likewise dispatches (subsuming the old `layout_exists` +
+  `capped_layout_exists`). Exhaustiveness is enforced by `assert_never`, so adding a fifth
+  engine (the surveyed WFC / template-library routes) is a compile-time obligation at every
+  call site, not an `if`-ladder to remember.
+
+- **The square folds in as `FullSquare`.** A single fully-checked square now flows through
+  `GenerateService.fill_grid(grid, FullSquare())` like any blocked grid — so a square can
+  become a clued puzzle through `PuzzleService` too, uniformly. `MiniService` stays as the
+  square's *batch + scoring* specialist (it keeps the `DoubleSquare`/state the model-agnostic
+  `FilledGrid` cannot carry, to score every word and read `solve_order` difficulty), now
+  spoken in the same `GridSpec`/`FillSpec` vocabulary.
+
+- **`assert_never` on the 3.10 floor.** CLAUDE.md recommends `match` + `typing.assert_never`,
+  but `typing.assert_never` is 3.11+ and the floor is a hard 3.10 ("Modern Python — with one
+  hard boundary"). Resolved by a hand-rolled `spec.assert_never` with a `NoReturn` parameter —
+  the pre-3.11 idiom that gives mypy the *identical* exhaustiveness check without the 3.11
+  import. (A small internal contradiction in CLAUDE.md, resolved in favour of the hard floor.)
+
+Rationale: the API is the forcing function, but the collapse is a strict improvement
+independent of it — one search instead of four, the impossible combinations typed out, the
+epistemics surfaced. Scope held: no engine, invariant (0–5), or user-visible artifact changed
+(all four CLIs and their documented invocations still work byte-for-byte; the benchmark
+drivers were mechanically ported); the full gate — ruff, mypy (the exhaustiveness check
+lands), import-linter (all new edges point down, `app/spec.py` sits in `app`), pytest —
+stays green. `BlockedGenerateService` was renamed `GenerateService` (module `app/blocked.py`
+→ `app/generate.py`, container field `blocked` → `generator`) because it now generates the
+square too; the old name was a misnomer.
+
+Alternatives considered:
+- **A single flat `GenerationConfig` dataclass** (every knob, optional): rejected — it keeps
+  the illegal combinations representable (a `num_black` *and* a `max_len` *and* a
+  `max_layouts` on one object) and pushes "which knobs apply" back into runtime validation.
+  The tagged union makes the engine's legal knobs a type, which is the whole point.
+- **Keep the four methods, add the specs as a thin wrapper**: rejected — it leaves the
+  method-name dispatch and the duplicated search in place; the specs would decorate a mess
+  rather than replace it.
+- **Fold `MiniService` entirely into `GenerateService`**: rejected for now — the square's
+  batch + per-word scoring + difficulty targeting genuinely differ from single-grid
+  generation, and forcing them together would blur invariant 0 (two coexisting models). The
+  square folds in at the *spec/geometry* level (`FullSquare`, `fill_grid`), which is enough.
+- **Pydantic models as the app spec**: rejected — D16 deliberately declined a `pydantic`
+  runtime dependency. The app specs stay plain frozen dataclasses; when the REST layer lands,
+  its wire schema (Pydantic, behind a `web` extra) *parses into* these, never *is* them — the
+  D15 rule that the port speaks the canonical form and serialization is a separate concern.
+
+Reversal: the collapse is consolidation (the old methods are in git). The spec algebra is
+additive and is the seam the REST API and a `PuzzleRepository` port build on (open-questions
+"Generation specs — BUILT (D32)"); if a fifth layout engine or a genuinely different fill
+regime arrives, it is a new union variant + a new `match` arm, caught by `assert_never`.
+
+## D33. Raise the Python floor to 3.13; retire the `assert_never` shim
+
+Context: the floor had been a hard `>=3.10` since D14 — a deliberate boundary policed by
+CLAUDE.md ("Modern Python — with one hard boundary") and re-affirmed at D32, whose one visible
+cost was a hand-rolled `spec.assert_never` (a `NoReturn`-parameter function) written *because*
+`typing.assert_never` is 3.11+ and could not be used under a 3.10 floor. That floor no longer
+buys anything: 3.10 entered security-only maintenance and is effectively out of service, and
+nothing consumes this package below 3.10 that we owe support to. Keeping it only taxed the
+codebase with a workaround for a version we do not run (the dev toolchain is 3.11/3.13, never
+3.10).
+
+Decision: raise the floor to **`>=3.13`** and modernise the one construct the old floor forced.
+
+- **The bump.** `requires-python = ">=3.13"`, ruff `target-version = "py313"`, mypy
+  `python_version = "3.13"`. 3.13 is in full upstream support (to ~2029), so the floor is a
+  live, supported version rather than a dead one — and it is the newest interpreter this
+  environment can actually run and verify (see "what 3.14 cost us" below).
+- **Retire the shim.** The D32 `spec.assert_never` (`(NoReturn) -> NoReturn`) is deleted;
+  every dispatch (`spec.layout_is_complete`, `GenerateService._search`/`layout_exists`) now
+  imports `typing.assert_never` directly. The static exhaustiveness check is *identical* —
+  adding a `LayoutStrategy` variant without a `match` arm is still a mypy error — but it is now
+  the stdlib name CLAUDE.md always recommended, not a local reimplementation of it.
+- **The 3.11–3.13 toolbox is now in bounds.** `StrEnum`, `tomllib`, PEP-695 `type X = …`
+  aliases and `class Foo[T]` generics, `@typing.override` — all now usable where they earn it
+  (not swept in here; this change is the floor + the one directly-forced workaround, kept
+  reviewable). CLAUDE.md's boundary section is rewritten from "modern *within 3.10*" to "the
+  floor is 3.13".
+
+**Why 3.13 and not 3.14 (the target that was asked for).** The intent was 3.14 as the floor;
+the *environment* blocked it, not the code. This container cannot provision a 3.14 interpreter:
+uv's python-build-standalone index here only knows `3.14.0rc2` (not 3.14.0 final), and even the
+RC 403s — the agent proxy allowlists pypi/files.pythonhosted (so package **wheels** resolve
+fine) but not github.com release assets (where the **interpreter** tarballs live). So a
+`>=3.14` floor would make `uv sync`/`uv run` refuse to build an env here at all, shipping an
+*unverifiable* floor — the whole gate (ruff/mypy/pytest) would stop running in this container.
+3.13 is on disk (`/usr/bin/python3.13`), the full gate runs green on it, and the jump 3.13→3.14
+is a one-line follow-up (`requires-python`, ruff, mypy) once the environment can fetch and test
+3.14. So the destination is unchanged; this is a way-station chosen for verifiability, recorded
+so the 3.14 bump is a known, trivial next step, not a re-decision.
+
+- **One downstream fix the bump forced.** Re-locking on 3.13 resolved numpy `1.26`→`2.5.1`,
+  whose type stubs split `Generator.random` into dtype/out-keyed overloads; the `Rng.random`
+  port's broad `size: int | None -> Any` signature no longer matched a single overload, so mypy
+  rejected the structural fit. Fixed by *narrowing the port to how it is actually used* —
+  `random(self) -> float`, a single accept draw (the only call, `gibbs_layout`, is always
+  no-arg) — which matches numpy's no-`size` overload cleanly. A port tightened to its real usage,
+  not a stub worked around. The reproducibility invariant survives the numpy major bump: the
+  `default_rng(0)` seed-0 mini is byte-identical before and after (`SEDAN/CREDO/ROTOR/ADEPT/PERTH`).
+
+Rationale: a floor should be a supported version we actually run, and a workaround should not
+outlive the constraint that forced it. This does both, at the cost of ~a dozen lines, with the
+gate green on 3.13 (the exhaustiveness check still lands). Scope held: no engine, invariant, or
+user-visible behaviour changed; `from __future__ import annotations` stays on every module
+(harmless, and still correct even as 3.14's PEP 649/749 would make it a no-op) rather than
+churning ~40 files for a cosmetic removal.
+
+Alternatives considered:
+- **Floor `>=3.14` (the stated target):** deferred, not rejected — see "Why 3.13" above. The
+  environment cannot verify it; a `>=3.14` floor here is untestable and breaks local tooling.
+  The bump is queued as a one-liner for when 3.14 is installable/CI-backed.
+- **Floor `>=3.11` (minimum to get `typing.assert_never`):** rejected — 3.11 clears the shim
+  but is a smaller step off a dead version; 3.13 is supported far longer and the dev box already
+  has it, so there is no cost to taking the larger, still-verifiable step.
+- **Keep `>=3.10` and the shim:** rejected — it is the status quo whose only justification (a
+  version we must support) no longer holds.
+- **Sweep StrEnum / PEP-695 / @override in the same change:** rejected for scope — this change
+  is the floor + the one workaround the floor forced; broader modernisation is now *unblocked*
+  and can land incrementally where it pays, without bundling it into the floor bump.
+
+Reversal: lowering the floor again would re-import the shim (D32's form is in git). Raising it
+to 3.14 is the intended next step and needs only the three config lines + retesting on a 3.14
+interpreter — no code change (the shim is already gone).
+

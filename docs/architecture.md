@@ -20,10 +20,14 @@ that keeps the OS out of the pure layers (see "OS reach is confined to init", be
   `validate`). No I/O, deterministic given its inputs. Defines the one port its
   engines need, `core/rng.py::Rng`/`RngFactory` — randomness is *injected*, not
   constructed here (the engines take `rng=`; see the engines below).
-- **`app/`** — use-case services (`MiniService`, `BlockedGenerateService`) and the
-  ports they need from outside (`app/ports.py`: `LexiconSource`, `Writer`).
+- **`app/`** — use-case services (`MiniService`, `GenerateService`, `PuzzleService`)
+  and the ports they need from outside (`app/ports.py`: `LexiconSource`, `Writer`).
   Services orchestrate the core through ports and return structured results
   (`app/results.py`); they never import a concrete adapter, read a file, or print.
+  Generation *input* is modelled, not passed as loose kwargs: `app/spec.py` is the
+  typed request algebra (`GridSpec` + the closed `LayoutStrategy` union + `FillSpec`,
+  bundled as `PuzzleSpec`), dispatched with `match` + `assert_never` (D32; see
+  "Generation specs" below).
   Clue generation is fenced here too: `app/puzzle.py` is the canonical space-first
   `FilledGrid` (cells + occupation; runs/crossings derived), `app/clue.py::ClueProvider`
   is the port the soft/generative clue stage lives behind, and `app/cluing.py::ClueService`
@@ -336,7 +340,8 @@ grid fillable from the length-2..5 data we already have — no length-6+ lists n
   complete, but the capped layout space at 10x10 is astronomically large, so a `None` under
   a `max_patterns`/`node_budget` bound is *budget exhaustion, not a UNSAT theorem* (existence
   — e.g. the odd-count proof — is still exact). `scripts/largemini.py` is the measurement
-  driver; `BlockedGenerateService.fill_capped_once` and `generate --max-len K` expose it.
+  driver; `GenerateService.fill(grid, CappedLayout(max_len=K))` and `generate --max-len K`
+  expose it.
 
 ### The layout field sampler — Gibbs, soft, coexisting (src/puzzledesk/core/engines/gibbs_layout.py, D27)
 
@@ -361,9 +366,9 @@ at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler
   **reject** at the end (`patterns._connected` BFS), the honest boundary open-questions flagged.
 - **Not complete.** A yielded grid is legal by exactly `gen_capped`'s definition (the final gate
   reuses `patterns._fully_checked`/`_connected`), but "no sample after N attempts" is **budget
-  exhaustion, never a UNSAT proof** — `capped_layout_exists` stays the sole existence theorem.
-  The epistemics survive the new engine.
-- `fill_gibbs` / `BlockedGenerateService.fill_capped_gibbs_once` / `generate --gibbs` expose it;
+  exhaustion, never a UNSAT proof** — `GenerateService.layout_exists` (the `gen_capped`
+  theorem) stays the sole existence proof. The epistemics survive the new engine.
+- `fill_gibbs` / `GenerateService.fill(grid, GibbsLayout(...))` / `generate --gibbs` expose it;
   `scripts/gibbs.py` is the head-to-head driver. **Verdict (D27): kept, scoped to aesthetics** —
   at 10x10 it wins on spread (cluster 0.67 vs 0.85) and *guarantees* no 2x2 block (vs ~0.27/grid
   for `gen_capped`), and is far more productive at the 12x12 frontier where the complete search's
@@ -404,27 +409,57 @@ at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler
 5. LOWERCASE ASCII. Lexicon assumes a-z; the curated source is upper/mixed and
    is lowercased at ingestion (see notes.md, generation commands).
 
+## Generation specs — the typed request algebra (`app.spec`, D32)
+
+Generation input is a modelled aggregate, not a bucket of keyword arguments. `app/spec.py`:
+
+- `GridSpec` — the shape + quality band + seed every strategy shares (`rows`, `cols`,
+  `min_score`, `max_score`, `seed`).
+- `LayoutStrategy` — a **closed, tagged union**, one frozen record per layout engine,
+  each carrying *only its own* knobs: `FullSquare` (the `DoubleSquare`, complete),
+  `CountLayout` (D13, complete), `CappedLayout` (D24, budgeted), `GibbsLayout` (D27,
+  sampled). Illegal knob combinations (`max_black` on the Gibbs field) are unrepresentable,
+  and the epistemic tag — is a `None` a proof or budget exhaustion? — is `layout_is_complete`,
+  a property of the variant, not lore in a method name.
+- `FillSpec` — the fill *selection* knobs (`min_hard_gets`, `gimme`; D23). Distinctness
+  (invariant 3) is not a knob — always on.
+- `PuzzleSpec` — the whole-puzzle aggregate: `GridSpec + LayoutStrategy + FillSpec +
+  ClueStyle`. The one object `PuzzleService` (and, next, a REST body) takes.
+
+`GenerateService.fill_grid(grid, layout)` dispatches the layout+fill search on the strategy
+(`match` + `assert_never`) and projects into a model-agnostic `FilledGrid` — square or
+blocked, one call; `GenerateService.fill(grid, layout)` shapes the scored `BlockedResult`
+for the blocked strategies. `GenerateService.layout_exists(grid, layout)` is the unbudgeted
+existence proof. This is the D15 rule ("model only where a contract forces it") applied to
+generation input: the serialized API surface is the contract; the internal call sites get
+the clarity for free.
+
 ## Data flow for "generate a mini" (`app.mini.MiniService`)
 
 `FileLexicon.load("cw", N)` (reads `cw_N.txt`, parses via `Lexicon.from_scored_text`)
 -> `full.filtered(min, max)` (the generation band) -> DoubleSquare ->
 `backtrack.solve(rng=factory.create(seed), distinct=True)` per seed -> validate (assert
-ok) -> shape a `MiniResult`. The `cli.mini` entry point + `cli.present` render it. Every
-emitted grid is distinct-words and every word in the band by construction of the filter.
-`cli.generate` + `BlockedGenerateService` are the blocked analogue.
+ok) -> shape a `MiniResult`. `MiniService.generate(grid: GridSpec, sel: FillSpec, *, count)`
+is the square's *batch + scoring* specialist (it keeps the `DoubleSquare`/state a
+`FilledGrid` cannot carry); a *single* square instead flows through
+`GenerateService.fill_grid(grid, FullSquare())` like any other grid. The `cli.mini` entry
+point + `cli.present` render it. Every emitted grid is distinct-words and every word in the
+band by construction of the filter. `cli.generate` + `GenerateService` are the blocked
+analogue.
 
-**Difficulty targeting (D23).** With `min_hard_gets > 0`, each solved grid is scored by
-`solve_order` (against the *full* vocabulary, under `gimme`) and kept only if it needs
+**Difficulty targeting (D23).** With `sel.min_hard_gets > 0`, each solved grid is scored by
+`solve_order` (against the *full* vocabulary, under `sel.gimme`) and kept only if it needs
 that many hard gets; survivors return hardest-first with a `SolveDifficulty` attached.
 This is best-of-a-seed-budget over a soft score, **not** a proof: a short return means
 "not found in the budget", never "impossible" (unlike a backtracker `None`).
 
 ## Data flow for "generate a whole puzzle" (`app.puzzle_service.PuzzleService`)
 
-The end-to-end compose (D20): `BlockedGenerateService.fill_grid_once(...)` runs the
-same layout+fill search as `generate`, but projects the result into the model-agnostic
+The end-to-end compose (D20): `PuzzleService.generate(spec: PuzzleSpec)` runs
+`GenerateService.fill_grid(spec.grid, spec.layout)` — the same layout+fill search as
+`generate`, for whichever strategy the spec names — projecting into the model-agnostic
 `FilledGrid` (`app.puzzle`, invariant-0 anti-corruption layer) instead of a scored
-`BlockedResult` -> `ClueService.clue(grid, style)` clues every entry through the
+`BlockedResult` -> `ClueService.clue(grid, style=spec.clue)` clues every entry through the
 `ClueProvider` port (the one soft stage) -> a `CluedPuzzle`. `cli.present.playable`
 renders it as a plain-text *solving* view: a blank numbered grid (numbering derived on
 demand by `FilledGrid.numbering()`, never stored) plus Across/Down clue lists; the
