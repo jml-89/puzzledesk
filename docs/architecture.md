@@ -166,6 +166,11 @@ solution you get and measure diversity/timing.
 whose across word is already used, and at the leaf (r==N) rejects the grid if the
 N down words are not mutually distinct or collide with an across word.
 
+(A `count`/model-counting extension of this engine — how *large* the solution space is
+at a bar — was spiked, measured, and tombstoned; see D31 and
+`docs/postmortem-kernel-methods.md` for what it found, chiefly that the curated top tier
+admits exactly 38 distinct 5x5 minis.)
+
 ### The retired sampler (D19)
 
 For its first several iterations the square also had a *secondary* engine: an

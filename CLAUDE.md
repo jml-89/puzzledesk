@@ -5,9 +5,12 @@ Operating manual for an agent working in this repo. It tells you how the code is
 does **not** restate the design — that lives in `docs/`, and you should read it:
 
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D30). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D31). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
+- `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution
+  counting + distinctness pruning), measured and tombstoned. Read before re-attempting
+  either, and for a synthesis of the whole methods arc.
 - `CONTRIBUTING.md` — branch/commit/PR etiquette. Read before you push.
 
 When this file and `docs/architecture.md` seem to disagree, `architecture.md`

@@ -1459,3 +1459,54 @@ the positional shape, so they needed no edit; this log is the record of *why* th
 
 Reversal: n/a -- consolidation. The hand-rolled parsers are in git if a tool ever needs a
 parse argparse cannot express (none does today).
+
+## D31. The kernel-methods review spike: measured, tombstoned -- see the post-mortem
+
+Context: a final review-of-methods spike over the pure kernel (the arc D1-D30 is well
+recorded, which made the genuinely-unexplored *complete/deterministic* gaps easy to see).
+Two were tried, in the house regime (filter, prove, measure): **solution counting** (how
+*large* is the SAT space at a bar -- the open-questions "how many distinct minis exist at
+score>=X" item) and an **early distinctness prune** (the "detect a partial column that can
+only complete to an already-used word ... measure before optimising" perf item). Both were
+built, measured, and -- following this repo's tombstone discipline (D19 sampler, D28
+connectivity-repair, D29 dead code) -- **removed from the shipped kernel with the findings
+recorded**, because neither earns a durable place in it: the counter's value was a *one-time
+measurement* (now recorded), and the prune *failed outright*.
+
+Decision: tombstone the spike. The kernel returns to its pre-spike state (`backtrack.py` has
+`solve` only; no `count`/`SolutionCount`, no `scripts/count.py`, no `tests/test_count.py`),
+and the review + the measured findings live as the canonical reference in
+**`docs/postmortem-kernel-methods.md`**. The code is one `git show` away (commit on the
+spike branch); the numbers are the memory, exactly as D19 kept the sampler's numbers after
+deleting the sampler.
+
+What was learned (full write-up in the post-mortem; headline numbers also in notes.md):
+
+- **The solution space collapses to a countable set at the ceiling.** The weak (Zipf) list
+  goes **56 -> 8 -> 0** exact distinct 5x5 minis across T=3.5/3.7/3.9, which also *refines*
+  the earlier ceiling read (the true edge is **between 3.7 and 3.9**, not "tops out ~3.5 /
+  UNSAT at 4.0"). The curated **top tier (score>=90) admits exactly 38 distinct 5x5 minis** --
+  the *denominator* behind "25 seeds found 18 distinct", and the number batch-variety
+  reasoning was missing (at the top the distinct pool is genuinely tiny, which is *why*
+  top-tier fills repeat). This finding survives the tombstone; the code that produced it need
+  not.
+- **The early distinctness prune does not pay.** A sound forced-down prune (a column prefix
+  admitting one word determines its down word; reject a duplicate before the `r==n` leaf) cut
+  only **~2% of search nodes and was time-neutral** -- the condition rarely fires before the
+  existing leaf check catches the duplicate anyway. "Measure before optimising" answered No.
+
+Alternatives considered:
+- **Keep `count` as a shipped capability (partial success, not failure):** rejected on the
+  owner's call to tombstone the spike -- consistent with D19's line that an idea can *earn its
+  place in the arc* (here: it answered the open question) *without earning an operational place
+  in the shipped system*. The measurement is the deliverable; the recorded number outlives the
+  code, and a future counting need restores `count` from git rather than carrying it idle.
+- **Keep the prune as an off-by-default flag:** rejected -- a ~2%, time-neutral knob on public
+  signatures is the "tombstone in place" D19/D28 warn against.
+- **A single decision entry, no separate doc:** rejected -- the spike is both a *review* of the
+  whole methods arc and two experiments; a dedicated post-mortem is the "easy reference"
+  canonical form, with this entry the index into it.
+
+Reversal: n/a for the design (nothing in the kernel changed). To resurrect the counter or the
+prune, `git show` the spike commit; the post-mortem records what they found so the resurrection
+starts from the verdict, not from scratch.
