@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from puzzledesk.adapters.claude_clue import ClaudeClueProvider
 from puzzledesk.adapters.claude_solver import ClaudeSolverAgent
 from puzzledesk.adapters.file_lexicon import FileLexicon
+from puzzledesk.adapters.memory_repository import InMemoryPuzzleRepository
 from puzzledesk.adapters.numpy_rng import NumpyRngFactory
 from puzzledesk.adapters.writer import StreamWriter
 from puzzledesk.app.clue import ClueProvider
@@ -30,6 +31,7 @@ from puzzledesk.app.generate import GenerateService
 from puzzledesk.app.mini import MiniService
 from puzzledesk.app.ports import LexiconSource, Writer
 from puzzledesk.app.puzzle_service import PuzzleService
+from puzzledesk.app.repository import PuzzleRepository
 from puzzledesk.app.solve_service import SolveService
 from puzzledesk.app.solver import SolverAgent
 from puzzledesk.bootstrap.config import Config
@@ -44,6 +46,7 @@ class _Adapters:
     rng_factory: RngFactory
     lexicon: LexiconSource
     writer: Writer
+    repository: PuzzleRepository
     clue_provider: ClueProvider
     solver_agent: SolverAgent
 
@@ -72,6 +75,10 @@ def _stage_adapters(config: Config) -> _Adapters:
         rng_factory=NumpyRngFactory(),
         lexicon=FileLexicon(config.data_dir),
         writer=StreamWriter(config.stream),
+        # Persistence for generated puzzles (D34, roadmap Phase 1). In-memory for now;
+        # a DB adapter is a drop-in second implementation of the same port. It takes no
+        # config and reaches nothing outside, so it is a plain stage-2 construction.
+        repository=InMemoryPuzzleRepository(),
         clue_provider=ClaudeClueProvider(
             model=config.clue_model, api_key=_resolve_api_key(config.clue_api_key_env)
         ),
@@ -99,6 +106,7 @@ def _stage_services(config: Config, adapters: _Adapters) -> Container:
         rng_factory=adapters.rng_factory,
         lexicon=adapters.lexicon,
         writer=adapters.writer,
+        repository=adapters.repository,
         mini=mini,
         generator=generator,
         clue=clue,

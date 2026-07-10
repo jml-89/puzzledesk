@@ -7,7 +7,7 @@ does **not** restate the design — that lives in `docs/`, and you should read i
 - `docs/roadmap.md` — the chosen forward **direction** (D34): ship a playable product and
   close the human-solve loop. The one forward-looking doc; everything else here is memory.
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D34). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D35). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution
@@ -24,7 +24,10 @@ wins and this file is stale — fix it.
 a convention: **import-linter** (`uv run lint-imports`) fails the build on a
 forbidden edge. A layer may import any layer *below* it, never one above:
 
-    core  <  app  <  adapters  <  bootstrap  <  cli
+    core  <  app  <  adapters  <  bootstrap  <  cli  <  web
+
+(`cli` and `web` are sibling entry points — argv and HTTP; the contract stacks `web`
+on top and neither imports the other. `web` is behind a `web` extra — D35.)
 
 Keep the boundaries sharp; the linter is what keeps them so. Full detail lives in
 `docs/architecture.md` §"Layered architecture" and `docs/decisions.md` D14.
@@ -68,13 +71,20 @@ only here), `FileLexicon` (the disk read), `StreamWriter`. They
 sit *above* app because they implement app's ports. Keep new I/O *here*, never in
 `core`/`app`.
 
-### bootstrap + cli — composition root and the front
+### bootstrap + cli + web — composition root and the fronts
 
 `bootstrap.build()` assembles a `Container` in three stages (config → adapters →
 services). `cli/` are thin entry points (argv → build → run → present); the tools
 `mini`/`generate`/`puzzle`/`solve` are typed `cli` modules with `scripts/*.py` shims (and
 `[project.scripts]` console commands). A tool is an **output path** — every grid it
 emits passes the acceptance test (invariant 3).
+
+`web/` is the HTTP front (D35), a sibling of `cli` over the same container: `POST /puzzles`
+(a Pydantic wire body → `PuzzleSpec` → generate → store → JSON view) and `GET /puzzles/{id}`.
+It is fenced behind a `web` extra (FastAPI/Pydantic), isolated like `anthropic` behind
+`clue` — the package and the whole gate run without it. Persistence is the `app.repository`
+`PuzzleRepository` port (in-memory adapter now, a DB later — the roadmap's Phase 1). The
+completeness tag crosses the wire (a `None` becomes 422 `unsat` vs `budget`, per D32).
 
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
@@ -121,12 +131,14 @@ uv run ruff format      # format
 uv run mypy             # type-check src/puzzledesk (strict: disallow_untyped_defs)
 uv run lint-imports     # architecture: the hexagonal layers contract (import-linter)
 uv run pytest           # tests: invariants + ground truth + DI (see below)
+uv run --extra web pytest              # ...also runs the web-layer tests (else importorskip'd)
 uv run scripts/mini.py 5 70 3          # a tool: three distinct 5x5 minis, every word >= 70
 uv run mini 5 70 3                     # ...same, via the console entry point
 uv run --extra clue puzzle --reveal    # a tool: a whole clued puzzle as plain text (D20; needs a key)
 uv run --extra clue solve --reveal     # a tool: a Claude agent solves a generated puzzle (D26; needs a key)
 uv run generate 10 10 0 60 3 --max-len 5   # a tool: 10x10 minis, entries capped at 5 (D24)
 uv run generate 10 10 0 65 2 --max-len 5 --gibbs  # a tool: capped minis, layout from the Gibbs field (D27)
+uv run --extra web uvicorn puzzledesk.web.main:app  # the HTTP API: POST/GET /puzzles (D35)
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
 uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the complete search (D27)

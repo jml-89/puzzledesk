@@ -1734,3 +1734,77 @@ additive and live at the `cli`/adapter edge. If the human-signal loop proves too
 noisy to calibrate against (Phase 3's premise), the project falls back to the LLM-proxy
 difficulty work or the generation stream, while the served/playable/persisted puzzle (Phases
 1–2) stands as the product regardless.
+
+## D35. Phase 1: the HTTP API layer + a persistence port
+
+Context: D34 chose to ship a playable product and `docs/roadmap.md` sequenced it. Phase 1
+is the API seam -- the forcing contract the rest of the loop needs, and the move D32's
+typed spec algebra was explicitly built to enable ("a serialized API body *does* force
+it"). It is pure architecture: no new engine, no research, no invariant touched.
+
+Decision: add a `web` layer beside `cli` and a `PuzzleRepository` port with an in-memory
+adapter.
+
+- **`app/repository.py` -- the persistence port.** A `PuzzleRepository` Protocol
+  (`save(spec, puzzle) -> PuzzleId`, `get(id) -> StoredPuzzle | None`) plus `StoredPuzzle`
+  (the `CluedPuzzle`, its originating `PuzzleSpec` for provenance, and the assigned id).
+  Declared in `app` (the application states the capability); implemented in `adapters`.
+  This is the "Second adapters" seam open-questions reserved, finally exercised. The port
+  is **total** -- `get` returns `None`, never raises -- so the caller words "no such
+  puzzle" (the 404 is the API's call), the same shape as `ClueProvider` returning empties.
+  Determinism nuance (D34): the *fill* is reproducible from `(lists, spec, seed)` but the
+  *clues* are soft (LLM), so the clued aggregate is stored as **data**, not regenerated.
+- **`adapters/memory_repository.py` -- the first implementation.** A dict + a monotonic
+  counter (ids `"1"`, `"2"`, ...). Wired in `bootstrap` as a plain stage-2 adapter (it
+  takes no config, reaches nothing outside); `Container` gains a `repository` field. A DB
+  adapter is a drop-in second implementation of the same port -- that the swap is drop-in,
+  with nothing above this layer changing, is the whole point of the port.
+- **`web/` -- the HTTP entry point.** FastAPI behind a `web` optional extra, isolated
+  exactly like `anthropic` behind `clue` (the package and the whole gate run without it;
+  only `puzzledesk.web.*` imports FastAPI/Pydantic). `web/schema.py` is a **Pydantic wire
+  schema** -- a discriminated union of layout bodies mirroring `LayoutStrategy` -- that
+  *parses into* `PuzzleSpec` via `to_spec()`, and a `PuzzleView` that *renders* a stored
+  puzzle as player JSON via `puzzle_view()`. It is a **separate** object, never `PuzzleSpec`
+  itself (D15: the port speaks the canonical form; serialization is an export concern).
+  `web/app.py::create_app(container)` is a factory (so a test hands it a fake-clued
+  container) exposing `POST /puzzles` (parse -> generate -> store -> view, 201) and
+  `GET /puzzles/{id}` (read back, 404 if absent); `web/main.py` is the uvicorn instance.
+- **The completeness epistemics cross the HTTP boundary intact.** A `None` from generation
+  is worded from the spec's layout tag (`layout_is_complete`, D32): a complete strategy's
+  empty result is a **422 `unsat`** ("a UNSAT proof, not a timeout"), a budgeted/sampled
+  one's is **422 `budget`** -- never collapsed into a bland not-found. "None is a proof"
+  survives the API, restated on the wire.
+
+Enforcement/scope: `web` joins the import-linter `layers` contract at the top (a top entry
+point like `cli`); the whole five-command gate stays green (ruff, ruff format, mypy --
+FastAPI/Pydantic added to the optional-extra `ignore_missing_imports` override beside
+`anthropic`, since the base gate runs without the extra --, import-linter, pytest). Two
+test files: `tests/test_repository.py` (the port round-trip, sequential ids, total-`None`,
+the runtime-checkable fit) runs in the base gate; `tests/test_web.py` (POST/GET round-trip
+against the *real* engine with fake clues, the 404, the 422-`unsat` proof, the wire-schema
+parse) is guarded by `importorskip("fastapi")` so the base gate skips it and
+`--extra web` runs it. A byproduct fix: `site/` (committed presentation artifacts its own
+README declares "outside the lint/type scope") is now actually `extend-exclude`d from ruff,
+which had been silently red there -- a prerequisite for a green `ruff check`.
+
+Rationale: this is the smallest vertical slice that makes generation *servable and
+persistent*, and it is the seam Phase 2 (the playable loop + solve telemetry) and the DB
+adapter build on. It cashes in D32 and exercises the last unbuilt architectural seam,
+without touching an engine or an invariant.
+
+Alternatives considered:
+- **Build the repository port speculatively before the web layer** (on the planning
+  branch): rejected -- D15 says structure arrives only when a contract forces it, and the
+  web body is the forcing function, so the port ships *with* it, not ahead.
+- **Make the app spec double as the wire schema** (Pydantic on `PuzzleSpec` itself):
+  rejected, per D16/D32 -- the app specs stay plain frozen dataclasses; the wire schema is a
+  separate object that parses into them.
+- **A DB adapter now:** deferred -- in-memory first proves the port and the loop; the DB is
+  a drop-in second adapter once Phase 2 needs durability across restarts.
+- **`create_app` takes just the two services it uses** (not the whole `Container`):
+  rejected -- entry points take the assembled container (the `cli` idiom); a test swaps
+  fakes in with `dataclasses.replace` on the frozen container.
+
+Reversal: additive and edge-local (a new top layer + one adapter + one port), so it reverses
+by deletion without disturbing `core`/`app`/`cli`. The `web` extra keeps FastAPI out of
+everyone who does not serve HTTP.

@@ -62,7 +62,13 @@ makes a design call. **`None` stays a proof** across every new seam (the layout 
 `spec.layout_is_complete`, travels into the API's "no puzzle" response — never a swallowed
 timeout).
 
-## Phase 1 — the API seam (pure architecture, no new research)
+## Phase 1 — the API seam (pure architecture, no new research) — SHIPPED (D35)
+
+**Status: built and gate-green (D35).** The `web/` layer, the `PuzzleRepository` port +
+in-memory adapter, `POST`/`GET /puzzles`, and the `web` extra all landed; the completeness
+tag crosses the wire (422 `unsat` vs `budget`). What follows is the plan it delivered
+against; the technical detail now lives in `architecture.md` ("Data flow for serving a
+puzzle over HTTP", "Persistence: the `PuzzleRepository` port") and D35.
 
 The forcing contract that makes the rest legal to build. A `web/` entry point beside
 `cli/`, reusing `build()`'s container.
