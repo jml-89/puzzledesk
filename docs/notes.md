@@ -386,6 +386,43 @@ Same 2x2 with the weaker solver (Haiku 4.5, enabled thinking budget 10k, opus-wr
   (the real analogue of a bounded-vocabulary human) rather than lean on model weakness, which is
   erratic rather than cleanly bounded.
 
+### Vocabulary floor: the word axis is live only through STRUCTURE (a Natick), and only vs true unknowns
+
+The faithful bounded-vocabulary solver (an LLM cannot "forget", so): pick a floor `theta` = the
+solver's known-word boundary, and **redact the clue** for any entry scoring below it -- the solver
+is told it does not know that word and must recover it from crossing letters alone (a human meeting
+a word outside their vocabulary). Two probe grids (Opus, `--policy none`, floor 75, fill band
+[62,90]), each classifying every below-floor entry as *forced* (all cells shared with a KNOWN
+perpendicular) or *Natick* (a cell shared only with another unknown):
+
+- **Seed 0 -- genuinely obscure fill (XACTO 65, ONICE 65, COPAY 70; a 3-way cluster).** `solved=False`.
+  The solver failed at **exactly the predicted Natick cell**: XACTO->XASTO and ONICE->ONISE, both
+  wrong at the *same* shared cell (2,3) where the two un-recognized words cross (it guessed S; answer
+  C). Where a crossing word *was* recoverable (COPAY, which it got), the cell resolved. This is the
+  analytical Natick (`analyze`) reproduced *empirically* -- the loop closed.
+- **Seed 1 -- famous names below the floor (MAE 65, ELON 65).** `solved=True`, one turn. It got
+  MAE and ELON right *despite* redacted clues, because it **recognizes famous names from a partial
+  pattern** regardless of crossword score.
+
+Conclusions:
+1. **Word difficulty is real but purely *structural*.** Obscurity never grades a single entry (a
+   redacted word with a KNOWN crossing is still forced); it only bites at an **unknown x unknown
+   crossing** -- a Natick. So the word axis lives exactly where `analyze`/`solve_order` said it does,
+   and nowhere else. "Harder words" is not a difficulty dial; "unknown words crossing each other" is
+   a fairness cliff. Same lesson as before, now demonstrated end-to-end with a real solver.
+2. **The effective vocabulary boundary is *recognizability*, not crossword score.** The score floor
+   mislabels famous-but-low-score entries (MAE, ELON) as unknown; the LLM knows them anyway, so the
+   redaction does not bind. The empirical Natick occurs precisely where two *un-recognizable* words
+   cross (XACTO x ONICE), which is the LLM's true `theta`, not the score threshold. For a *human*
+   with a genuinely bounded list this mechanism is faithful (redact the words they truly do not know);
+   for an LLM few words qualify, and the honest bounded-solver is the analytical `solve_order` run
+   against a vocabulary-floored lexicon.
+
+Net of the whole D24 arc: **difficulty = clue obliqueness on known words (the fair, graded axis);
+word difficulty is a structural cliff (unknown x unknown = Natick), not a slope.** Confirmed by Opus
+reasoning-tokens, Haiku failures, the vocabulary-floor Natick reproduction, and a human's lifetime of
+minis. The empirical agent and the analytical `analyze`/`solve_order` model agree.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed
