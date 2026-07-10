@@ -13,6 +13,7 @@ Run from the repo root, with the clue extra and a key (see Config.clue_api_key_e
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import pathlib
@@ -25,7 +26,7 @@ from puzzledesk.app.puzzle import FilledGrid, filled_from_blocked
 from puzzledesk.bootstrap import Config, build
 from puzzledesk.core.engines import gibbs_layout, patterns
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else str(pathlib.Path(__file__).parent / "puzzles.json")
+DEFAULT_OUT = str(pathlib.Path(__file__).parent / "puzzles.json")
 
 c = build()
 key = os.environ.get(Config.default().clue_api_key_env or "ANTHROPIC_API_KEY_TWO")
@@ -45,11 +46,27 @@ def blocked_mini() -> FilledGrid:
     return fg
 
 
+def blocked_mini_asym() -> FilledGrid:
+    fg = c.blocked.fill_grid_once(5, 5, 4, min_score=72, seed=0, symmetric=False)
+    assert fg is not None
+    return fg
+
+
 def midi_capped() -> FilledGrid:
     mlex = c.lexicon.load_multi("cw", range(3, 6), min_score=66)
     found = patterns.fill_capped(
         10, 10, mlex, rng_factory=c.rng_factory, max_len=5, seed=3, min_len=3,
         symmetric=True, distinct=True, max_black=24, layout_node_budget=300_000,
+    )
+    assert found is not None
+    return filled_from_blocked(*found)
+
+
+def midi_capped_asym() -> FilledGrid:
+    mlex = c.lexicon.load_multi("cw", range(3, 6), min_score=66)
+    found = patterns.fill_capped(
+        10, 10, mlex, rng_factory=c.rng_factory, max_len=5, seed=0, min_len=3,
+        symmetric=False, distinct=True, max_black=24, layout_node_budget=300_000,
     )
     assert found is not None
     return filled_from_blocked(*found)
@@ -84,6 +101,18 @@ SPECS = [
               "The fill then solves that layout above the bar — both stages complete, so "
               "“no grid” would be a theorem, not a timeout.",
          make="uv run generate 5 5 4 72 1"),
+    dict(id="blocked-asym", title="The Freeform Mini", tag="Asymmetric black cells",
+         difficulty=Difficulty.TUESDAY, build=blocked_mini_asym,
+         blurb="The same 5×5, four-black search as *The Blocked Mini* — but with the 180° "
+               "symmetry requirement switched off. The blacks fall where the grid wants "
+               "them, not in mirrored pairs, and the whole layout tilts.",
+         note="The same count-driven complete search as its neighbour, with one constraint "
+              "lifted: pass *--nonsymmetric* and the layout is no longer restricted to "
+              "180°-rotation orbits, so the four blacks land wherever a legal, connected, "
+              "fully-checked grid allows. Symmetry was always a default-on toggle here, not "
+              "a hardwired rule (D13). The search stays complete and the fill still solves "
+              "it above the bar, every entry distinct — only the mirror is gone.",
+         make="uv run generate 5 5 4 72 1 --nonsymmetric"),
     dict(id="midi", title="The Midi", tag="Length-capped 10×10",
          difficulty=Difficulty.WEDNESDAY, build=midi_capped,
          blurb="A 10×10 built entirely from words of length 3–5. Black cells are placed "
@@ -93,6 +122,18 @@ SPECS = [
               "That is what lets a 10×10 fill from the same 2–5-letter lists a mini uses "
               "— no ten-letter word lists needed (generate 10 10 0 66 1 --max-len 5).",
          make="uv run generate 10 10 0 66 1 --max-len 5"),
+    dict(id="midi-asym", title="The Freeform Midi", tag="Asymmetric 10×10",
+         difficulty=Difficulty.WEDNESDAY, build=midi_capped_asym,
+         blurb="The length-capped 10×10 again, symmetry off. Without the mirror constraint "
+               "the black cells drift into a lopsided, freeform arrangement — the older, "
+               "less formal crossword look, and a noticeably different feel to solve.",
+         note="Identical to *The Midi* — cap-driven search, every entry 3–5 letters, layout "
+              "from the number alone — except the 180° constraint is dropped "
+              "(*--nonsymmetric*). Turning symmetry off widens the layout search from "
+              "rotation orbits to every cell independently; the same completeness and "
+              "distinctness guarantees hold, so this is the identical machine with one "
+              "aesthetic rule removed, not a weaker one.",
+         make="uv run generate 10 10 0 66 1 --max-len 5 --nonsymmetric"),
     dict(id="field", title="The Field", tag="Gibbs-sampled layout",
          difficulty=Difficulty.THURSDAY, build=field_gibbs,
          blurb="Another 10×10 — but this one’s black-cell pattern was *sampled* from an "
@@ -142,7 +183,39 @@ def export(spec) -> dict:
     )
 
 
-puzzles = [export(s) for s in SPECS]
-with open(OUT, "w") as f:
-    json.dump(puzzles, f, indent=1, ensure_ascii=False)
-sys.stderr.write(f"wrote {OUT} ({len(puzzles)} puzzles)\n")
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("out", nargs="?", default=DEFAULT_OUT, help="output path (default: site/puzzles.json)")
+    ap.add_argument(
+        "--only",
+        metavar="ID,ID",
+        help="regenerate only these spec ids and merge them into the existing file, keeping "
+             "every other puzzle's committed clues untouched (order always follows SPECS)",
+    )
+    args = ap.parse_args()
+
+    ids = [s["id"] for s in SPECS]
+    if args.only:
+        wanted = [i.strip() for i in args.only.split(",") if i.strip()]
+        unknown = [i for i in wanted if i not in ids]
+        if unknown:
+            ap.error(f"unknown spec id(s): {', '.join(unknown)} (known: {', '.join(ids)})")
+        specs = [s for s in SPECS if s["id"] in wanted]
+    else:
+        specs = SPECS
+
+    fresh = {s["id"]: export(s) for s in specs}
+
+    out = pathlib.Path(args.out)
+    kept: dict[str, dict] = {}
+    if args.only and out.exists():
+        kept = {p["id"]: p for p in json.loads(out.read_text())}
+
+    puzzles = [fresh.get(s["id"], kept.get(s["id"])) for s in SPECS]
+    puzzles = [p for p in puzzles if p is not None]
+    out.write_text(json.dumps(puzzles, indent=1, ensure_ascii=False))
+    sys.stderr.write(f"wrote {out} ({len(puzzles)} puzzles)\n")
+
+
+if __name__ == "__main__":
+    main()

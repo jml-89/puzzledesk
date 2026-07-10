@@ -661,6 +661,320 @@
   }
  },
  {
+  "id": "blocked-asym",
+  "title": "The Freeform Mini",
+  "tag": "Asymmetric black cells",
+  "difficulty": "Tuesday",
+  "blurb": "The same 5×5, four-black search as *The Blocked Mini* — but with the 180° symmetry requirement switched off. The blacks fall where the grid wants them, not in mirrored pairs, and the whole layout tilts.",
+  "note": "The same count-driven complete search as its neighbour, with one constraint lifted: pass *--nonsymmetric* and the layout is no longer restricted to 180°-rotation orbits, so the four blacks land wherever a legal, connected, fully-checked grid allows. Symmetry was always a default-on toggle here, not a hardwired rule (D13). The search stays complete and the fill still solves it above the bar, every entry distinct — only the mirror is gone.",
+  "make": "uv run generate 5 5 4 72 1 --nonsymmetric",
+  "rows": 5,
+  "cols": 5,
+  "cells": [
+   [
+    null,
+    "M",
+    "A",
+    "M",
+    "A"
+   ],
+   [
+    "L",
+    "U",
+    "C",
+    "I",
+    "D"
+   ],
+   [
+    "A",
+    "C",
+    "T",
+    "E",
+    "D"
+   ],
+   [
+    "S",
+    "H",
+    "U",
+    "N",
+    null
+   ],
+   [
+    "H",
+    "O",
+    "P",
+    null,
+    null
+   ]
+  ],
+  "numbering": {
+   "0,1": 1,
+   "0,2": 2,
+   "0,3": 3,
+   "0,4": 4,
+   "1,0": 5,
+   "2,0": 6,
+   "3,0": 7,
+   "4,0": 8
+  },
+  "across": [
+   {
+    "num": 1,
+    "clue": "Word before or after \"mia\"",
+    "answer": "MAMA",
+    "len": 4,
+    "cells": [
+     [
+      0,
+      1
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 5,
+    "clue": "Clear and easy to understand",
+    "answer": "LUCID",
+    "len": 5,
+    "cells": [
+     [
+      1,
+      0
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 6,
+    "clue": "Performed on stage",
+    "answer": "ACTED",
+    "len": 5,
+    "cells": [
+     [
+      2,
+      0
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 7,
+    "clue": "Deliberately avoid",
+    "answer": "SHUN",
+    "len": 4,
+    "cells": [
+     [
+      3,
+      0
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      3,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 8,
+    "clue": "Bunny's movement",
+    "answer": "HOP",
+    "len": 3,
+    "cells": [
+     [
+      4,
+      0
+     ],
+     [
+      4,
+      1
+     ],
+     [
+      4,
+      2
+     ]
+    ]
+   }
+  ],
+  "down": [
+   {
+    "num": 1,
+    "clue": "A lot, in Spanish",
+    "answer": "MUCHO",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      4,
+      1
+     ]
+    ]
+   },
+   {
+    "num": 2,
+    "clue": "Misbehave, as a kid",
+    "answer": "ACTUP",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      4,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 3,
+    "clue": "Person's demeanor",
+    "answer": "MIEN",
+    "len": 4,
+    "cells": [
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      3,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 4,
+    "clue": "Do some arithmetic",
+    "answer": "ADD",
+    "len": 3,
+    "cells": [
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 5,
+    "clue": "Whip stroke",
+    "answer": "LASH",
+    "len": 4,
+    "cells": [
+     [
+      1,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      4,
+      0
+     ]
+    ]
+   }
+  ],
+  "stats": {
+   "entries": 10,
+   "black": 4
+  }
+ },
+ {
   "id": "midi",
   "title": "The Midi",
   "tag": "Length-capped 10×10",
@@ -1796,6 +2110,1085 @@
   "stats": {
    "entries": 40,
    "black": 20
+  }
+ },
+ {
+  "id": "midi-asym",
+  "title": "The Freeform Midi",
+  "tag": "Asymmetric 10×10",
+  "difficulty": "Wednesday",
+  "blurb": "The length-capped 10×10 again, symmetry off. Without the mirror constraint the black cells drift into a lopsided, freeform arrangement — the older, less formal crossword look, and a noticeably different feel to solve.",
+  "note": "Identical to *The Midi* — cap-driven search, every entry 3–5 letters, layout from the number alone — except the 180° constraint is dropped (*--nonsymmetric*). Turning symmetry off widens the layout search from rotation orbits to every cell independently; the same completeness and distinctness guarantees hold, so this is the identical machine with one aesthetic rule removed, not a weaker one.",
+  "make": "uv run generate 10 10 0 66 1 --max-len 5 --nonsymmetric",
+  "rows": 10,
+  "cols": 10,
+  "cells": [
+   [
+    "T",
+    "I",
+    "M",
+    "O",
+    "N",
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "E",
+    "N",
+    "E",
+    "M",
+    "Y",
+    null,
+    "P",
+    "E",
+    "P",
+    "S"
+   ],
+   [
+    "A",
+    "D",
+    "A",
+    "G",
+    "E",
+    null,
+    "O",
+    "R",
+    "E",
+    "O"
+   ],
+   [
+    "S",
+    "U",
+    "N",
+    null,
+    null,
+    null,
+    "L",
+    "I",
+    "P",
+    "S"
+   ],
+   [
+    "E",
+    "S",
+    "S",
+    "E",
+    "N",
+    null,
+    "I",
+    "K",
+    "E",
+    "A"
+   ],
+   [
+    null,
+    null,
+    null,
+    "V",
+    "I",
+    "N",
+    "O",
+    null,
+    null,
+    null
+   ],
+   [
+    null,
+    null,
+    "L",
+    "I",
+    "T",
+    "E",
+    null,
+    "L",
+    "O",
+    "W"
+   ],
+   [
+    "P",
+    "O",
+    "E",
+    "T",
+    null,
+    "R",
+    "H",
+    "O",
+    "D",
+    "A"
+   ],
+   [
+    "D",
+    "I",
+    "V",
+    "A",
+    null,
+    "V",
+    "I",
+    "G",
+    "O",
+    "R"
+   ],
+   [
+    "A",
+    "L",
+    "I",
+    null,
+    null,
+    "E",
+    "M",
+    "O",
+    "R",
+    "Y"
+   ]
+  ],
+  "numbering": {
+   "0,0": 1,
+   "0,1": 2,
+   "0,2": 3,
+   "0,3": 4,
+   "0,4": 5,
+   "1,0": 6,
+   "1,6": 7,
+   "1,7": 8,
+   "1,8": 9,
+   "1,9": 10,
+   "2,0": 11,
+   "2,6": 12,
+   "3,0": 13,
+   "3,6": 14,
+   "4,0": 15,
+   "4,3": 16,
+   "4,4": 17,
+   "4,6": 18,
+   "5,3": 19,
+   "5,5": 20,
+   "6,2": 21,
+   "6,7": 22,
+   "6,8": 23,
+   "6,9": 24,
+   "7,0": 25,
+   "7,1": 26,
+   "7,5": 27,
+   "7,6": 28,
+   "8,0": 29,
+   "8,5": 30,
+   "9,0": 31,
+   "9,5": 32
+  },
+  "across": [
+   {
+    "num": 1,
+    "clue": "Meerkat in \"The Lion King\"",
+    "answer": "TIMON",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 6,
+    "clue": "One on the opposing side",
+    "answer": "ENEMY",
+    "len": 5,
+    "cells": [
+     [
+      1,
+      0
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 7,
+    "clue": "Energizes, with \"up\"",
+    "answer": "PEPS",
+    "len": 4,
+    "cells": [
+     [
+      1,
+      6
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      1,
+      8
+     ],
+     [
+      1,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 11,
+    "clue": "\"Haste makes waste,\" e.g.",
+    "answer": "ADAGE",
+    "len": 5,
+    "cells": [
+     [
+      2,
+      0
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 12,
+    "clue": "Cookie with a creamy center",
+    "answer": "OREO",
+    "len": 4,
+    "cells": [
+     [
+      2,
+      6
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      2,
+      8
+     ],
+     [
+      2,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 13,
+    "clue": "It rises in the east",
+    "answer": "SUN",
+    "len": 3,
+    "cells": [
+     [
+      3,
+      0
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      3,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 14,
+    "clue": "They may be sealed with a kiss",
+    "answer": "LIPS",
+    "len": 4,
+    "cells": [
+     [
+      3,
+      6
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      3,
+      8
+     ],
+     [
+      3,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 15,
+    "clue": "German industrial city in the Ruhr",
+    "answer": "ESSEN",
+    "len": 5,
+    "cells": [
+     [
+      4,
+      0
+     ],
+     [
+      4,
+      1
+     ],
+     [
+      4,
+      2
+     ],
+     [
+      4,
+      3
+     ],
+     [
+      4,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 18,
+    "clue": "Swedish furniture giant",
+    "answer": "IKEA",
+    "len": 4,
+    "cells": [
+     [
+      4,
+      6
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      4,
+      8
+     ],
+     [
+      4,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 19,
+    "clue": "Table red, in Rome",
+    "answer": "VINO",
+    "len": 4,
+    "cells": [
+     [
+      5,
+      3
+     ],
+     [
+      5,
+      4
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      5,
+      6
+     ]
+    ]
+   },
+   {
+    "num": 21,
+    "clue": "Low-cal, on labels",
+    "answer": "LITE",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      2
+     ],
+     [
+      6,
+      3
+     ],
+     [
+      6,
+      4
+     ],
+     [
+      6,
+      5
+     ]
+    ]
+   },
+   {
+    "num": 22,
+    "clue": "Not at all high",
+    "answer": "LOW",
+    "len": 3,
+    "cells": [
+     [
+      6,
+      7
+     ],
+     [
+      6,
+      8
+     ],
+     [
+      6,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 25,
+    "clue": "Frost or Keats",
+    "answer": "POET",
+    "len": 4,
+    "cells": [
+     [
+      7,
+      0
+     ],
+     [
+      7,
+      1
+     ],
+     [
+      7,
+      2
+     ],
+     [
+      7,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 27,
+    "clue": "Mary Tyler Moore's neighbor Morgenstern",
+    "answer": "RHODA",
+    "len": 5,
+    "cells": [
+     [
+      7,
+      5
+     ],
+     [
+      7,
+      6
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      7,
+      8
+     ],
+     [
+      7,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 29,
+    "clue": "Opera star with attitude",
+    "answer": "DIVA",
+    "len": 4,
+    "cells": [
+     [
+      8,
+      0
+     ],
+     [
+      8,
+      1
+     ],
+     [
+      8,
+      2
+     ],
+     [
+      8,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 30,
+    "clue": "Robust energy",
+    "answer": "VIGOR",
+    "len": 5,
+    "cells": [
+     [
+      8,
+      5
+     ],
+     [
+      8,
+      6
+     ],
+     [
+      8,
+      7
+     ],
+     [
+      8,
+      8
+     ],
+     [
+      8,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 31,
+    "clue": "Boxer Muhammad",
+    "answer": "ALI",
+    "len": 3,
+    "cells": [
+     [
+      9,
+      0
+     ],
+     [
+      9,
+      1
+     ],
+     [
+      9,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 32,
+    "clue": "Atlanta university",
+    "answer": "EMORY",
+    "len": 5,
+    "cells": [
+     [
+      9,
+      5
+     ],
+     [
+      9,
+      6
+     ],
+     [
+      9,
+      7
+     ],
+     [
+      9,
+      8
+     ],
+     [
+      9,
+      9
+     ]
+    ]
+   }
+  ],
+  "down": [
+   {
+    "num": 1,
+    "clue": "Provoke playfully",
+    "answer": "TEASE",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      3,
+      0
+     ],
+     [
+      4,
+      0
+     ]
+    ]
+   },
+   {
+    "num": 2,
+    "clue": "Major river of Pakistan",
+    "answer": "INDUS",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      4,
+      1
+     ]
+    ]
+   },
+   {
+    "num": 3,
+    "clue": "Ways and ___",
+    "answer": "MEANS",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      4,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 4,
+    "clue": "\"I can't believe it!\" in a text",
+    "answer": "OMG",
+    "len": 3,
+    "cells": [
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 5,
+    "clue": "\"Bill ___ the Science Guy\"",
+    "answer": "NYE",
+    "len": 3,
+    "cells": [
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 7,
+    "clue": "Disease Salk battled",
+    "answer": "POLIO",
+    "len": 5,
+    "cells": [
+     [
+      1,
+      6
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      5,
+      6
+     ]
+    ]
+   },
+   {
+    "num": 8,
+    "clue": "Composer Satie",
+    "answer": "ERIK",
+    "len": 4,
+    "cells": [
+     [
+      1,
+      7
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      4,
+      7
+     ]
+    ]
+   },
+   {
+    "num": 9,
+    "clue": "French skunk Le Pew",
+    "answer": "PEPE",
+    "len": 4,
+    "cells": [
+     [
+      1,
+      8
+     ],
+     [
+      2,
+      8
+     ],
+     [
+      3,
+      8
+     ],
+     [
+      4,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 10,
+    "clue": "Slugger Sammy",
+    "answer": "SOSA",
+    "len": 4,
+    "cells": [
+     [
+      1,
+      9
+     ],
+     [
+      2,
+      9
+     ],
+     [
+      3,
+      9
+     ],
+     [
+      4,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 16,
+    "clue": "Musical with \"Don't Cry for Me Argentina\"",
+    "answer": "EVITA",
+    "len": 5,
+    "cells": [
+     [
+      4,
+      3
+     ],
+     [
+      5,
+      3
+     ],
+     [
+      6,
+      3
+     ],
+     [
+      7,
+      3
+     ],
+     [
+      8,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 17,
+    "clue": "Louse egg",
+    "answer": "NIT",
+    "len": 3,
+    "cells": [
+     [
+      4,
+      4
+     ],
+     [
+      5,
+      4
+     ],
+     [
+      6,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 20,
+    "clue": "Audacity",
+    "answer": "NERVE",
+    "len": 5,
+    "cells": [
+     [
+      5,
+      5
+     ],
+     [
+      6,
+      5
+     ],
+     [
+      7,
+      5
+     ],
+     [
+      8,
+      5
+     ],
+     [
+      9,
+      5
+     ]
+    ]
+   },
+   {
+    "num": 21,
+    "clue": "Jeans brand Strauss",
+    "answer": "LEVI",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      2
+     ],
+     [
+      7,
+      2
+     ],
+     [
+      8,
+      2
+     ],
+     [
+      9,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 22,
+    "clue": "Brand symbol",
+    "answer": "LOGO",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      7
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      8,
+      7
+     ],
+     [
+      9,
+      7
+     ]
+    ]
+   },
+   {
+    "num": 23,
+    "clue": "Reason for air freshener",
+    "answer": "ODOR",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      8
+     ],
+     [
+      7,
+      8
+     ],
+     [
+      8,
+      8
+     ],
+     [
+      9,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 24,
+    "clue": "On guard",
+    "answer": "WARY",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      9
+     ],
+     [
+      7,
+      9
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      9,
+      9
+     ]
+    ]
+   },
+   {
+    "num": 25,
+    "clue": "Handheld device, briefly",
+    "answer": "PDA",
+    "len": 3,
+    "cells": [
+     [
+      7,
+      0
+     ],
+     [
+      8,
+      0
+     ],
+     [
+      9,
+      0
+     ]
+    ]
+   },
+   {
+    "num": 26,
+    "clue": "Well output",
+    "answer": "OIL",
+    "len": 3,
+    "cells": [
+     [
+      7,
+      1
+     ],
+     [
+      8,
+      1
+     ],
+     [
+      9,
+      1
+     ]
+    ]
+   },
+   {
+    "num": 28,
+    "clue": "Object of a manhunt?",
+    "answer": "HIM",
+    "len": 3,
+    "cells": [
+     [
+      7,
+      6
+     ],
+     [
+      8,
+      6
+     ],
+     [
+      9,
+      6
+     ]
+    ]
+   }
+  ],
+  "stats": {
+   "entries": 37,
+   "black": 24
   }
  },
  {
