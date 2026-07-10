@@ -242,6 +242,247 @@ Reproducibility note: `mini 5 70 1` is unchanged by the band work
 (`rotor/atone/strep/petal/srsly`, weakest `oneal` 70); `mini 5 70 1 --max 80` bands
 to `[70,80]` (2567 eligible) and yields `packs/omani/risen/estee/sheds`.
 
+## Agent solve loop (D26, cli.solve) — live check + first finding
+
+The solving spike was exercised **live** end to end (`uv run --extra clue solve`), against
+`api.anthropic.com` with the `ANTHROPIC_API_KEY_TWO` key the container carries. Both stages
+work: clue generation, then a Claude agent (`claude-opus-4-8`) solving through the feedback
+loop. Two API-shape facts learned live (both now encoded in `adapters/claude_solver.py`):
+
+- Structured outputs (`output_config={"format":{"type":"json_schema","schema":…}}`) work for
+  the *clue* adapter (it keeps them).
+- Thinking APIs differ by **model family**: Opus 4.8 uses **adaptive**
+  (`thinking={"type":"adaptive"}` + `output_config.effort`); Haiku 4.5 uses the older
+  **enabled** (`thinking={"type":"enabled","budget_tokens":N}`). Each **400s** on the other
+  (`Config.solve_thinking` = `adaptive`/`enabled`/`off` selects it).
+- **Reasoning volume is the measurement, so the solver runs *free-form* (no forced schema).**
+  Forcing a JSON schema *suppresses the thinking pass and zeros `thinking_tokens`* — the very
+  signal we want. Free-form, the model reasons in prose (readable) and ends with a JSON object
+  parsed leniently; `usage.output_tokens_details.thinking_tokens` is the effort scalar (the
+  thinking *block* itself comes back redacted/empty). Trivial prompt → **0** thinking tokens;
+  a mini → **thousands**, so the signal is real and difficulty-responsive.
+
+First finding: **a 5x5 mini is a one-shot for Opus 4.8, even under `--policy none` (no
+feedback).** The completion bit saturates (always solved in 1 turn), so the graded tell is
+**reasoning-token spend**, not turns.
+
+Clue-difficulty sweep (`scripts/solve_effort.py`, Opus, `--policy none`, thinking tokens; the
+fill is identical per seed across difficulties, only the clues differ):
+
+    difficulty  seed0  seed1  seed2
+    monday       6585   1697   1028
+    saturday     1735   1421   1394
+
+Read: **clue difficulty barely moves reasoning**, and on seed 0's *identical grid* Monday cost
+*more* than Saturday. Single-run variance is large (6585 vs 1028), so counts need averaging.
+
+**What the transcripts reveal (the important finding).** Head-to-head on one puzzle (seed 1,
+Wednesday clues), Opus vs Haiku, both solved in one turn:
+- Both solve the mini as **ten independent trivia clues**, not as a constraint puzzle. Every
+  entry (SIP, SELES, INDY, PASS, ARENA, HOLDS, OBEYS, YES, AHOY, ROBE) is gettable from its
+  clue alone; the interlock is a *formality they confirm*, not the *means*. Opus even says it —
+  "ARENA (crosses give _ _ E N A)" — using crossings only to check. This is why clue difficulty
+  does not bite: if the model already knows the word, the crossings never become load-bearing.
+- **More tokens ≠ more/better reasoning.** Haiku spent **5737** tokens vs Opus's **1512** (3.8×)
+  for the *same* answers — but its extra reasoning is verbose and **partly confabulated**: it
+  "verified crossings" with hand-wave ✓s and drew a grid (`IPEAO/NALHB/…`) that does **not**
+  match its own (correct) placements. It got the answer because the clues were individually
+  easy, not because its interlock reasoning was sound. Since the real thinking block is
+  redacted, the prose is a *separate, post-hoc articulation* and can diverge from what happened
+  — trust the token **count** as effort, treat the prose as a lossy narrative.
+- **Reframing.** Our analytical difficulty (`analyze`/`solve_order`) lives entirely in the grid
+  *structure* (open crossings, Naticks). On a mini of common words the models **bypass that
+  structure**, so thinking-tokens measure trivia recall + verbosity, not structural difficulty,
+  and will not correlate with the model until the puzzle *forces* crossing inference. The
+  discriminating lever is therefore **word obscurity** (make the clues insufficient so the grid
+  must carry the solve) — the two-sided band the mini path has (`--max`) but the puzzle/blocked
+  fill does not expose yet — more than clue wording or model choice.
+
+(The Haiku *table* sweep over 6 puzzles timed out at 590 s — Haiku is slow/verbose; the
+head-to-head above is the cleaner read anyway.)
+
+**The lever, found: clue *ambiguity*, not word obscurity.** Threaded a two-sided score band
+`[min, max]` through the puzzle/blocked fill (`PuzzleService.generate(max_score=…)`,
+`--max-score`) to draw *obscure* fills, and re-ran the head-to-head. Three conditions, Opus,
+`--policy none`, thinking tokens:
+
+    condition                                              opus    haiku
+    common words (cw>=75), precise wednesday clues         1512     5737
+    obscure band [60,75], precise wednesday clues          1368     2915
+    obscure band [60,75], OBLIQUE saturday clues           2548      -
+
+- **Obscure words did *not* raise reasoning** (1368 < 1512) — because the clue writer (also
+  Claude) gives *precise definitions even for obscure words*: "Jordan's capital"→AMMAN,
+  "Alaskan city on the Bering Sea"→NOME, "Turkish word for forest"→ORMAN. A precise clue makes
+  any *known* word a one-shot lookup, however obscure; the crossings still never bind. Word
+  obscurity alone is not the difficulty lever.
+- **Oblique clues nearly doubled it** (1368→2548) *on the same grid*, and — the real tell —
+  **changed the solve method**. With precise clues Opus lists answers; with oblique clues
+  ("Certain flair for the dramatic", "Far northern spot on the map", "Turkish forest,
+  translated") it does genuine **constraint propagation**: anchor a few down-words, then derive
+  the acrosses from the accumulated crossing letters + the vague clue ("1A starts E … = ELAN →
+  gives 2D=L, 3D=A, 4D=N"; "6A starts O, O-R-?-A-? = ORMAN"). *This* is the grid carrying the
+  solve — the regime our `analyze`/`solve_order` structural model describes.
+
+Conclusion for the probe: the axis that makes reasoning-effort track structural difficulty is
+**clue under-determination** (the clue alone must not fix the answer), *not* word obscurity or
+the Mon..Sat *label*. The genuine Saturday / Natick regime is the *conjunction* — obscure words
+**and** oblique clues, so the answer is reachable only through the crossings.
+
+**Difficulty now drives obliqueness (done).** Follow-up (i) is implemented:
+`adapters/claude_clue.py::_DIFFICULTY_GUIDANCE` gives the clue prompt a graded Mon..Sat
+obliqueness ladder (Monday = direct definition → Saturday = maximally oblique, "not
+determinable from the clue alone"). Validated live on the *same* obscure grid ([60,75] seed 3,
+Opus solver, `--policy none`), the **enum alone** (no free-text instruction) now grades both the
+clues and the reasoning:
+
+    difficulty  example clue (AMMAN / LORRE / RATE)                       opus think_tok
+    Monday      "Capital of Jordan" / "Peter of 'Casablanca'" / "Assess"        1071
+    Saturday    "It overlooks a very old citadel" / "Casablanca's twitchy       2767
+                heavy" / "It might be prime, or panic"
+
+2.6x the reasoning on an identical grid, purely from the label — the clue axis is now a real
+knob (previously the label moved nothing; §"clue-difficulty sweep" above).
+
+## 2D difficulty probe: word obscurity x clue obliqueness (D26)
+
+The composition experiment: sweep the two axes (fill obscurity band x Mon/Sat clue obliqueness),
+Opus solver, `--policy none`, measure thinking tokens. **Clean matrix** (n=4 seeds/cell; every run
+solved in 1 turn, 0 wrong — so completion/turns saturate and thinking-tokens is the only live signal):
+
+    thinking tokens   Monday                     Saturday
+    common  (>=75)    1909 1954 1682 1673 (u1805) 2761 3006 2516 7605 (u3972)
+    obscure [60,75]   1115 1584 3466 1942 (u2027) 1647 2256 6386 4057 (u3587)
+
+Read carefully, because it **overturns the min-over-routes guess**:
+
+- **Clue obliqueness is the dominant lever** — Monday->Saturday roughly doubles reasoning
+  (~1900 -> ~3800) at *both* word levels. Robust.
+- **Word obscurity is nearly inert** — common vs obscure is within noise at each clue level
+  (Monday 1805 vs 2027; Saturday 3972 vs 3587 — obscure is even *lower*). There is **no
+  obscure x Saturday spike**.
+- Why: an LLM solver *knows the whole vocabulary*, so word rarity does not block the recall
+  route — obscurity only ever bit *through* the clue's precision, which is the obliqueness axis.
+  For a strong LLM the "two axes" the design imagined **collapse to one**: clue under-determination.
+  This is IRT's point made concrete — item difficulty `b` is relative to solver ability `theta`;
+  word-obscurity's contribution is ~0 when `theta` (vocabulary) is effectively unbounded.
+- Variance is grid-specific, not band-specific: the two high cells (7605 common/Sat seed3, 6386
+  obscure/Sat seed2) are single hard *layouts*, not a word-difficulty effect.
+
+**MEASUREMENT ARTIFACT CORRECTED (important).** An earlier version of this matrix showed a huge
+obscure x Saturday "spike/phase transition" (30k-65k tokens, 4-8 turns, one *failure*). Reading
+the captured transcripts showed it was **100% an artifact of `max_tokens=8192`**: that is the
+*total* output budget (thinking + answer), and on a hard mini the adaptive-thinking pass alone
+consumed it, so the model never emitted its move -> the harness looped on empty placements and
+"failed". Raising the budget to 20k (non-streaming, to keep `thinking_tokens`; §fix in
+`Config.solve_max_tokens`) made the "8-turn failure" (obscure/Sat seed 3) solve in **one clean
+turn**. The reasoning was genuine constraint propagation throughout ("6D=RES -> gives first
+letters of 6A/7A/8A as R,E,S"); it was being *truncated mid-thought*, not hitting a wall. Lesson
+recorded: with adaptive thinking, the output budget must dwarf the thinking spend, and a
+`stop_reason==max_tokens` empty move must be surfaced (now annotated), never looped on silently.
+
+Implications for the composition-of-difficulty framing:
+- For a **strong** solver, difficulty is set by clue obliqueness alone; the word axis is dormant.
+  To reactivate it, the solver's vocabulary must be genuinely limited -- a **weaker model** (Haiku),
+  or a human. The 2x2 only has a live second axis *relative to a bounded-ability solver*. That is
+  the next experiment (obscure words the solver does not reliably know), and the honest statement of
+  what `solve_order`'s two per-entry inputs (word recognizability, clue precision) mean: recognizability
+  is `theta`-relative, precision is not.
+- Follow-up still open: correlate per-grid thinking-token spend against `solve_order`'s predicted
+  hard-gets (the analytical<->empirical loop), controlling for the grid-specific variance seen here.
+
+### Design principle: obscurity is a fairness cliff, not a difficulty slope
+
+A human observation crystallised this: in real minis you never meet a word you *don't know* — the
+answers are always in your vocabulary; the difficulty is recall + misdirection on a *known* word.
+That is the crossword setter's cardinal rule, and its violation is the **Natick** (D21 A': two
+unknown words crossing where neither pins the shared letter). It reframes the two difficulty axes:
+
+- **Word obscurity is a *cliff*, not a slope.** While the word is known, obscurity does nothing
+  (Opus: inert across the whole band). The instant it is *unknown*, the puzzle is not "harder" --
+  it is *unfair*; effective difficulty jumps discontinuously. There is no graded middle, so a fair
+  puzzle never approaches the edge. This is why the obscurity band produced no graded signal.
+- **The `min_score` floor is a *fairness* boundary, not a difficulty dial** -- it keeps answers
+  inside the assumed solver vocabulary (IRT theta). The two-sided obscurity *band* (D21 layer A) is
+  therefore not a fair-difficulty tool; it is a way to deliberately step *past* the floor and
+  manufacture Naticks -- useful for *studying* the unfair regime, wrong for "make a good mini
+  harder".
+- **The only fair difficulty axis is clue obliqueness** (D21 layer B) -- tricky clues on known
+  words. The Opus 2D probe found exactly this (obliqueness dominant, obscurity inert), so the human
+  design rule and the LLM measurement agree.
+
+Why the Haiku arm is a poor proxy for "limited-vocabulary human": a human is *reliable within* their
+word list and hits a clean wall *outside* it (a sharp theta-boundary). A weak LLM is *erratic
+everywhere* -- Haiku fails common/Monday seed 0 (the easiest cell) while acing seeds 1-3 -- so it has
+noise, not a crisp boundary. Modelling "limited-but-reliable vocabulary" wants a solver whose *word
+list* is restricted, not whose reasoning is weakened -- i.e. the fairness floor applied to the
+solver, not the setter. Consequence for the difficulty model: layer A should be read as the
+*fairness floor + Natick-avoidance constraint*, and graded difficulty should be sought in layer B
+(clue) with the fill held above the floor.
+
+### Haiku 2D matrix -- the completion signal un-saturates, along the CLUE axis
+
+Same 2x2 with the weaker solver (Haiku 4.5, enabled thinking budget 10k, opus-written clues),
+`--policy none`, solved/4 per cell:
+
+    solved/4     Monday   Saturday
+    common       3/4      1/4      <- most failures
+    obscure      4/4      3/4
+
+- **Failures track obliqueness, not obscurity.** Saturday = 4/8 fails; Monday = 1/8. And
+  **obscure/Monday is a clean 4/4 sweep** -- the weaker solver had *zero* trouble with the "obscure"
+  band under precise clues. The word axis stayed dormant *even for Haiku*, because [60,75] is still
+  *famous* crossword vocabulary (AMMAN/LORRE/NOME/ENOS) it knows -- the cliff is beyond our band for
+  both models. Third independent confirmation (Opus tokens, Haiku failures, human experience) that
+  obscurity within the known-word regime is not a difficulty axis.
+- **The failures are genuine, verified by transcript** (not another artifact): on a failed
+  common/Saturday grid Haiku places a *complete but wrong* fill each turn and, with no feedback,
+  second-guesses itself into *different* wrong fills (6A cycled DRYAD->DRUID->NOMAD->REBEL) without
+  converging -- a real solver defeated by oblique clues, not an empty-move stop. (Only the final turn
+  truncated; the failure predates it.)
+- Caveat on the Haiku numbers: enabled-mode thinking (fixed 10k budget) plus Haiku's verbosity
+  occasionally overflows the 16k non-streaming cap on a late turn (annotated). It hampers the tail,
+  not the qualitative verdict. A cleaner weak-solver probe would *restrict the solver's word list*
+  (the real analogue of a bounded-vocabulary human) rather than lean on model weakness, which is
+  erratic rather than cleanly bounded.
+
+### Vocabulary floor: the word axis is live only through STRUCTURE (a Natick), and only vs true unknowns
+
+The faithful bounded-vocabulary solver (an LLM cannot "forget", so): pick a floor `theta` = the
+solver's known-word boundary, and **redact the clue** for any entry scoring below it -- the solver
+is told it does not know that word and must recover it from crossing letters alone (a human meeting
+a word outside their vocabulary). Two probe grids (Opus, `--policy none`, floor 75, fill band
+[62,90]), each classifying every below-floor entry as *forced* (all cells shared with a KNOWN
+perpendicular) or *Natick* (a cell shared only with another unknown):
+
+- **Seed 0 -- genuinely obscure fill (XACTO 65, ONICE 65, COPAY 70; a 3-way cluster).** `solved=False`.
+  The solver failed at **exactly the predicted Natick cell**: XACTO->XASTO and ONICE->ONISE, both
+  wrong at the *same* shared cell (2,3) where the two un-recognized words cross (it guessed S; answer
+  C). Where a crossing word *was* recoverable (COPAY, which it got), the cell resolved. This is the
+  analytical Natick (`analyze`) reproduced *empirically* -- the loop closed.
+- **Seed 1 -- famous names below the floor (MAE 65, ELON 65).** `solved=True`, one turn. It got
+  MAE and ELON right *despite* redacted clues, because it **recognizes famous names from a partial
+  pattern** regardless of crossword score.
+
+Conclusions:
+1. **Word difficulty is real but purely *structural*.** Obscurity never grades a single entry (a
+   redacted word with a KNOWN crossing is still forced); it only bites at an **unknown x unknown
+   crossing** -- a Natick. So the word axis lives exactly where `analyze`/`solve_order` said it does,
+   and nowhere else. "Harder words" is not a difficulty dial; "unknown words crossing each other" is
+   a fairness cliff. Same lesson as before, now demonstrated end-to-end with a real solver.
+2. **The effective vocabulary boundary is *recognizability*, not crossword score.** The score floor
+   mislabels famous-but-low-score entries (MAE, ELON) as unknown; the LLM knows them anyway, so the
+   redaction does not bind. The empirical Natick occurs precisely where two *un-recognizable* words
+   cross (XACTO x ONICE), which is the LLM's true `theta`, not the score threshold. For a *human*
+   with a genuinely bounded list this mechanism is faithful (redact the words they truly do not know);
+   for an LLM few words qualify, and the honest bounded-solver is the analytical `solve_order` run
+   against a vocabulary-floored lexicon.
+
+Net of the whole D26 arc: **difficulty = clue obliqueness on known words (the fair, graded axis);
+word difficulty is a structural cliff (unknown x unknown = Natick), not a slope.** Confirmed by Opus
+reasoning-tokens, Haiku failures, the vocabulary-floor Natick reproduction, and a human's lifetime of
+minis. The empirical agent and the analytical `analyze`/`solve_order` model agree.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed

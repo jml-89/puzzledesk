@@ -14,7 +14,10 @@ from collections.abc import Iterable, Mapping, Sequence
 import numpy as np
 
 from puzzledesk.app.clue import Clue, ClueStyle
+from puzzledesk.app.cluing import CluedPuzzle
 from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
+from puzzledesk.app.solve import EntryRef, SolveView
+from puzzledesk.app.solver import Placement, SolverMove
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
 from puzzledesk.core.rng import Rng
 
@@ -91,3 +94,55 @@ class FakeClueProvider:
                 ]
             out[t.id] = tuple(Clue(x) for x in texts)
         return out
+
+
+def _answer_map(puzzle: CluedPuzzle) -> dict[EntryRef, str]:
+    grid = puzzle.grid
+    numbering = grid.numbering()
+    return {(numbering[t.cells[0]], t.kind): t.answer for t in grid.runs()}
+
+
+class FakeSolverAgent:
+    """Implements ``app.solver.SolverAgent`` deterministically -- no LLM, no network.
+
+    Two modes, the way ``FakeClueProvider`` has two:
+
+      * **oracle** -- constructed with the ``CluedPuzzle`` (a test double is *allowed*
+        to read the key the real agent never sees), it places the correct word for the
+        next not-yet-correct entries, ``per_turn`` at a time, so the harness loop runs
+        several turns and completes. Reasoning is a canned string, so a test can assert
+        the transcript captured it.
+      * **scripted** -- replays a fixed ``list[SolverMove]`` (then empty moves), for
+        exercising wrong guesses, erasing, invalid placements, give-up, and budget
+        exhaustion.
+    """
+
+    def __init__(
+        self,
+        *,
+        oracle: CluedPuzzle | None = None,
+        script: list[SolverMove] | None = None,
+        per_turn: int = 1,
+        reasoning: str = "considering the crossings",
+    ) -> None:
+        self._answers = _answer_map(oracle) if oracle is not None else {}
+        self._script = list(script) if script is not None else None
+        self._per_turn = per_turn
+        self._reasoning = reasoning
+        self._i = 0
+
+    def act(self, view: SolveView) -> SolverMove:
+        if self._script is not None:
+            move = self._script[self._i] if self._i < len(self._script) else SolverMove()
+            self._i += 1
+            return move
+        placements = []
+        for e in (*view.across, *view.down):
+            answer = self._answers.get((e.number, e.direction))
+            current = "".join(ch or "\0" for ch in e.letters)
+            if answer is None or current == answer:
+                continue
+            placements.append(Placement(e.number, e.direction, answer))
+            if len(placements) >= self._per_turn:
+                break
+        return SolverMove(placements=tuple(placements), reasoning=self._reasoning)

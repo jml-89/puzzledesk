@@ -18,8 +18,11 @@ so the package installs, imports, and the container builds without it; only an
 actual clue call needs the SDK and a key. The prompt/schema/parse helpers are pure
 and unit-tested; the one untestable part is the live ``messages.create`` call.
 
-NOTE: the prompt below is a first draft -- functional, but clue *quality* is the
-next thing to iterate on against a live model.
+The difficulty label is not decorative: ``_DIFFICULTY_GUIDANCE`` makes Mon..Sat control
+clue **obliqueness** (how much the clue under-determines its answer), because that -- not
+word obscurity -- is the lever that forces a solver onto the crossings (D26; validated
+live, Monday clues cost the Opus solver ~1.1k reasoning tokens vs ~2.8k for Saturday on
+the same grid). This is the clue-side (D21 layer B) counterpart to the fill's obscurity band.
 """
 
 from __future__ import annotations
@@ -28,11 +31,47 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from ..app.clue import Clue, ClueStyle
+from ..app.clue import Clue, ClueStyle, Difficulty
 from ..app.puzzle import FilledGrid, Target, TargetId
 
 _DEFAULT_MODEL = "claude-opus-4-8"
 _KIND = {"A": "Across", "D": "Down", "meta": "Meta"}
+
+# The Mon..Sat difficulty label is made to *mean something* by controlling clue
+# **obliqueness** -- how much the clue under-determines its answer (D26 finding: clue
+# ambiguity, not word obscurity, is the lever that forces a solver onto the crossings).
+# The ladder runs from "the clue nearly hands over the answer" to "the answer is not
+# determinable from the clue alone; the crossings must disambiguate". This is the
+# clue-side (layer B, D21) counterpart to the word-obscurity band on the fill side.
+_DIFFICULTY_GUIDANCE = {
+    Difficulty.MONDAY: (
+        "Monday (easiest): a direct, unambiguous definition. Anyone who knows the word "
+        "should get it from the clue alone. No wordplay, no misdirection."
+    ),
+    Difficulty.TUESDAY: (
+        "Tuesday: a straightforward definition from everyday knowledge, perhaps one small "
+        "step of inference. Still no trickery."
+    ),
+    Difficulty.WEDNESDAY: (
+        "Wednesday: a fair clue that takes a beat -- a less obvious synonym or angle, but "
+        "the definition is still reachable from the clue alone."
+    ),
+    Difficulty.THURSDAY: (
+        "Thursday: introduce wordplay and mild misdirection (puns, double meanings, a '?' "
+        "clue). Do not hand over the answer; the solver often needs a crossing letter or two."
+    ),
+    Difficulty.FRIDAY: (
+        "Friday (hard): oblique and tricky. Favour misdirection, slanted angles and wordplay "
+        "over definition. The answer should usually NOT be gettable from the clue alone -- "
+        "the solver must lean on the crossings."
+    ),
+    Difficulty.SATURDAY: (
+        "Saturday (hardest): maximally oblique. Heavy misdirection, wordplay, deliberately "
+        "broad or ambiguous phrasing; never a direct definition, never name the entity "
+        "outright. The answer must NOT be determinable from the clue alone -- the crossing "
+        "letters must disambiguate it."
+    ),
+}
 
 
 def _render_grid(grid: FilledGrid) -> str:
@@ -50,6 +89,7 @@ def _build_prompt(grid: FilledGrid, targets: Sequence[Target], style: ClueStyle,
         _render_grid(grid),
         "",
         f"Target difficulty: {style.difficulty.name.title()} (Monday easiest, Saturday hardest).",
+        _DIFFICULTY_GUIDANCE[style.difficulty],
     ]
     if style.instructions.strip():
         lines += ["", f"Additional instructions: {style.instructions.strip()}"]

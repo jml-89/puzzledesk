@@ -55,6 +55,14 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="quality bar: every word scores >= this on the cw list (default: 75)",
     )
     p.add_argument(
+        "--max-score",
+        type=float,
+        default=None,
+        metavar="SCORE",
+        help="upper bar: makes the fill an obscurity band [min, max] for a harder puzzle "
+        "(default: none)",
+    )
+    p.add_argument(
         "--difficulty",
         choices=_DIFFICULTIES,
         default="wednesday",
@@ -92,6 +100,7 @@ def _run(c: Container, args: argparse.Namespace) -> None:
         cols=args.cols,
         num_black=args.black,
         min_score=args.min_score,
+        max_score=args.max_score,
         difficulty=Difficulty[args.difficulty.upper()],
         instructions=args.instructions,
         seed=args.seed,

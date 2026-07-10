@@ -1053,3 +1053,129 @@ Reversal: additive and tunable. ``DEFAULT_BLACK_FRACTION`` and ``_BLACK_FIRST_PC
 one-line constants; drop ``max_black``/``node_budget`` and the bias to return to D24's search
 exactly. When the D24-scaling layout search lands, the ceiling's slack requirement relaxes and
 tighter default density at 12x12+ becomes cheap.
+
+## D26. Put a real solver in the loop: an agent-solving spike as an empirical difficulty probe
+
+Context: the difficulty work so far (D21/D22/D23) is *analytical* — `solve_order` replays
+a **known** fill easiest-first and classifies each get (forced / gimme / hard), with
+`gimme` an uncalibrated solver-skill knob. Its own docstring is careful: "it is not a
+solver (we have a complete one); it is a difficulty model." And open-questions has said all
+along that the one thing blocking real calibration (layers B and C, and growing A′ into a
+trajectory *distribution*) is **a human solve-time signal** — playtesting or logged solves —
+which this environment does not have. The spike this entry records: stand up an actual
+*soft* solver (an LLM agent) in a **feedback loop** against a generated puzzle, and use its
+run — did it finish, and *how did it reason* — as a cheap proxy for that missing signal.
+Two independent product reads: (i) whether the agent completes the grid is a coarse
+difficulty bit; (ii) inspecting the agent's turn-by-turn thinking is the rich read — and it
+is the empirical counterpart to `solve_order`'s modelled bottleneck, so a solver that stalls
+where the model predicts a Natick is the model *earning its keep*.
+
+Decision: build it on the **same complete/soft seam** as everything else, and land the
+deterministic half fully (as D15 landed cluing interface-first with a fake), the live LLM
+half behind a port (as D16 put the model in the adapter). Four pieces:
+
+- **`app/solve.py` — the deterministic session (the "environment").** `Board` holds the
+  static truth *including the answer key*; `SolveState` = board + the solver's per-*entry*
+  guesses; a cell's letter is **derived** from the entries through it (D15's "derive views"
+  rule), which makes a **crossing conflict** — two crossing guesses disagreeing on a shared
+  cell — a signal the solver sees with *no* answer key. `is_solved` is **cell-based, not
+  per-entry**: a crossword is solved when the grid is right, and filling the acrosses
+  correctly already fills their crossing downs (the interlock), so there is nothing extra to
+  "submit". The load-bearing integrity invariant: `SolveView` (what the agent acts on) is an
+  **answer-free projection** — it carries geometry, clues, the solver's own current letters,
+  and the policy's feedback, and *never* an unguessed answer. A solver that could read the
+  key measures nothing.
+- **Feedback is a policy knob, and that knob is the solver-skill dial** (the empirical twin
+  of `gimme`): `CELL` (per-cell right/wrong for the solver's own filled cells — the NYT
+  "check" button; the default, gentle, autocheck-on), `WORD` (whole-entry), `CROSSING` (only
+  the conflict cells — uses **no** key, pure internal consistency, the most authentic
+  no-cheating signal), `NONE` (only the terminal solved bit — the purest probe, weakest
+  loop). Default `CELL` was the user's call for this spike; it is the most generous, so it
+  compresses the difficulty signal — the stricter policies are the sharper probes, and that
+  is documented at the knob.
+- **`app/solver.py` — the `SolverAgent` port.** `act(view) -> SolverMove`, deliberately
+  **one-shot and stateless**: the view already carries the full observable state, so the
+  agent is a function of observable state and the harness re-sends the whole view each turn
+  rather than the agent hoarding private history. `SolverMove` carries the agent's
+  **reasoning** as a first-class field — capturing *how it thought* is the whole point.
+- **`app/solve_service.py` — the harness.** Pure orchestration (the shape of `ClueService`
+  /`PuzzleService`): build view → `act` → validate+apply (malformed placements rejected, not
+  stored) → check → record turn → repeat until solved, given-up, or out of turns.
+  `SolveReport` is the difficulty artifact (completed? turns? flail? the reasoning
+  transcript). **The one epistemic rule (D23's lesson on the solving side): a budget miss is
+  not a proof.** The fill engines' `None` is a UNSAT theorem; running out of turns is only
+  "not solved in N turns". The report says `solved`/`exhausted`/`gave_up` honestly and the
+  presenter never dresses exhaustion as "impossible".
+- **`adapters/claude_solver.py` — the live agent, behind the port.** This is the **second
+  LLM consumer D16 anticipated** ("a second consumer would justify a minimal, our-own seam…
+  and only then"). We hold D16's line: the LLM does *not* become an app-layer port; the app
+  depends on `SolverAgent` (which speaks views and moves), and the SDK, the credential
+  (same `Config.clue_api_key_env` wiring), and the reasoning capture all live in the adapter,
+  one level down beside `ClaudeClueProvider`. `cli/solve.py` composes the live path end to end
+  (generate a clued puzzle, then solve it, then `present.solve_report`); two live steps, the
+  grid *fill* stays LLM-free.
+
+**The measurement is reasoning *volume*, so the call is shaped to expose it (the load-bearing
+refinement, verified live).** For a model that solves every mini, *whether* it finishes is a
+saturated signal — the graded difficulty tell is **how much it had to think**. Two live facts
+forced the shape (notes.md "Agent solve loop"): (i) Opus 4.8 uses **adaptive** thinking
+(`thinking={"type":"adaptive"}` + `output_config.effort`; the old `{"type":"enabled",
+"budget_tokens":…}` 400s on it); (ii) forcing a JSON **schema** *suppresses the thinking pass
+and zeros `thinking_tokens`* — exactly the signal we want. So the solver deliberately runs
+**free-form**: the model reasons in prose (readable) and ends with a JSON object we parse
+leniently, and `SolverMove.reasoning_tokens` carries the thinking-token count from `usage`
+(the thinking *block* is returned redacted/empty, so the prose is the readable trace and the
+count is the scalar). `SolveReport.total_reasoning_tokens` sums it; the presenter surfaces it.
+This is why the solver adapter is free-form while the clue adapter stays structured — cluing
+does not need a thinking measurement, solving *is* one. `--model`/`--effort` (and
+`Config.solve_model`) let a weaker/cheaper solver be pitted against the same grid, since a
+harder-for-this-solver puzzle should cost more reasoning; `Config.solve_thinking` selects the
+thinking mode per model family (Opus `adaptive`, Haiku `enabled`), since each 400s on the
+other's.
+
+**Live check + first findings.** The whole path runs against the real API in-container.
+Confirmed: at mini scale Opus 4.8 **one-shots the grid even under `--policy none` (no
+feedback)** — the *completion* bit is saturated, so **reasoning-token spend is the
+discriminating signal**, and it is difficulty-responsive (a trivial prompt spends 0 thinking
+tokens; a mini spends thousands). `scripts/solve_effort.py` is the experiment driver that
+sweeps a difficulty lever (clue Monday..Saturday, model, policy) holding the grid fixed and
+reports thinking-token spend; measured numbers live in notes.md. The graded signal sharpens
+further with larger grids (the 6..15 word lists, still unbuilt) or a weaker solver model.
+
+Scope held tight for a spike. Tests drive the whole loop with a deterministic
+`FakeSolverAgent` (oracle + scripted modes) — no model, no network — so the session,
+feedback policies, answer-key quarantine, budget honesty, and rejection paths are all pinned
+without egress, exactly as `FakeClueProvider` pins cluing. What is deliberately *not* built:
+a **judge** that reads the transcript and scores difficulty (another soft stage — human
+inspection for now); calibrating the feedback policies / turn budget against real human
+times (the same "needs solve logs" blocker); on-demand checking (the current `CELL` policy
+is autocheck-always-on) and per-turn feedback *cost*; and a shared `LanguageModel` seam
+between the two Claude adapters (two direct SDK callers is not yet enough duplication to
+force it — D16's "and only then" bar is *approached* here, not cleared; recorded so the next
+adapter tips it).
+
+Alternatives considered:
+- **A `LanguageModelProvider` app port shared by clue + solve now:** rejected — same reason
+  as D16. It leaks infrastructure (messages, tokens) into the domain. Two adapters calling
+  the SDK directly is the honest amount of structure; the seam gets introduced when a
+  *third* consumer or an adapter-level test need forces it.
+- **Feedback baked in (one "check" behaviour):** rejected — the feedback model *is* the
+  solver-skill assumption (the empirical `gimme`), so it must be an explicit, sweepable knob,
+  not a constant. Baking it would hide the very parameter the probe exists to vary.
+- **A per-cell `SolveGrid` reusing `FilledGrid` with a new empty sentinel:** rejected — the
+  per-entry guess model is what makes crossing conflicts a key-free signal and matches how a
+  human actually pencils entries; cells are derived from it, not the store of record.
+- **Letting the agent see the answer key / the fill result:** rejected outright — it would
+  make the measurement meaningless. The `SolveView` anti-corruption projection is the
+  integrity boundary, the solving-side mirror of `FilledGrid` for cluing.
+- **Treating a turn-budget miss as "unsolvable":** rejected — it would commit the exact
+  epistemic error the whole system is built to avoid (D23). Only the *complete* fill engines
+  prove UNSAT; a soft solver proves nothing by running out of turns.
+
+Reversal: additive and self-contained. The session/harness/port sit in `app` beside the
+clue services; the adapter and `cli.solve` sit beside their clue analogues; the layers
+contract is unchanged (all new edges point downward). If the empirical signal proves useful,
+the natural follow-ons are a transcript-judge (a third soft stage → the `LanguageModel` seam
+finally earns itself), calibrating the policies/budget against the agent runs, and feeding
+the result back to validate/tune `solve_order` (D22) — closing the analytical/empirical loop
+the difficulty work has been reaching for.

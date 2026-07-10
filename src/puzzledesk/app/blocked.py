@@ -68,17 +68,19 @@ class BlockedGenerateService:
         num_black: int,
         *,
         min_score: float,
+        max_score: float | None = None,
         seed: int = 0,
         symmetric: bool = True,
         min_len: int = 3,
     ) -> BlockedResult | None:
         """One layout+fill attempt for ``seed``: the first legal layout that admits
-        a distinct fill above the bar, or None (complete, so None settles it)."""
+        a distinct fill in the band, or None (complete, so None settles it)."""
         found = self._fill(
             rows,
             cols,
             num_black,
             min_score=min_score,
+            max_score=max_score,
             seed=seed,
             symmetric=symmetric,
             min_len=min_len,
@@ -171,6 +173,7 @@ class BlockedGenerateService:
         num_black: int,
         *,
         min_score: float,
+        max_score: float | None = None,
         seed: int = 0,
         symmetric: bool = True,
         min_len: int = 3,
@@ -178,12 +181,13 @@ class BlockedGenerateService:
         """Same search as :meth:`fill_once`, projected into the model-agnostic
         :class:`~puzzledesk.app.puzzle.FilledGrid` the cluing context speaks -- the
         shape the puzzle service hands to :class:`~puzzledesk.app.cluing.ClueService`.
-        None (unfillable at the bar) settles it, exactly as ``fill_once``'s does."""
+        None (unfillable in the band) settles it, exactly as ``fill_once``'s does."""
         found = self._fill(
             rows,
             cols,
             num_black,
             min_score=min_score,
+            max_score=max_score,
             seed=seed,
             symmetric=symmetric,
             min_len=min_len,
@@ -200,6 +204,7 @@ class BlockedGenerateService:
         num_black: int,
         *,
         min_score: float,
+        max_score: float | None,
         seed: int,
         symmetric: bool,
         min_len: int,
@@ -207,8 +212,11 @@ class BlockedGenerateService:
         """The shared layout+fill search behind both ``fill_once`` (which wants the
         scored result) and ``fill_grid_once`` (which wants the geometry). Returns the
         lexicon alongside the raw ``(grid, assign)`` so each caller shapes its own
-        output; None when nothing fills above the bar."""
-        mlex = self._multi(rows, cols, min_score, min_len)
+        output; None when nothing fills in the band. A two-sided band ``[min, max]`` is
+        the difficulty knob (D21): drawing from an obscure band makes the fill genuinely
+        harder, so the clues alone become insufficient and the grid must carry the solve
+        (D24) -- and the search stays complete, so None is still a real UNSAT theorem."""
+        mlex = self._multi(rows, cols, min_score, max_score, min_len)
         found = patterns.fill_by_count(
             rows,
             cols,
@@ -222,9 +230,13 @@ class BlockedGenerateService:
         )
         return None if found is None else (mlex, found)
 
-    def _multi(self, rows: int, cols: int, min_score: float, min_len: int) -> MultiLexicon:
+    def _multi(
+        self, rows: int, cols: int, min_score: float, max_score: float | None, min_len: int
+    ) -> MultiLexicon:
         lengths = range(min_len, max(rows, cols) + 1)
-        return self._lexicon.load_multi(self._list_name, lengths, min_score=min_score)
+        return self._lexicon.load_multi(
+            self._list_name, lengths, min_score=min_score, max_score=max_score
+        )
 
 
 def result_of(g: BlockedGrid, mlex: MultiLexicon, assign: dict[int, str]) -> BlockedResult:

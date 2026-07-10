@@ -45,7 +45,11 @@ The two grid models, the engines, the lexicon, `validate`. Rules:
 (`app/ports.py`: `LexiconSource`, `Writer`). Services orchestrate the core through
 ports and return structured results (`app/results.py`). **They must not import a
 concrete adapter, read a file, or print** — that inversion is the whole point and
-the linter enforces it (`app → adapters` is a broken contract).
+the linter enforces it (`app → adapters` is a broken contract). The two *soft*
+LLM-backed stages live here too, each fenced behind a port with the model in an
+adapter: cluing (`ClueProvider` → `ClueService`, D15/D16) and solving (`solve.py`
+session + `SolverAgent` → `SolveService`, D26 — a Claude agent solving in a feedback
+loop, as an empirical difficulty probe).
 
 ### adapters — infrastructure (`src/puzzledesk/adapters/`)
 
@@ -58,7 +62,7 @@ sit *above* app because they implement app's ports. Keep new I/O *here*, never i
 
 `bootstrap.build()` assembles a `Container` in three stages (config → adapters →
 services). `cli/` are thin entry points (argv → build → run → present); the tools
-`mini`/`generate` are typed `cli` modules with `scripts/*.py` shims (and
+`mini`/`generate`/`puzzle`/`solve` are typed `cli` modules with `scripts/*.py` shims (and
 `[project.scripts]` console commands). A tool is an **output path** — every grid it
 emits passes the acceptance test (invariant 3).
 
@@ -109,6 +113,7 @@ uv run pytest           # tests: invariants + ground truth + DI (see below)
 uv run scripts/mini.py 5 70 3          # a tool: three distinct 5x5 minis, every word >= 70
 uv run mini 5 70 3                     # ...same, via the console entry point
 uv run --extra clue puzzle --reveal    # a tool: a whole clued puzzle as plain text (D20; needs a key)
+uv run --extra clue solve --reveal     # a tool: a Claude agent solves a generated puzzle (D26; needs a key)
 uv run generate 10 10 0 60 3 --max-len 5   # a tool: 10x10 minis, entries capped at 5 (D24)
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
