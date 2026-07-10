@@ -171,10 +171,6 @@ class SolveView:
     down: tuple[EntryView, ...]
     feedback: Feedback
 
-    @property
-    def solved(self) -> bool:
-        return self.feedback.solved
-
     def letter_grid(self) -> tuple[tuple[str | None, ...], ...]:
         """The display grid: ``None`` per black square, ``""`` per blank white cell,
         else the solver's current letter. Pure geometry + the solver's own fill -- no
