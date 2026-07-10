@@ -166,6 +166,19 @@ solution you get and measure diversity/timing.
 whose across word is already used, and at the leaf (r==N) rejects the grid if the
 N down words are not mutually distinct or collide with an across word.
 
+`count(sq, *, distinct=True, limit=None) -> SolutionCount` walks the same complete
+tree to count *how many* squares a bar admits — the *size* of the solution space, not
+just whether it is non-empty (D31). It is deterministic (order is irrelevant to a full
+count, so no `rng`). `SolutionCount(n, exact, nodes)`: `exact` is the epistemic bit in
+the "None is a proof" style — `True` means the tree was exhausted, so `n` is the exact
+total (a theorem; an exact `0` *is* an UNSAT proof reached by counting), while a `limit`
+hit reports `exact=False` (`>= n`, budget exhaustion, never dressed as exact). `nodes`
+is the search-tree size, a container-independent measure. The space collapses to a
+countable set near the ceiling (weak list 56→8→0; curated top tier score≥90 is exactly
+38 distinct minis — the denominator behind seed-diversity, see notes.md). `scripts/count.py`
+is the driver. (An early distinctness prune was measured here and dropped — ~2% node cut,
+time-neutral — D31.)
+
 ### The retired sampler (D19)
 
 For its first several iterations the square also had a *secondary* engine: an
@@ -513,6 +526,10 @@ and uses the injected `lexicon`/`rng_factory` adapters):
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
+- count.py: the *size* of the solution space at a bar (D31) — `backtrack.count`
+  exhausts the tree to count distinct minis, so near the ceiling it prints an exact
+  finite number (a theorem) and shows the many→countable→UNSAT collapse.
+  `count.py N listname [--limit K] thresholds...`.
 - difficulty.py: structural checkability of generated minis — solves at a score band
   and reports each grid's *open* crossings (Natick risk) via `app.difficulty.analyze`,
   cross-referenced with word obscurity (D21). `difficulty.py N listname min [max]

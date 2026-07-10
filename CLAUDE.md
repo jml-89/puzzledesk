@@ -5,7 +5,7 @@ Operating manual for an agent working in this repo. It tells you how the code is
 does **not** restate the design — that lives in `docs/`, and you should read it:
 
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D30). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D31). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
 - `CONTRIBUTING.md` — branch/commit/PR etiquette. Read before you push.
@@ -68,8 +68,8 @@ emits passes the acceptance test (invariant 3).
 
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
-`ceiling.py`, `demo.py`, `blackcells.py`, `difficulty.py`, `largemini.py`, `gibbs.py`,
-`solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
+`ceiling.py`, `count.py`, `demo.py`, `blackcells.py`, `difficulty.py`, `largemini.py`,
+`gibbs.py`, `solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
 (`scripts/*.py`), but now `build()` the container and drive the core engines through its
 injected `lexicon`/`rng_factory` adapters — no bare `default_rng`/`DATA` path. Their
 output is numbers for `docs/notes.md` (see architecture.md "Benchmark/demo drivers" for
@@ -118,6 +118,7 @@ uv run --extra clue solve --reveal     # a tool: a Claude agent solves a generat
 uv run generate 10 10 0 60 3 --max-len 5   # a tool: 10x10 minis, entries capped at 5 (D24)
 uv run generate 10 10 0 65 2 --max-len 5 --gibbs  # a tool: capped minis, layout from the Gibbs field (D27)
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
+uv run scripts/count.py 5 cw 90        # a benchmark: the solution-space size at a bar (D31)
 uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
 uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the complete search (D27)
 ```

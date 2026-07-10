@@ -572,6 +572,47 @@ word difficulty is a structural cliff (unknown x unknown = Natick), not a slope.
 reasoning-tokens, Haiku failures, the vocabulary-floor Natick reproduction, and a human's lifetime of
 minis. The empirical agent and the analytical `analyze`/`solve_order` model agree.
 
+## Solution-space size (D31, scripts/count.py)
+
+`backtrack.count` exhausts the complete search to count *how many* distinct minis a
+bar admits (not just whether one exists). `SolutionCount(n, exact, nodes)`: `exact`
+True == the tree was walked to the end, so `n` is the exact total (a theorem, the
+counting twin of a `None` UNSAT proof); a `limit` hit reports `exact=False` (`>= n`).
+Measured this container:
+
+**The space collapses to a countable set as the bar rises**, weak (Zipf) list, N=5:
+
+    T=3.5 (1972 w): exactly  56 distinct minis |   572,703 nodes | ~26.5 s
+    T=3.7 (1601 w): exactly   8 distinct minis |   197,297 nodes |  ~7.8 s
+    T=3.9 (1257 w): UNSAT (exactly 0)          |    60,479 nodes |  ~2.1 s
+    T=4.0 (1113 w): UNSAT (exactly 0)          |    39,126 nodes |  ~1.2 s
+
+This *refines* the earlier ceiling read ("5x5 tops out ~Zipf>=3.5; 4.0 provably
+UNSAT"): the exhaustive count puts the true edge **between 3.7 and 3.9** (3.9 is
+already UNSAT), and shows the last SAT rungs are a mere 8 then 56 grids.
+
+Curated (cw 0..100) list, N=5:
+
+    T=90 (2384 w): exactly 38 distinct minis   |   702,999 nodes | ~36.8 s
+
+So the curated **top tier (score>=90) admits exactly 38 distinct 5x5 minis** -- the
+denominator behind the ceiling note's "25 seeds found 18 distinct" (25 random runs hit
+18 of the 38 that exist). Above 90 the list has only 3 words (trivially UNSAT); below
+the top tier the space is astronomically large -- exhaustive counting is infeasible
+there (single-threaded Python walks ~40k nodes/s), so you cap and report `>=`, or leave
+it. Net: every prior "ceiling" now has a *size* beside it, and batch-variety
+reasoning (open-questions "Grid variety") finally has a real denominator -- at the very
+top the pool you can draw distinct grids from is *tiny* (38), which is exactly why
+top-tier fills repeat.
+
+**Early distinctness pruning -- measured and dropped (D31).** A sound prune (a column
+prefix admitting one column word forces its down word; reject if it is already
+used/duplicated, before the `r==n` leaf) cut only **~2% of nodes** (2.1% weak, 2.6%
+curated) and was time-neutral: the forced-down condition rarely fires until deep in the
+tree, where the leaf check catches the duplicate anyway. A marginal, time-neutral
+optimisation is removed with its number recorded (D19/D28 discipline), not kept as an
+off-by-default knob. Code is in git; this is the memory.
+
 ## Environment quirks (dev container)
 
 - Fresh container, initially EMPTY repo (zero commits). Because the first pushed

@@ -344,12 +344,25 @@ layout sampling; crossword-construction practice and grid-template libraries
 - Distinctness leaf-rejection is the known inefficiency (~13ms->380ms at 5x5). The
   down words are only complete at the last row, so duplicates are caught late.
   Could we prune earlier — e.g. detect when a partial column can only complete to
-  an already-used word? Unimplemented; measure before optimising.
+  an already-used word? **MEASURED and DROPPED (D31).** Implemented exactly that (a
+  forced-down prune: a column prefix admitting one column word determines its down
+  word, so reject early if it is used/duplicated). Sound, but it cut only ~2% of
+  search nodes and was time-neutral — the forced-down condition rarely fires until
+  deep in the tree, where the leaf check catches the duplicate anyway. Removed with
+  the number recorded (notes.md), code in git; "measure before optimising" answered No.
 - We only measure time-to-FIRST grid, not enumerate-all or solution COUNT at a
-  bar. "How many distinct minis exist at score>=X" is unknown and is a different,
-  larger computation.
+  bar. "How many distinct minis exist at score>=X" — **BUILT (D31, `backtrack.count`).**
+  An exhaustive counter (`SolutionCount(n, exact, nodes)`; `exact` == tree walked to
+  the end, a theorem; a `limit` hit reports `>=`). The space *collapses to a countable
+  set* at the ceiling: weak list 56 -> 8 -> 0 (T=3.5/3.7/3.9), curated top tier
+  (score>=90) is **exactly 38 distinct 5x5 minis** (numbers in notes.md). This gives
+  the batch-variety question (above) its missing denominator: at the top the distinct pool is tiny,
+  which is *why* top-tier fills repeat. Open follow-ons: the **blocked/`fill` space**
+  count (same pattern over `fill.solve`, deferred — the square carries the story), and
+  counting **up to symmetry class** if a larger space ever needs exhausting.
 - UNSAT proofs are per-list theorems. If the curated list updates upstream, the
-  ceilings must be re-measured (they are properties of the data).
+  ceilings — and now the exact solution *counts* (D31) — must be re-measured (they are
+  properties of the data).
 
 ## Data / scale hygiene
 
