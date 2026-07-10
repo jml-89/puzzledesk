@@ -1422,3 +1422,40 @@ invariant, or layer changed; the full gate stays green.
 
 Reversal: n/a -- maintenance. If a second `Writer` sink is ever wanted, `CapturingWriter` is in
 git; if the static-difficulty benchmark is retired, its cluster becomes removable at that point.
+
+## D30. Unify the CLI on argparse: `mini`/`generate` keep positionals, drop the hand-rolled parse
+
+Context: D20 gave `puzzle` argparse (and `solve` followed), but `mini` and `generate` kept
+hand-rolled argv parsing -- `mini` a `_take(args, flag)` helper that spliced `--flag VALUE`
+pairs out of the list before reading positionals, `generate` a manual `iter(args)` loop
+splitting flags from positionals by hand. D20 said the argparse retrofit was "deliberately
+*not* retrofitted onto `mini`/`generate` here". That was a scoping call at the time (start the
+named-flag convention with the tool that needs it), not a claim the hand-rolled parse was
+better -- and it left two of the four tools with a bespoke, untyped, help-less, no-validation
+parse that silently accepted junk (`mini 5 xyz` read `xyz` where a float was wanted).
+
+Decision: reverse the "not retrofitted" scoping call and parse **all four** entry points with
+argparse. `mini` and `generate` now build an `ArgumentParser` in a `_parse_args(argv)` helper
+(the same shape `puzzle`/`solve` already use), with the historical arguments declared as
+**optional positionals** (`nargs="?"` + `default`). The result:
+
+- **The documented invocations are byte-for-byte unchanged.** `mini 5 70 3`, `generate 5 5 4
+  60 3`, `--max`/`--hard`/`--gimme`, `--nonsymmetric`/`--asym`, `--max-len`/`--max-black`/
+  `--gibbs` all parse exactly as before; the shims and `[project.scripts]` console commands
+  are untouched. This is *not* the positional->named migration D20 reserved for tools that
+  need it -- `mini`/`generate` stay positional (D20 stands); only the *parser* changed.
+- **`--help`, type coercion, and validation come for free.** `mini abc` now exits with a clear
+  `invalid int value: 'abc'` instead of a bare `ValueError` traceback (or, worse, silent
+  misread); every tool answers `--help` with its arguments and defaults.
+- **The hand-rolled `_take` helper and the manual flag/positional split are gone** -- one
+  parsing idiom across the four tools, less surface to get wrong when a knob is added.
+
+Rationale: this is the smallest change that makes the four front-doors consistent and gives
+two of them the validation and help the other two already had, at zero cost to the documented
+positional interface. No service, engine, invariant, or layer edge changed (the parse still
+lives only in `cli`, the top of the import stack); the full gate -- ruff, mypy, import-linter,
+pytest -- stays green. architecture.md's entry-point descriptions were already accurate about
+the positional shape, so they needed no edit; this log is the record of *why* the parse moved.
+
+Reversal: n/a -- consolidation. The hand-rolled parsers are in git if a tool ever needs a
+parse argparse cannot express (none does today).
