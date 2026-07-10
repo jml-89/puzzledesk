@@ -35,8 +35,8 @@ import json
 from dataclasses import replace
 from typing import Any
 
-from ..app.solve import SolveView
-from ..app.solver import Placement, SolverMove
+from puzzledesk.app.solve import SolveView
+from puzzledesk.app.solver import Placement, SolverMove
 
 _DEFAULT_MODEL = "claude-opus-4-8"
 

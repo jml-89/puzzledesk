@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .cluing import CluedPuzzle
-from .solve import Board, Feedback, FeedbackPolicy, SolveState
-from .solver import Placement, SolverAgent
+from puzzledesk.app.cluing import CluedPuzzle
+from puzzledesk.app.solve import Board, Feedback, FeedbackPolicy, SolveState
+from puzzledesk.app.solver import Placement, SolverAgent
 
 
 @dataclass(frozen=True, slots=True)

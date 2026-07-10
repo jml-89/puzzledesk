@@ -20,8 +20,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from .clue import Clue, ClueProvider, ClueStyle
-from .puzzle import FilledGrid, Target, TargetId
+from puzzledesk.app.clue import Clue, ClueProvider, ClueStyle
+from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
 
 
 @dataclass(frozen=True, slots=True)

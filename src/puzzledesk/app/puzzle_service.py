@@ -18,9 +18,9 @@ propagates as a ``None`` puzzle, so the completeness epistemics survive the comp
 
 from __future__ import annotations
 
-from .blocked import BlockedGenerateService
-from .clue import ClueStyle, Difficulty
-from .cluing import CluedPuzzle, ClueService
+from puzzledesk.app.blocked import BlockedGenerateService
+from puzzledesk.app.clue import ClueStyle, Difficulty
+from puzzledesk.app.cluing import CluedPuzzle, ClueService
 
 
 class PuzzleService:

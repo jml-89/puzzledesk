@@ -38,9 +38,9 @@ import argparse
 import sys
 import time
 
-from ..app import blocked
-from ..bootstrap import Container, build
-from . import present
+from puzzledesk.app import blocked
+from puzzledesk.bootstrap import Container, build
+from puzzledesk.cli import present
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

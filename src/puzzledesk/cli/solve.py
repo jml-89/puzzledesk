@@ -24,10 +24,10 @@ import argparse
 import sys
 from dataclasses import replace
 
-from ..app.clue import Difficulty
-from ..app.solve import FeedbackPolicy
-from ..bootstrap import Config, Container, build
-from . import present
+from puzzledesk.app.clue import Difficulty
+from puzzledesk.app.solve import FeedbackPolicy
+from puzzledesk.bootstrap import Config, Container, build
+from puzzledesk.cli import present
 
 _DIFFICULTIES = [d.name.lower() for d in Difficulty]
 _POLICIES = [p.value for p in FeedbackPolicy]

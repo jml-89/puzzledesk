@@ -14,14 +14,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..app.blocked import BlockedGenerateService
-from ..app.cluing import ClueService
-from ..app.mini import MiniService
-from ..app.ports import LexiconSource, Writer
-from ..app.puzzle_service import PuzzleService
-from ..app.solve_service import SolveService
-from ..core.rng import RngFactory
-from .config import Config
+from puzzledesk.app.blocked import BlockedGenerateService
+from puzzledesk.app.cluing import ClueService
+from puzzledesk.app.mini import MiniService
+from puzzledesk.app.ports import LexiconSource, Writer
+from puzzledesk.app.puzzle_service import PuzzleService
+from puzzledesk.app.solve_service import SolveService
+from puzzledesk.bootstrap.config import Config
+from puzzledesk.core.rng import RngFactory
 
 
 @dataclass(frozen=True, slots=True)

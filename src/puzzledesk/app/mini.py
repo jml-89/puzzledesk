@@ -14,14 +14,14 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..core.engines import backtrack
-from ..core.rng import RngFactory
-from ..core.square import DoubleSquare
-from ..core.validate import Verdict, score_of, validate
-from .difficulty import solve_order
-from .ports import LexiconSource
-from .puzzle import filled_from_square
-from .results import MiniBatch, MiniResult, SolveDifficulty, WordScore
+from puzzledesk.app.difficulty import solve_order
+from puzzledesk.app.ports import LexiconSource
+from puzzledesk.app.puzzle import filled_from_square
+from puzzledesk.app.results import MiniBatch, MiniResult, SolveDifficulty, WordScore
+from puzzledesk.core.engines import backtrack
+from puzzledesk.core.rng import RngFactory
+from puzzledesk.core.square import DoubleSquare
+from puzzledesk.core.validate import Verdict, score_of, validate
 
 
 class MiniService:

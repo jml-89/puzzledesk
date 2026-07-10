@@ -12,8 +12,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .lexicon import Lexicon
-from .square import DoubleSquare
+from puzzledesk.core.lexicon import Lexicon
+from puzzledesk.core.square import DoubleSquare
 
 
 @dataclass

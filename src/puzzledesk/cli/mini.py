@@ -20,8 +20,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from ..bootstrap import build
-from . import present
+from puzzledesk.bootstrap import build
+from puzzledesk.cli import present
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

@@ -13,13 +13,13 @@ Injected: the length-bucketed word list via :class:`LexiconSource`, randomness v
 
 from __future__ import annotations
 
-from ..core.blocked import BlockedGrid
-from ..core.engines import fill, gibbs_layout, patterns
-from ..core.lexicon import MultiLexicon
-from ..core.rng import RngFactory
-from .ports import LexiconSource
-from .puzzle import FilledGrid, filled_from_blocked
-from .results import BlockedResult, Entry
+from puzzledesk.app.ports import LexiconSource
+from puzzledesk.app.puzzle import FilledGrid, filled_from_blocked
+from puzzledesk.app.results import BlockedResult, Entry
+from puzzledesk.core.blocked import BlockedGrid
+from puzzledesk.core.engines import fill, gibbs_layout, patterns
+from puzzledesk.core.lexicon import MultiLexicon
+from puzzledesk.core.rng import RngFactory
 
 # Default black-cell density for a capped mini when the caller pins no count (D25).
 # ~22% of the cells, as an upper bound; the white-biased search lands a little under it

@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from .solve import EntryRef, SolveView
+from puzzledesk.app.solve import EntryRef, SolveView
 
 
 @dataclass(frozen=True, slots=True)

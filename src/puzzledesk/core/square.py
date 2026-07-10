@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .lexicon import Lexicon, decode
+from puzzledesk.core.lexicon import Lexicon, decode
 
 
 class DoubleSquare:

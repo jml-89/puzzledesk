@@ -45,11 +45,11 @@ import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from ..blocked import BlockedGrid
-from ..lexicon import MultiLexicon
-from ..rng import Rng, RngFactory
-from . import fill
-from .patterns import _connected, _fully_checked, _orbits, _to_grid
+from puzzledesk.core.blocked import BlockedGrid
+from puzzledesk.core.engines import fill
+from puzzledesk.core.engines.patterns import _connected, _fully_checked, _orbits, _to_grid
+from puzzledesk.core.lexicon import MultiLexicon
+from puzzledesk.core.rng import Rng, RngFactory
 
 # Annealing defaults: a short geometric schedule from a warm start to a near-greedy
 # tail is enough for a <=15x15 field (measured -- see scripts/gibbs.py / notes.md).

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Protocol, runtime_checkable
 
-from .puzzle import FilledGrid, Target, TargetId
+from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
 
 
 class Difficulty(IntEnum):

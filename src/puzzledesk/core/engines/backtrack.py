@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..lexicon import Lexicon
-from ..rng import Rng
-from ..square import DoubleSquare
+from puzzledesk.core.lexicon import Lexicon
+from puzzledesk.core.rng import Rng
+from puzzledesk.core.square import DoubleSquare
 
 
 class _PrefixIndex:

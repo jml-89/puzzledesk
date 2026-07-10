@@ -26,9 +26,9 @@ from __future__ import annotations
 import argparse
 import sys
 
-from ..app.clue import Difficulty
-from ..bootstrap import Container, build
-from . import present
+from puzzledesk.app.clue import Difficulty
+from puzzledesk.bootstrap import Container, build
+from puzzledesk.cli import present
 
 _DIFFICULTIES = [d.name.lower() for d in Difficulty]  # monday..saturday
 
