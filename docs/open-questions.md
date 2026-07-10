@@ -100,7 +100,7 @@ ones are built, the two *soft* ones are recorded and blocked on data:
 
 **Generate-to-a-difficulty — BUILT (D23), with a caveat.** `MiniService.generate(grid,
 FillSpec(min_hard_gets=K, gimme=G))` selects grids by `solve_order` and returns them
-hardest-first (`mini --hard K --gimme G`; the knobs are now a `FillSpec`, D31). Two open edges: (i) selection is
+hardest-first (`mini --hard K --gimme G`; the knobs are now a `FillSpec`, D32). Two open edges: (i) selection is
 best-of-a-seed-budget over a *soft* score — a short return is budget exhaustion, never a
 proof, and there is no completeness here (unlike the fill); (ii) the target is two raw
 knobs (`min_hard_gets`, `gimme`), not a calibrated Mon–Sat preset — building the preset
@@ -344,12 +344,26 @@ layout sampling; crossword-construction practice and grid-template libraries
 - Distinctness leaf-rejection is the known inefficiency (~13ms->380ms at 5x5). The
   down words are only complete at the last row, so duplicates are caught late.
   Could we prune earlier — e.g. detect when a partial column can only complete to
-  an already-used word? Unimplemented; measure before optimising.
+  an already-used word? **MEASURED and DROPPED (D31, tombstoned).** Implemented exactly
+  that (a forced-down prune: a column prefix admitting one column word determines its
+  down word, so reject early if it is used/duplicated). Sound, but it cut only ~2% of
+  search nodes and was time-neutral — the forced-down condition rarely fires until deep
+  in the tree, where the leaf check catches the duplicate anyway. "Measure before
+  optimising" answered No; code tombstoned (post-mortem below).
 - We only measure time-to-FIRST grid, not enumerate-all or solution COUNT at a
-  bar. "How many distinct minis exist at score>=X" is unknown and is a different,
-  larger computation.
+  bar. "How many distinct minis exist at score>=X" — **ANSWERED, then tombstoned
+  (D31).** A `backtrack.count` spike exhausted the tree to count exactly: the space
+  *collapses to a countable set* at the ceiling — weak list 56 -> 8 -> 0
+  (T=3.5/3.7/3.9), curated top tier (score>=90) is **exactly 38 distinct 5x5 minis**
+  (numbers in notes.md; write-up in `docs/postmortem-kernel-methods.md`). This gives the
+  batch-variety question (above) its missing denominator: at the top the distinct pool
+  is tiny, which is *why* top-tier fills repeat. The **finding survives; the counter code
+  does not** (D31 tombstone — the measurement was the deliverable). If counting is wanted
+  again (blocked/`fill` space, or up-to-symmetry-class), restore `count` from git and
+  extend it.
 - UNSAT proofs are per-list theorems. If the curated list updates upstream, the
-  ceilings must be re-measured (they are properties of the data).
+  ceilings — and the exact solution *counts* the D31 spike measured — must be re-measured
+  (they are properties of the data).
 
 ## Data / scale hygiene
 
@@ -382,7 +396,7 @@ The hexagonal layering + DI is in (D14). Left open:
 - **Wiring config.** `bootstrap` has a single `build()` with defaults and no config
   file. If tools grow options (list choice, data dir, output format) a small typed
   config surface (env/flags → `Config`) is the natural next step.
-- **Generation specs — BUILT (D31).** Generation *input* is now a typed algebra
+- **Generation specs — BUILT (D32).** Generation *input* is now a typed algebra
   (`app/spec.py`: `GridSpec` + the closed `LayoutStrategy` union + `FillSpec`, bundled as
   `PuzzleSpec`), and the four `BlockedGenerateService.fill_*` methods collapsed into one
   strategy-dispatched `GenerateService.fill`/`fill_grid`. This is the forcing move D15

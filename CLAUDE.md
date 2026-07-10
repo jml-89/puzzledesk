@@ -5,9 +5,12 @@ Operating manual for an agent working in this repo. It tells you how the code is
 does **not** restate the design — that lives in `docs/`, and you should read it:
 
 - `docs/architecture.md` — data model + the numbered invariant list (0–5). Authoritative.
-- `docs/decisions.md` — ADR-style decision log (D1–D30). *Why* it is shaped this way.
+- `docs/decisions.md` — ADR-style decision log (D1–D33). *Why* it is shaped this way.
 - `docs/notes.md` — benchmarks, environment quirks, data provenance/regeneration.
 - `docs/open-questions.md` — unresolved questions and next-spike candidates.
+- `docs/postmortem-kernel-methods.md` — the D31 review-of-methods spike (solution
+  counting + distinctness pruning), measured and tombstoned. Read before re-attempting
+  either, and for a synthesis of the whole methods arc.
 - `CONTRIBUTING.md` — branch/commit/PR etiquette. Read before you push.
 
 When this file and `docs/architecture.md` seem to disagree, `architecture.md`
@@ -48,7 +51,7 @@ through ports and return structured results (`app/results.py`). Generation input
 *modelled*, not a bucket of kwargs: `app/spec.py` holds the typed request algebra —
 `GridSpec` + a closed `LayoutStrategy` union (`FullSquare`/`CountLayout`/`CappedLayout`/
 `GibbsLayout`) + `FillSpec`, bundled as `PuzzleSpec` — dispatched with `match` +
-`assert_never` (D31). **They must not import a
+`assert_never` (D32). **They must not import a
 concrete adapter, read a file, or print** — that inversion is the whole point and
 the linter enforces it (`app → adapters` is a broken contract). The two *soft*
 LLM-backed stages live here too, each fenced behind a port with the model in an
@@ -162,10 +165,10 @@ further where it buys clarity or immutability:
 - `Protocol` for the shared engine surface (a `solve(...) -> state | None`).
 
 **The floor:** `requires-python = ">=3.13"`, ruff `target-version = "py313"`, mypy
-`python_version = "3.13"` (D32). 3.10 was security-only and is retired. The whole 3.11–3.13
+`python_version = "3.13"` (D33). 3.10 was security-only and is retired. The whole 3.11–3.13
 toolbox is now *in bounds* — `typing.assert_never`, `StrEnum`, `tomllib`, PEP-695
 `type X = …` alias / `class Foo[T]` generic syntax, `@typing.override`. Use them where they
-earn it (the old `NoReturn` `assert_never` shim from D31 is gone — `typing.assert_never`
+earn it (the old `NoReturn` `assert_never` shim from D32 is gone — `typing.assert_never`
 replaced it). Raising the floor again (e.g. to 3.14 once the environment can provision and
 verify it) is a deliberate D-entry decision, not a drive-by — but there is no longer a
 sub-3.13 boundary to police.

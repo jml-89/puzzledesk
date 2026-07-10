@@ -1,5 +1,5 @@
 """The grid-generation use-case: one service, one dispatched search, over every layout
-strategy (D31).
+strategy (D32).
 
 This replaces the earlier ``BlockedGenerateService``'s four near-duplicate methods
 (``fill_once`` / ``fill_capped_once`` / ``fill_capped_gibbs_once`` / ``fill_grid_once``,

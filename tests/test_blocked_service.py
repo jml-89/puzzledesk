@@ -6,7 +6,7 @@ black cells to hold every entry within a length cap, so a grid larger than the
 word data still fills. Here a tiny in-memory multi-lexicon fills a 3x3 (the cap
 does not bite yet, but the wiring, distinctness, and cap-within-lengths contract
 do), and the odd-count-on-a-symmetric-even-grid proof is exercised via the unified
-``layout_exists`` (D31).
+``layout_exists`` (D32).
 """
 
 from __future__ import annotations

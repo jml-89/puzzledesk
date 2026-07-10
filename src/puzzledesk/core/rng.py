@@ -53,7 +53,7 @@ class Rng(Protocol):
         an array through this port), which is exactly ``numpy.random.Generator.random``'s
         no-``size`` overload, so a real ``Generator`` still satisfies it structurally --
         and does so unambiguously under numpy 2.x's stricter, overload-split stubs, where
-        a broad ``size: int | None`` signature no longer matched a single overload (D32)."""
+        a broad ``size: int | None`` signature no longer matched a single overload (D33)."""
         ...
 
 

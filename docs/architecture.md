@@ -26,7 +26,7 @@ that keeps the OS out of the pure layers (see "OS reach is confined to init", be
   (`app/results.py`); they never import a concrete adapter, read a file, or print.
   Generation *input* is modelled, not passed as loose kwargs: `app/spec.py` is the
   typed request algebra (`GridSpec` + the closed `LayoutStrategy` union + `FillSpec`,
-  bundled as `PuzzleSpec`), dispatched with `match` + `assert_never` (D31; see
+  bundled as `PuzzleSpec`), dispatched with `match` + `assert_never` (D32; see
   "Generation specs" below).
   Clue generation is fenced here too: `app/puzzle.py` is the canonical space-first
   `FilledGrid` (cells + occupation; runs/crossings derived), `app/clue.py::ClueProvider`
@@ -169,6 +169,11 @@ solution you get and measure diversity/timing.
 `distinct=True` enforces the distinctness invariant (below): skips a candidate
 whose across word is already used, and at the leaf (r==N) rejects the grid if the
 N down words are not mutually distinct or collide with an across word.
+
+(A `count`/model-counting extension of this engine — how *large* the solution space is
+at a bar — was spiked, measured, and tombstoned; see D31 and
+`docs/postmortem-kernel-methods.md` for what it found, chiefly that the curated top tier
+admits exactly 38 distinct 5x5 minis.)
 
 ### The retired sampler (D19)
 
@@ -404,7 +409,7 @@ at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler
 5. LOWERCASE ASCII. Lexicon assumes a-z; the curated source is upper/mixed and
    is lowercased at ingestion (see notes.md, generation commands).
 
-## Generation specs — the typed request algebra (`app.spec`, D31)
+## Generation specs — the typed request algebra (`app.spec`, D32)
 
 Generation input is a modelled aggregate, not a bucket of keyword arguments. `app/spec.py`:
 
