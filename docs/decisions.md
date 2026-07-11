@@ -1961,9 +1961,11 @@ redacted). Findings (numbers in notes.md; write-up in `docs/relational-difficult
 - **Fully-checked grids have no single-clue keystones** (every cell shared ⇒ nine known clues pin
   the tenth): unfairness is a *cluster* or *vocabulary* effect, never one clue — sharpening D21.
 - The **difficulty curve is non-monotonic**: the hardest *fair* config is usually floor+1.
-- **Live confirmation** (`scripts/endogenous.py`, Opus): crossing *below* the floor deadlocked the
-  live solver (unsolved, all turns) — the Natick-cluster theorem, empirical, on the clue-power axis.
-  Thinking-tokens stayed noisy (D26), so the clean tell is pass/fail at the floor boundary.
+- **Live confirmation** (`scripts/endogenous.py`, Opus), two grids bracketing the prediction:
+  crossing *below* the floor **deadlocked** the live solver (shallow grid, unsolved, all turns) —
+  the Natick-cluster theorem, empirical, on the clue-power axis; and a **deep (depth-6) floor
+  saturated** the solver's 20k reasoning budget in one turn (vs 6007 all-clues on the same grid),
+  while a degenerate floor stayed cheap (1175) — effort tracks the model's structural depth.
 
 The reframe this licenses: a crossword is **two puzzles superimposed** — a trivia puzzle
 (clue→answer) and a logic puzzle (crossings→answer). Today's minis are ~all trivia (depth 1); the

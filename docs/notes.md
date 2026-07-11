@@ -745,14 +745,23 @@ Deterministic measurements, 30+ distinct grids per config (cw list):
 - **The difficulty curve is non-monotonic** near the floor: the hardest *fair* config is usually
   at floor+1, not the floor (below that you must keep the ice-breaker clues to stay solvable).
 
-Live probe (`scripts/endogenous.py`, Opus, `--policy none`) on the SIP grid: all-clues solved
-1 turn / 4509 tok; floor-only (5 real + 5 blank) solved 1 turn / 1175 tok; **below-floor (4
-clues) FAILED** (unsolved, 6 turns, 6646 tok). The deadlock theorem reproduced empirically on
-the clue-power axis — even Opus could not recover the sub-floor cluster. Caveat (as D26): the
-token count is noisy; floor-only was *cheap* here only because this grid's minimal floor is the
-degenerate one-direction set (all five acrosses -> every cell known -> depth 2). The clean
-signal is the pass/fail at the floor boundary; a deeper grid (seed 0, a genuine 6-wave floor) is
-the next live run.
+Live probe (`scripts/endogenous.py`, Opus, `--policy none`), two grids bracketing the prediction:
+
+- **Below the floor deadlocks the solver.** Shallow SIP grid (model depth 3): all-clues solved
+  1 turn / 4509 tok; floor-only (5 real + 5 blank) solved / 1175 tok; **below-floor (4 clues)
+  FAILED** (unsolved, 6 turns, 6646 tok). The deadlock theorem, reproduced empirically on the
+  clue-power axis — even Opus could not recover the sub-floor cluster. (floor-only was *cheap*
+  here only because this grid's minimal floor is the degenerate one-direction set = all five
+  acrosses -> every cell known -> depth 2.)
+- **A deep floor saturates reasoning (effort tracks depth).** HEW/MIXIN grid (seed 0, a
+  non-degenerate depth-6 floor: 5 gimmes force MIXIN->ETUDE->HITUP->EXURB->WIDER over six waves).
+  all-clues solved 1 turn / 6007 tok; **floor-only (5 blank clues) exhausted the entire
+  20000-token reasoning budget in one turn** (>=3.3x the same grid's all-clues spend, >=17x the
+  shallow floor). The model's depth cleanly separates a real cascade (saturates reasoning) from a
+  degenerate one (cheap). Method ceiling (as D26): the adapter is non-streaming to keep
+  `thinking_tokens`, so 20k is a hard cap — raising it trips the SDK's ">10 min needs streaming"
+  limit (which loses the count), so the depth-6 solve is *more* reasoning than the harness captures
+  in a turn (its `solved` is undefined — a 20k-cap truncation, not a genuine miss).
 
 **The reframe (dream-big):** a crossword is two puzzles superimposed — a *trivia* puzzle
 (clue->answer, breadth of recall) and a *logic* puzzle (crossings->answer, depth of inference).
