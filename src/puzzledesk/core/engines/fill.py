@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from puzzledesk.core.blocked import BlockedGrid, Slot
 from puzzledesk.core.lexicon import MultiLexicon
+from puzzledesk.core.probe import NULL_PROBE, PROGRESS_STRIDE, Probe, Progress, Solved
 from puzzledesk.core.rng import Rng
 
 
@@ -38,6 +39,7 @@ def solve(
     distinct: bool = True,
     randomize: bool = True,
     node_budget: int | None = None,
+    probe: Probe = NULL_PROBE,
 ) -> dict[int, str] | None:
     """Return {slot_id: word} filling every slot, or None if none exists.
 
@@ -45,7 +47,9 @@ def solve(
     per-seed diversity; ``randomize=False`` ignores it. ``distinct`` (default)
     forbids repeating an entry anywhere in the grid, as a real crossword does.
     ``node_budget`` caps the search-tree nodes; None means run to completion (so
-    None is a genuine UNSAT proof)."""
+    None is a genuine UNSAT proof). ``probe`` (default no-op) observes the search:
+    a sampled :class:`Progress` every ``PROGRESS_STRIDE`` nodes and a :class:`Solved`
+    on success -- observe-only, so it cannot change the result."""
     if g.orphans:
         raise ValueError(f"grid has unchecked cells (runs < min_len): {g.orphans}")
     cell: dict[tuple[int, int], int] = {}
@@ -58,8 +62,11 @@ def solve(
         nodes += 1
         if node_budget is not None and nodes > node_budget:
             return None
+        if nodes % PROGRESS_STRIDE == 0:
+            probe.emit(Progress("fill", nodes, len(assign)))
         unfilled = [s for s in g.slots if s.id not in assign]
         if not unfilled:
+            probe.emit(Solved("fill", nodes))
             return dict(assign)
         # MRV: the unfilled slot with the fewest candidate words.
         best = best_lex = best_idxs = None

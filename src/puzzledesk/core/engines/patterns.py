@@ -36,6 +36,15 @@ from collections.abc import Iterator
 from puzzledesk.core.blocked import BLOCK, WHITE, BlockedGrid
 from puzzledesk.core.engines import fill
 from puzzledesk.core.lexicon import MultiLexicon
+from puzzledesk.core.probe import (
+    NULL_PROBE,
+    PROGRESS_STRIDE,
+    Attempt,
+    Finished,
+    PhaseStarted,
+    Probe,
+    Progress,
+)
 from puzzledesk.core.rng import Rng, RngFactory
 
 # gen_capped's randomized cell order is white-biased: black-first this % of the
@@ -246,6 +255,7 @@ def gen_capped(
     max_black: int | None = None,
     node_budget: int | None = None,
     randomize: bool = True,
+    probe: Probe = NULL_PROBE,
 ) -> Iterator[BlockedGrid]:
     """Yield every legal :class:`BlockedGrid` whose every entry has length in
     ``[min_len, max_len]`` (``max_len`` ``None`` == no upper bound).
@@ -299,6 +309,8 @@ def gen_capped(
         nodes += 1
         if node_budget is not None and nodes > node_budget:
             return  # budget spent: unwind (a budgeted empty result is not a proof)
+        if nodes % PROGRESS_STRIDE == 0:
+            probe.emit(Progress("layout", nodes, idx))
         if idx == total:
             if num_black is not None and nblack != num_black:
                 return
@@ -355,6 +367,7 @@ def fill_capped(
     node_budget: int | None = None,
     layout_node_budget: int | None = None,
     max_patterns: int | None = None,
+    probe: Probe = NULL_PROBE,
 ) -> tuple[BlockedGrid, dict[int, str]] | None:
     """Search legal length-capped layouts for one that fills -- the cap-driven
     analogue of :func:`fill_by_count`.
@@ -369,6 +382,7 @@ def fill_capped(
     ``max_patterns``/``node_budget`` bound is exhaustion of the budget, not a theorem
     (say so when presenting it).
     """
+    probe.emit(PhaseStarted("capped", f"{rows}x{cols} cap<={max_len}"))
     layouts = gen_capped(
         rows,
         cols,
@@ -379,15 +393,27 @@ def fill_capped(
         num_black=num_black,
         max_black=max_black,
         node_budget=layout_node_budget,
+        probe=probe,
     )
-    for tried, g in enumerate(layouts):
-        if max_patterns is not None and tried >= max_patterns:
+    # A None here is a UNSAT *proof* only if nothing bounded the search (both stages
+    # complete); otherwise it is budget exhaustion. That tag is exactly the reason on
+    # the terminal Finished event.
+    complete = layout_node_budget is None and max_patterns is None and node_budget is None
+    tried = 0
+    for i, g in enumerate(layouts):
+        if max_patterns is not None and i >= max_patterns:
+            probe.emit(Finished(ok=False, reason="budget", attempts=tried))
             return None
+        tried += 1
+        probe.emit(Attempt(i, sum(sum(row) for row in g.block), len(g.slots)))
         assign = fill.solve(
-            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=node_budget
+            g, mlex, rng=rng_factory.create(seed), distinct=distinct,
+            node_budget=node_budget, probe=probe,
         )
         if assign is not None:
+            probe.emit(Finished(ok=True, reason="solved", attempts=tried))
             return g, assign
+    probe.emit(Finished(ok=False, reason="exhausted" if complete else "budget", attempts=tried))
     return None
 
 

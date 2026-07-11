@@ -400,6 +400,19 @@ The hexagonal layering + DI is in (D14). Left open:
 - **Wiring config.** `bootstrap` has a single `build()` with defaults and no config
   file. If tools grow options (list choice, data dir, output format) a small typed
   config surface (env/flags → `Config`) is the natural next step.
+- **Instrumentation / observability — SPIKED (D37).** The engines were silent until
+  they returned, which is painful on a long large-grid search. `core/probe.py` adds a
+  `Probe` port (the observation mirror of `Rng`): observe-only, no-op by default, a
+  closed union of events, milestones pushed and per-node rates *sampled* (never an
+  event per node). Threaded through the fill path (`fill.solve`/`gen_capped`/
+  `fill_capped`) with `LoggingProbe`/`HeartbeatProbe` adapters and a `RecordingProbe`
+  fake; `scripts/spike_probe.py` demos it. `Finished.reason` carries the
+  `exhausted` (proof) vs `budget` tag. **Left open** (all behind the same port): thread
+  `probe` through `GenerateService` + a CLI `--progress` flag; a `web` **SSE** adapter
+  (`GET /puzzles/{id}/events`, a live progress view — the Phase-2 solve-telemetry seam
+  above is its sibling); an **OpenTelemetry** adapter mapping events → spans; and
+  instrumenting `backtrack.solve` (the square engine, deferred as it is rarely the long
+  pole).
 - **Generation specs — BUILT (D32).** Generation *input* is now a typed algebra
   (`app/spec.py`: `GridSpec` + the closed `LayoutStrategy` union + `FillSpec`, bundled as
   `PuzzleSpec`), and the four `BlockedGenerateService.fill_*` methods collapsed into one

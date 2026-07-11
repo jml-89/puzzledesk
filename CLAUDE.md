@@ -48,7 +48,10 @@ The two grid models, the engines, the lexicon, `validate`. Rules:
   port), they do **not** open their own `np.random.default_rng`. Still no unseeded
   `random`, no wall-clock. A `(lists, seed)` pair reproduces a result exactly —
   `NumpyRngFactory.create(seed)` is `default_rng(seed)`, so injection changed the
-  wiring, not the numbers.
+  wiring, not the numbers. The *observation* mirror is the `core.probe.Probe` port
+  (D37): the engines emit structured events (`fill`/`gen_capped`/`fill_capped` do now),
+  observe-only and no-op by default, so a watcher cannot change the search — adapters
+  (`LoggingProbe`/`HeartbeatProbe`) render them.
 - **Fully typed** (`mypy`, `disallow_untyped_defs`; ships `py.typed`).
 - Carries the invariants below. This is where correctness lives.
 
@@ -94,7 +97,7 @@ completeness tag crosses the wire (a `None` becomes 422 `unsat` vs `budget`, per
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
 `ceiling.py`, `demo.py`, `blackcells.py`, `difficulty.py`, `largemini.py`, `gibbs.py`,
-`scan.py`, `solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
+`scan.py`, `spike_probe.py`, `solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
 (`scripts/*.py`), but now `build()` the container and drive the core engines through its
 injected `lexicon`/`rng_factory` adapters — no bare `default_rng`/`DATA` path. Their
 output is numbers for `docs/notes.md` (see architecture.md "Benchmark/demo drivers" for
