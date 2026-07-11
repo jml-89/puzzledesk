@@ -1876,3 +1876,54 @@ Alternatives considered:
 Reversal: additive (30 data files + 3 drivers, no `src` change), so it reverses by deleting
 the 6..15 files. The generators stay useful regardless -- they make the 2..5 lists
 reproducible where before they were not.
+
+## D37. The observation port: instrument the engines with a Probe (spike)
+
+Context: generation on a large capped grid is a long, silent backtracking search. "Is it
+progressing, or stuck?" had no answer -- the engines emit nothing until they return. The
+naive fixes are both wrong for this kernel: sprinkling `print`/`logging` in `core` breaks
+the no-I/O rule (D18) and hard-codes one rendering; emitting an event *per node* on a loop
+that visits millions of them is a literal observer effect that would wreck the benchmark
+numbers (`notes.md`) and the honesty of "the un-watched path is unchanged."
+
+Decision: add a **`Probe` port** (`core/probe.py`), the mirror image of the `Rng` port.
+Where `Rng` is the one impure *input* (randomness flows in), `Probe` is the one observation
+*output* (structured events flow out), held to the same discipline:
+
+- **Observe-only.** A probe sees only what an engine reports; it never touches the `rng` or
+  steers the search. Determinism and completeness ("a `None` is a proof") do not depend on
+  whether anyone watches -- enforced by a test that a recorded run returns the identical grid
+  as an un-watched one (`tests/test_probe.py::test_probe_does_not_change_result`).
+- **Free by default.** The default `NULL_PROBE` is a genuine no-op, and the hot loops only
+  *build* an event every `PROGRESS_STRIDE` (4096) nodes -- a cheap `nodes % STRIDE` gate --
+  so an un-watched search runs at its old speed. Milestones (`Attempt`/`Solved`/`Finished`)
+  are rare and emitted freely; the per-node firehose is a sampled counter, never an event.
+  **Push milestones, sample rates** is the whole granularity rule.
+- **Its own vocabulary.** `Event` is a small closed union of frozen records
+  (`PhaseStarted | Attempt | Progress | Solved | Finished`), no third-party types. Logs, a
+  live heartbeat, an SSE stream, a metrics sink, a test recorder are all *adapters* behind
+  the one port -- "logging" is just the adapter that formats an event as a line, and a
+  backend like OpenTelemetry maps these onto spans in an adapter (the kernel never imports
+  it -- the `forbidden` contract, D18). The port stays one method (`emit`), so a new variant
+  never grows its surface; consumers `match` on the union with `assert_never`.
+
+Scope of the spike: threaded through the *fill* path -- `fill.solve`, `gen_capped`,
+`fill_capped` (which emits the milestones). Two adapters (`adapters/probe.py`): `LoggingProbe`
+(the "logging is one consumer" point) and `HeartbeatProbe` (a live one-line readout:
+attempts / nodes / nodes-per-sec / elapsed, wall clock confined to the adapter). A
+`RecordingProbe` fake drives the contract test. `scripts/spike_probe.py` demos it on a 12x12.
+
+The payoff detail: `Finished.reason` carries the epistemic tag the engines already
+distinguish -- `exhausted` when a *complete* search proves no fill exists (a theorem),
+`budget` when a bounded one merely ran out (not a proof) -- the same distinction D32 put on
+the web `422`, now surfaced in the event stream.
+
+Not done (deliberate, follow-ons behind the same port): threading `probe` through the
+services/`GenerateService` and a CLI `--progress` flag; the `web` SSE adapter (a live
+progress view for a long generation, `GET /puzzles/{id}/events`); an OpenTelemetry adapter;
+and instrumenting `backtrack.solve` (the square engine -- fast and rarely the long pole, so
+it waited). The square/blocked split (invariant 0) is untouched.
+
+Reversal: additive (one new `core` module + one adapter module + a fake + a driver; the
+engines gained an optional `probe=NULL_PROBE` kwarg that changes nothing when unset), so it
+reverses by dropping those files and the kwargs.

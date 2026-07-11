@@ -48,7 +48,10 @@ The two grid models, the engines, the lexicon, `validate`. Rules:
   port), they do **not** open their own `np.random.default_rng`. Still no unseeded
   `random`, no wall-clock. A `(lists, seed)` pair reproduces a result exactly —
   `NumpyRngFactory.create(seed)` is `default_rng(seed)`, so injection changed the
-  wiring, not the numbers.
+  wiring, not the numbers. The *observation* mirror is the `core.probe.Probe` port
+  (D37): the engines emit structured events (`fill`/`gen_capped`/`fill_capped` do now),
+  observe-only and no-op by default, so a watcher cannot change the search — adapters
+  (`LoggingProbe`/`HeartbeatProbe`) render them.
 - **Fully typed** (`mypy`, `disallow_untyped_defs`; ships `py.typed`).
 - Carries the invariants below. This is where correctness lives.
 
@@ -94,7 +97,7 @@ completeness tag crosses the wire (a `None` becomes 422 `unsat` vs `budget`, per
 ### benchmarks — measurement drivers (`scripts/`, number producers)
 
 `ceiling.py`, `demo.py`, `blackcells.py`, `difficulty.py`, `largemini.py`, `gibbs.py`,
-`solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
+`scan.py`, `spike_probe.py`, `solve_effort.py`: they *measure/demo*, not produce. They stay loose and `ANN`-exempt
 (`scripts/*.py`), but now `build()` the container and drive the core engines through its
 injected `lexicon`/`rng_factory` adapters — no bare `default_rng`/`DATA` path. Their
 output is numbers for `docs/notes.md` (see architecture.md "Benchmark/demo drivers" for
@@ -147,7 +150,34 @@ uv run --extra web uvicorn puzzledesk.web.main:app  # the HTTP API: POST/GET /pu
 uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
 uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the complete search (D27)
+uv run scripts/scan.py 9 9 6 60 --gibbs --nonsym   # sweep seeds, rank fills by weakest word (D27)
 ```
+
+### Generation cheatsheet — which lever for which grid
+
+Two questions burn time if you don't know them up front: *which engine for the grid I want*,
+and *why is a run hanging*. The distinctions (full detail in `docs/lesson-length-ceiling.md`
+and architecture.md §"Blocked grids"/"Cap-driven layouts"):
+
+- **Dense square** (`mini` / `FullSquare`): every row *and* column a full word. Complete, but
+  gated by **double-square order rarity** — 5×5 is the reliable ceiling, 6×6+ get rare fast in
+  English. Longer word lists do **not** push this; it's a density/search frontier, not data.
+- **A word longer than 5** is the *other* axis — pure vocabulary. The lists run to length 15
+  (D36), so just raise the **cap** (`--max-len K`). This is the length-ceiling lesson's whole
+  point: "how long a word can we hold" ≠ "how dense a square can we build."
+- **Big grid, hold entries short → cap-driven** (`generate R C 0 min N --max-len K`): caps the
+  *max* entry length with black cells, prunes run-length as it searches, fast to ~10×10.
+  **Bound the black count** (`--max-black`, or a fixed count) — an *unbounded* `max_black` at
+  large N makes the layout search explode (this is a top hang cause).
+- **Fix a black *count* → count-driven** (`generate R C K min N`): caps only the *minimum*
+  length, so it leaves full-width runs. On a big/dense grid those long checked runs hit the
+  **word-square rarity wall** — slow or a real UNSAT. Fine for small grids / few blacks; a poor
+  choice when you want long entries in a big grid (use the cap instead).
+- **Nicer texture → Gibbs** (`--gibbs`, cap mode): sampled layout, guaranteed no 2×2 block,
+  supports `--nonsymmetric`. Not complete — a miss is *budget exhaustion, not a proof*.
+- **Picking a clean sample:** don't hand-roll a seed sweep — `scripts/scan.py` ranks seeds by
+  the **weakest word** (the acceptance bottleneck, invariant 4). `generate … count>1` also
+  prints each grid's scored words. Score bars are per-list (invariant 4).
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the
   code or change the shared config in `pyproject.toml` with a reason. The `select`

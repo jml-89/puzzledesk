@@ -400,6 +400,33 @@ at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler
   lever is the soft weights (`w_cluster` reshapes spread cleanly). The soft/hard split re-derived
   inside the layout: the field owns the soft objective, complete search owns the hard legality.
 
+## Instrumentation: the Probe port (src/puzzledesk/core/probe.py, D37)
+
+The engines are silent until they return, which is painful on a long large-grid search.
+`core/probe.py` is the **observation port** — the mirror of `core/rng.py`. Where `Rng` is the
+one impure *input* (randomness in), `Probe` is the one observation *output* (structured events
+out), under the same discipline:
+
+- **Observe-only.** A probe sees only what an engine reports; it never touches the `rng` or
+  steers the search, so determinism/completeness ("a `None` is a proof") do not depend on
+  whether anyone watches. A test pins it: a recorded run returns the identical grid as an
+  un-watched one (`tests/test_probe.py::test_probe_does_not_change_result`).
+- **Free by default + right granularity.** The default `NULL_PROBE` is a no-op, and the hot
+  loops only build an event every `PROGRESS_STRIDE` (4096) nodes — **push milestones, sample
+  rates**, never one event per node (that would be a literal observer effect on the benchmark).
+- **Own vocabulary, adapters render.** `Event` is a closed union of frozen records
+  (`PhaseStarted | Attempt | Progress | Solved | Finished`), no third-party types; the port is
+  one `emit` method. Logs, a heartbeat, an SSE stream, metrics, a test recorder are all
+  *adapters* behind it (`adapters/probe.py`: `LoggingProbe`, `HeartbeatProbe`; `RecordingProbe`
+  in `tests/fakes.py`), and an OpenTelemetry backend would be one more — the kernel never
+  imports it (the `forbidden` contract, D18). `Finished.reason` carries the same
+  `exhausted` (proof) vs `budget` (bounded) tag D32 put on the web `422`.
+
+Spike scope (D37): threaded through the **fill** path (`fill.solve`, `gen_capped`,
+`fill_capped`), demoed by `scripts/spike_probe.py`. Not yet wired through the services/CLI, the
+`web` SSE endpoint, or `backtrack.solve` — all follow-ons behind the same port (see D37,
+open-questions "Instrumentation / observability").
+
 ## Invariants — do not break
 
 0. TWO GRID MODELS COEXIST. The square (square.py: induced columns, invariants
@@ -610,6 +637,14 @@ and uses the injected `lexicon`/`rng_factory` adapters):
   cw 2..5 lists at 10x10 and 12x12.
 - gibbs.py: the layout-sampler head-to-head (D27) — Gibbs energy field vs `gen_capped`'s
   complete search on density, spread, 2x2 blocks, diversity, and fill, at 10x10 and 12x12.
+- spike_probe.py: demo the observation port (D37) — fill a big capped grid with a probe
+  attached and show the two adapter renderings (LoggingProbe's event lines, HeartbeatProbe's
+  live one-line readout) plus the `exhausted` (proof) vs `budget` terminal tag.
+- scan.py: sweep seeds for a capped/Gibbs grid and rank the fills by cleanliness — reports
+  each seed's *weakest word* (the acceptance bottleneck, invariant 4), longest entry, count
+  of entries past length 5, and black count, then echoes the cleanest grid. A reusable form
+  of the throwaway seed-sweep you'd otherwise write to pick a sample. `scan.py R C max_len
+  min_score [--gibbs] [--nonsym] [--seeds N]`.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).

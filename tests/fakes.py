@@ -19,6 +19,7 @@ from puzzledesk.app.puzzle import FilledGrid, Target, TargetId
 from puzzledesk.app.solve import EntryRef, SolveView
 from puzzledesk.app.solver import Placement, SolverMove
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
+from puzzledesk.core.probe import Event
 from puzzledesk.core.rng import Rng
 
 
@@ -61,6 +62,19 @@ class RecordingRngFactory:
     def create(self, seed: int) -> Rng:
         self.seeds.append(seed)
         return np.random.default_rng(seed)
+
+
+class RecordingProbe:
+    """Implements ``core.probe.Probe`` by appending every event to a list -- the
+    observation analogue of ``RecordingRngFactory``. Lets a test assert *what* an
+    engine reported (order, counts, the terminal reason) without any I/O, and
+    (paired with a NULL_PROBE run) that observing did not change the result."""
+
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+
+    def emit(self, event: Event) -> None:
+        self.events.append(event)
 
 
 class FakeClueProvider:
