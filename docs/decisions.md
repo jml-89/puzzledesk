@@ -1927,3 +1927,65 @@ it waited). The square/blocked split (invariant 0) is untouched.
 Reversal: additive (one new `core` module + one adapter module + a fake + a driver; the
 engines gained an optional `probe=NULL_PROBE` kwarg that changes nothing when unset), so it
 reverses by dropping those files and the kwargs.
+
+## D38. Relational difficulty: the crossing graph as a latent logic puzzle (a measured spike)
+
+Context: the difficulty arc (D21/D22/D26) had established a hard-won verdict — for a competent
+solver, word obscurity is inert and the only *fair, graded* axis is **clue under-determination**
+(D26). What it had *not* done is make the interlock's contribution first-class. A prompt
+crystallised it: difficulty is **relational**. The maximally hard word has a useless clue, so it
+is solvable *only* through its crossings; a gettable crossing word donates a letter and makes it
+easier. Difficulty is not a property of a word but of its position in the solve, relative to what
+its neighbours give it. `app/difficulty.solve_order` (D22) already models a cascade, but as *one*
+greedy easiest-first order with a score-based `gimme` proxy — not the network structure the lemma
+describes.
+
+Decision: **spike a network model, measure it, record the finding — do not ship app surface yet**
+(the D19/D31 "the measurement is the deliverable" discipline). `scripts/relational.py` models a
+puzzle as its crossing graph with a per-entry binary **clue-power** (gimme = clue pins the answer,
+or useless), and computes the **forced-solve DAG**: an entry solves once it is a gimme or its
+known crossing cells force it (`Lexicon.n_candidates == 1`); propagation runs in parallel **waves**
+to solved or **deadlock** (a Natick cluster — the maximally-hard-word-with-no-useful-neighbours
+case, now a *theorem*: no solve order exists). The binary clue-power is not a loss that matters —
+D26 already showed obscurity is inert, so "is the clue enough to write the word" *is* the live
+axis. From the model come four computable, trivia-independent quantities: **depth** (waves to
+solve; the difficulty scalar), **information floor** (fewest useful clues that still solve),
+**difficulty curve** (max depth vs how many clues withheld), **keystones** (clues that deadlock if
+redacted). Findings (numbers in notes.md; write-up in `docs/relational-difficulty.md`):
+
+- A 5x5 mini's **information floor is ~half its clues** (median 5/10): the crossings force the
+  rest. A dense mini is ~50% logically redundant — a reusable *design budget*.
+- **Cascade-ability is a per-grid property computable before cluing** (max depth 2..6). The D26
+  "ten trivia clues" grid is a structural depth-3; others reach depth 6. A grid-selection signal
+  orthogonal to word-score.
+- **Fully-checked grids have no single-clue keystones** (every cell shared ⇒ nine known clues pin
+  the tenth): unfairness is a *cluster* or *vocabulary* effect, never one clue — sharpening D21.
+- The **difficulty curve is non-monotonic**: the hardest *fair* config is usually floor+1.
+- **Live confirmation** (`scripts/endogenous.py`, Opus): crossing *below* the floor deadlocked the
+  live solver (unsolved, all turns) — the Natick-cluster theorem, empirical, on the clue-power axis.
+  Thinking-tokens stayed noisy (D26), so the clean tell is pass/fail at the floor boundary.
+
+The reframe this licenses: a crossword is **two puzzles superimposed** — a trivia puzzle
+(clue→answer) and a logic puzzle (crossings→answer). Today's minis are ~all trivia (depth 1); the
+crossing graph is a latent logic puzzle we do not use. **Endogenous clues** (redacted /
+cross-referential / constraint clues, internal to the puzzle) cash the latent depth in, turning
+difficulty into a controllable, fair, solver-independent inference depth — the closest thing the
+project has to a knob for "perfect the difficulty curve of a mini".
+
+Alternatives considered:
+- **Grow `solve_order` in place** (add the DAG to D22's function): rejected for the spike — a
+  standalone script keeps the exploration loose and honours "measure before promoting". If the
+  depth signal earns calibration, the pure model is promoted beside `app/difficulty.analyze`
+  (same representation-agnostic `n_candidates`-callable seam) under a follow-up D-entry.
+- **A graded clue-power vector** (a clue reduces an entry to a candidate *set*, not a binary):
+  deferred — it needs a clue→candidate-set model, a soft LLM-side quantity blocked on the same
+  human-solve calibration as D21 layer B. Binary is the honest first cut and already yields the
+  floor/depth/deadlock structure.
+- **Ship it as a generation feature** (generate to a target depth / auto-endogenous cluing):
+  premature — the model predicts, the live loop must first show the depth signal tracks *human*
+  effort (the roadmap's Phase-2 solve telemetry). Recorded as the direction, not built.
+
+Reversal: additive and self-contained (two `scripts/` drivers + one doc); delete them and nothing
+else moves. The finding survives in notes.md/this entry regardless (D19/D31 discipline). Promotion
+to `app` surface, a graded clue-power model, and generation-to-a-depth are each a later, separate
+decision gated on human solve data.

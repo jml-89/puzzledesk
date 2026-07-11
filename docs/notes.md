@@ -717,3 +717,46 @@ adapter at D14. Read the current shape from `docs/architecture.md`, not from her
 - Deliverable: `scripts/mini.py` generates distinct minis above a quality bar.
 - Not started *at that point*: clue generation, cross-batch variety, JAX, black-cell
   grids (all but cross-batch variety and JAX have since shipped).
+
+## Relational difficulty — the crossing graph as a latent logic puzzle (spike, 2026-07)
+
+Formalised the "difficulty is relational" lemma as *information propagation on the crossing
+graph* and measured it (`scripts/relational.py`; full write-up `docs/relational-difficulty.md`;
+D38). Each entry's clue is a binary gimme/useless; an entry solves once it is a gimme or its
+crossings force it (`Lexicon.n_candidates == 1`); propagation runs in parallel waves to solved
+or **deadlock** (a Natick cluster). The network generalisation of `solve_order`'s single greedy
+order (D22).
+
+Deterministic measurements, 30+ distinct grids per config (cw list):
+
+    config                     entries   info-floor min/med/max   floor/entries   max depth med/max
+    5x5 fully-checked >=90        10          4 / 5 / 5               ~0.5             4 / 6
+    5x5 fully-checked >=75        10          4 / 5 / 5               ~0.5             5 / 6
+    5x5 blocked, 4 black        ~10          4 / 5 / 5                0.50             4 / 6
+    5x5 blocked, 2 black        ~10          4 / 5 / 5                0.50             4 / 6
+
+- **Information floor ≈ half.** A 5x5 mini needs a median of only **5 of 10** clues to be useful;
+  the crossings force the other five. A dense mini is ~50% logically redundant — a design budget.
+- **Cascade-ability is a per-grid property, computable before cluing** (max achievable depth
+  2..6). The D26 "ten-trivia-clues" grid (SIP/ARENA/HOLDS/…) is a shallow depth-3; HEW/MIXIN/…
+  reaches depth 6. A new grid-selection signal orthogonal to word-score.
+- **No single-clue keystones in fully-checked grids** (structural: every cell shared, so nine
+  known clues pin the tenth). Unfairness is a *cluster* or *vocabulary* effect, never one clue.
+- **The difficulty curve is non-monotonic** near the floor: the hardest *fair* config is usually
+  at floor+1, not the floor (below that you must keep the ice-breaker clues to stay solvable).
+
+Live probe (`scripts/endogenous.py`, Opus, `--policy none`) on the SIP grid: all-clues solved
+1 turn / 4509 tok; floor-only (5 real + 5 blank) solved 1 turn / 1175 tok; **below-floor (4
+clues) FAILED** (unsolved, 6 turns, 6646 tok). The deadlock theorem reproduced empirically on
+the clue-power axis — even Opus could not recover the sub-floor cluster. Caveat (as D26): the
+token count is noisy; floor-only was *cheap* here only because this grid's minimal floor is the
+degenerate one-direction set (all five acrosses -> every cell known -> depth 2). The clean
+signal is the pass/fail at the floor boundary; a deeper grid (seed 0, a genuine 6-wave floor) is
+the next live run.
+
+**The reframe (dream-big):** a crossword is two puzzles superimposed — a *trivia* puzzle
+(clue->answer, breadth of recall) and a *logic* puzzle (crossings->answer, depth of inference).
+Today's minis are ~all trivia (depth 1); the crossing graph is a latent logic puzzle we do not
+use. `depth` measures how much logic-puzzle a grid *can* carry; **endogenous clues** (redacted,
+cross-referential, or constraint clues — internal to the puzzle, not trivia) are how you cash it
+in, turning difficulty into a controllable, fair, solver-independent inference depth.
