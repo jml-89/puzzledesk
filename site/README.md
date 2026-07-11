@@ -44,6 +44,22 @@ clues. The clue step needs the `clue` extra and a key (`Config.clue_api_key_env`
 `ANTHROPIC_API_KEY_TWO`; see D16/D17). `render_pages.py` needs neither — it only reads
 `puzzles.json`.
 
+## Previewing a page (screenshot)
+
+To confirm a page actually renders (not just that the HTML is well-formed), screenshot it
+with the committed helper:
+
+```bash
+node site/preview.cjs midi-long.html               # -> site/preview.png
+node site/preview.cjs midi-long.html out.png --reveal   # fill the answer key first
+```
+
+It drives headless Chromium via Playwright. In the hosted (Claude Code on the web)
+environment Playwright is installed *globally* and the browser lives under
+`PLAYWRIGHT_BROWSERS_PATH` — the helper resolves both, so **do not** run `playwright install`
+or hardcode a versioned `chromium-<n>` path (it changes with the Playwright version). Run
+`render_pages.py` first if you've regenerated `puzzles.json`.
+
 ## Viewing it through GitHub
 
 GitHub shows HTML as *source*, not rendered. Two ways to see a page:

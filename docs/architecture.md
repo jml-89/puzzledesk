@@ -610,6 +610,11 @@ and uses the injected `lexicon`/`rng_factory` adapters):
   cw 2..5 lists at 10x10 and 12x12.
 - gibbs.py: the layout-sampler head-to-head (D27) — Gibbs energy field vs `gen_capped`'s
   complete search on density, spread, 2x2 blocks, diversity, and fill, at 10x10 and 12x12.
+- scan.py: sweep seeds for a capped/Gibbs grid and rank the fills by cleanliness — reports
+  each seed's *weakest word* (the acceptance bottleneck, invariant 4), longest entry, count
+  of entries past length 5, and black count, then echoes the cleanest grid. A reusable form
+  of the throwaway seed-sweep you'd otherwise write to pick a sample. `scan.py R C max_len
+  min_score [--gibbs] [--nonsym] [--seeds N]`.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
