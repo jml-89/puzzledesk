@@ -4326,5 +4326,956 @@
    "entries": 38,
    "black": 18
   }
+ },
+ {
+  "id": "midi-long",
+  "title": "The Long Midi",
+  "tag": "Entries past five, asymmetric",
+  "difficulty": "Thursday",
+  "blurb": "A 9×9 whose length cap is lifted from the mini’s five to *six*, so several entries — RENDER, APIARY, VENEER, GRATES — run longer than any word a Mini can hold. The layout is a freeform, asymmetric one, sampled from the field.",
+  "note": "Two independent levers. The *cap* is raised to 6, which lets longer entries in — and that costs nothing but vocabulary: the word lists run to length 15 (D36), so “how long a word can we hold” is a data axis, wholly separate from the double-square *order* that governs a dense mini. The *layout* is drawn by the same annealed-Gibbs field as *The Field*, but with 180° symmetry switched off, so the black cells fall freeform while still guaranteeing no 2×2 block. A bigger, more open grid built from slightly longer words, laid out asymmetrically.",
+  "make": "uv run generate 9 9 0 60 1 --max-len 6 --gibbs --nonsymmetric",
+  "rows": 9,
+  "cols": 9,
+  "cells": [
+   [
+    "E",
+    "M",
+    "O",
+    null,
+    "V",
+    "E",
+    "S",
+    "P",
+    "A"
+   ],
+   [
+    "T",
+    "I",
+    "L",
+    null,
+    "E",
+    "N",
+    "T",
+    "E",
+    "R"
+   ],
+   [
+    "A",
+    "N",
+    "D",
+    null,
+    "N",
+    "O",
+    "E",
+    "N",
+    "D"
+   ],
+   [
+    "S",
+    "I",
+    "E",
+    "G",
+    "E",
+    null,
+    "A",
+    "N",
+    "O"
+   ],
+   [
+    null,
+    null,
+    null,
+    "R",
+    "E",
+    "N",
+    "D",
+    "E",
+    "R"
+   ],
+   [
+    "A",
+    "P",
+    "I",
+    "A",
+    "R",
+    "Y",
+    null,
+    null,
+    null
+   ],
+   [
+    "R",
+    "A",
+    "F",
+    "T",
+    null,
+    "L",
+    "A",
+    "S",
+    "H"
+   ],
+   [
+    "E",
+    "L",
+    "S",
+    "E",
+    null,
+    "O",
+    "K",
+    "L",
+    "A"
+   ],
+   [
+    "A",
+    "M",
+    "O",
+    "S",
+    null,
+    "N",
+    "A",
+    "Y",
+    "S"
+   ]
+  ],
+  "numbering": {
+   "0,0": 1,
+   "0,1": 2,
+   "0,2": 3,
+   "0,4": 4,
+   "0,5": 5,
+   "0,6": 6,
+   "0,7": 7,
+   "0,8": 8,
+   "1,0": 9,
+   "1,4": 10,
+   "2,0": 11,
+   "2,4": 12,
+   "3,0": 13,
+   "3,3": 14,
+   "3,6": 15,
+   "4,3": 16,
+   "4,5": 17,
+   "5,0": 18,
+   "5,1": 19,
+   "5,2": 20,
+   "6,0": 21,
+   "6,5": 22,
+   "6,6": 23,
+   "6,7": 24,
+   "6,8": 25,
+   "7,0": 26,
+   "7,5": 27,
+   "8,0": 28,
+   "8,5": 29
+  },
+  "across": [
+   {
+    "num": 1,
+    "clue": "Angsty music genre with eyeliner",
+    "answer": "EMO",
+    "len": 3,
+    "cells": [
+     [
+      0,
+      0
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      0,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 4,
+    "clue": "Italian scooter brand",
+    "answer": "VESPA",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      0,
+      7
+     ],
+     [
+      0,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 9,
+    "clue": "Sesame in some recipes",
+    "answer": "TIL",
+    "len": 3,
+    "cells": [
+     [
+      1,
+      0
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 10,
+    "clue": "Key to strike after typing",
+    "answer": "ENTER",
+    "len": 5,
+    "cells": [
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      1,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 11,
+    "clue": "Conjunction junction word",
+    "answer": "AND",
+    "len": 3,
+    "cells": [
+     [
+      2,
+      0
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      2,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 12,
+    "clue": "Forever, informally",
+    "answer": "NOEND",
+    "len": 5,
+    "cells": [
+     [
+      2,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      2,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 13,
+    "clue": "Prolonged military blockade",
+    "answer": "SIEGE",
+    "len": 5,
+    "cells": [
+     [
+      3,
+      0
+     ],
+     [
+      3,
+      1
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      3,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 15,
+    "clue": "Year, in Yucatán",
+    "answer": "ANO",
+    "len": 3,
+    "cells": [
+     [
+      3,
+      6
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      3,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 16,
+    "clue": "Give up, as territory",
+    "answer": "RENDER",
+    "len": 6,
+    "cells": [
+     [
+      4,
+      3
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      4,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 18,
+    "clue": "Place buzzing with activity?",
+    "answer": "APIARY",
+    "len": 6,
+    "cells": [
+     [
+      5,
+      0
+     ],
+     [
+      5,
+      1
+     ],
+     [
+      5,
+      2
+     ],
+     [
+      5,
+      3
+     ],
+     [
+      5,
+      4
+     ],
+     [
+      5,
+      5
+     ]
+    ]
+   },
+   {
+    "num": 21,
+    "clue": "Whole bunch",
+    "answer": "RAFT",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      0
+     ],
+     [
+      6,
+      1
+     ],
+     [
+      6,
+      2
+     ],
+     [
+      6,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 22,
+    "clue": "Whip's crack",
+    "answer": "LASH",
+    "len": 4,
+    "cells": [
+     [
+      6,
+      5
+     ],
+     [
+      6,
+      6
+     ],
+     [
+      6,
+      7
+     ],
+     [
+      6,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 26,
+    "clue": "\"Or ___...\" (threat ender)",
+    "answer": "ELSE",
+    "len": 4,
+    "cells": [
+     [
+      7,
+      0
+     ],
+     [
+      7,
+      1
+     ],
+     [
+      7,
+      2
+     ],
+     [
+      7,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 27,
+    "clue": "Sooner State: Abbr.",
+    "answer": "OKLA",
+    "len": 4,
+    "cells": [
+     [
+      7,
+      5
+     ],
+     [
+      7,
+      6
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      7,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 28,
+    "clue": "Minor prophet's book",
+    "answer": "AMOS",
+    "len": 4,
+    "cells": [
+     [
+      8,
+      0
+     ],
+     [
+      8,
+      1
+     ],
+     [
+      8,
+      2
+     ],
+     [
+      8,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 29,
+    "clue": "\"No\" votes",
+    "answer": "NAYS",
+    "len": 4,
+    "cells": [
+     [
+      8,
+      5
+     ],
+     [
+      8,
+      6
+     ],
+     [
+      8,
+      7
+     ],
+     [
+      8,
+      8
+     ]
+    ]
+   }
+  ],
+  "down": [
+   {
+    "num": 1,
+    "clue": "Greek H's",
+    "answer": "ETAS",
+    "len": 4,
+    "cells": [
+     [
+      0,
+      0
+     ],
+     [
+      1,
+      0
+     ],
+     [
+      2,
+      0
+     ],
+     [
+      3,
+      0
+     ]
+    ]
+   },
+   {
+    "num": 2,
+    "clue": "Golf tournament, informally, or a skirt",
+    "answer": "MINI",
+    "len": 4,
+    "cells": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      1
+     ],
+     [
+      3,
+      1
+     ]
+    ]
+   },
+   {
+    "num": 3,
+    "clue": "Ye ___ Shoppe",
+    "answer": "OLDE",
+    "len": 4,
+    "cells": [
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 4,
+    "clue": "Thin surface layer",
+    "answer": "VENEER",
+    "len": 6,
+    "cells": [
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      5,
+      4
+     ]
+    ]
+   },
+   {
+    "num": 5,
+    "clue": "Ambient music's Brian",
+    "answer": "ENO",
+    "len": 3,
+    "cells": [
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      5
+     ]
+    ]
+   },
+   {
+    "num": 6,
+    "clue": "Place, as in \"in his ___\"",
+    "answer": "STEAD",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      6
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      4,
+      6
+     ]
+    ]
+   },
+   {
+    "num": 7,
+    "clue": "Tube-shaped pasta",
+    "answer": "PENNE",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      7
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      2,
+      7
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      4,
+      7
+     ]
+    ]
+   },
+   {
+    "num": 8,
+    "clue": "Burning passion",
+    "answer": "ARDOR",
+    "len": 5,
+    "cells": [
+     [
+      0,
+      8
+     ],
+     [
+      1,
+      8
+     ],
+     [
+      2,
+      8
+     ],
+     [
+      3,
+      8
+     ],
+     [
+      4,
+      8
+     ]
+    ]
+   },
+   {
+    "num": 14,
+    "clue": "Rubs the wrong way",
+    "answer": "GRATES",
+    "len": 6,
+    "cells": [
+     [
+      3,
+      3
+     ],
+     [
+      4,
+      3
+     ],
+     [
+      5,
+      3
+     ],
+     [
+      6,
+      3
+     ],
+     [
+      7,
+      3
+     ],
+     [
+      8,
+      3
+     ]
+    ]
+   },
+   {
+    "num": 17,
+    "clue": "Stocking material",
+    "answer": "NYLON",
+    "len": 5,
+    "cells": [
+     [
+      4,
+      5
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      6,
+      5
+     ],
+     [
+      7,
+      5
+     ],
+     [
+      8,
+      5
+     ]
+    ]
+   },
+   {
+    "num": 18,
+    "clue": "Region on a map",
+    "answer": "AREA",
+    "len": 4,
+    "cells": [
+     [
+      5,
+      0
+     ],
+     [
+      6,
+      0
+     ],
+     [
+      7,
+      0
+     ],
+     [
+      8,
+      0
+     ]
+    ]
+   },
+   {
+    "num": 19,
+    "clue": "Tree that yields dates",
+    "answer": "PALM",
+    "len": 4,
+    "cells": [
+     [
+      5,
+      1
+     ],
+     [
+      6,
+      1
+     ],
+     [
+      7,
+      1
+     ],
+     [
+      8,
+      1
+     ]
+    ]
+   },
+   {
+    "num": 20,
+    "clue": "\"___, then...\" (logical lead-in)",
+    "answer": "IFSO",
+    "len": 4,
+    "cells": [
+     [
+      5,
+      2
+     ],
+     [
+      6,
+      2
+     ],
+     [
+      7,
+      2
+     ],
+     [
+      8,
+      2
+     ]
+    ]
+   },
+   {
+    "num": 23,
+    "clue": "Alias intro",
+    "answer": "AKA",
+    "len": 3,
+    "cells": [
+     [
+      6,
+      6
+     ],
+     [
+      7,
+      6
+     ],
+     [
+      8,
+      6
+     ]
+    ]
+   },
+   {
+    "num": 24,
+    "clue": "Cunning as a fox",
+    "answer": "SLY",
+    "len": 3,
+    "cells": [
+     [
+      6,
+      7
+     ],
+     [
+      7,
+      7
+     ],
+     [
+      8,
+      7
+     ]
+    ]
+   },
+   {
+    "num": 25,
+    "clue": "Owns",
+    "answer": "HAS",
+    "len": 3,
+    "cells": [
+     [
+      6,
+      8
+     ],
+     [
+      7,
+      8
+     ],
+     [
+      8,
+      8
+     ]
+    ]
+   }
+  ],
+  "stats": {
+   "entries": 32,
+   "black": 13
+  }
  }
 ]

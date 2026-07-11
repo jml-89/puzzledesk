@@ -82,6 +82,20 @@ def field_gibbs() -> FilledGrid:
     return filled_from_blocked(*found)
 
 
+def midi_long_asym() -> FilledGrid:
+    # A 9x9 with the length cap lifted to 6, so entries run longer than the mini's
+    # five (RENDER, APIARY, VENEER, GRATES) -- length is a vocabulary axis (the 2..15
+    # lists, D36), not the square-order axis. Layout is the asymmetric Gibbs field, so
+    # the black cells fall freeform with a guaranteed no-2x2-block texture.
+    mlex = c.lexicon.load_multi("cw", range(3, 7), min_score=60)
+    found = gibbs_layout.fill_gibbs(
+        9, 9, mlex, rng_factory=c.rng_factory, max_len=6, seed=9, min_len=3,
+        symmetric=False, distinct=True, black_fraction=0.16, target_black=None, max_layouts=60,
+    )
+    assert found is not None
+    return filled_from_blocked(*found)
+
+
 SPECS = [
     dict(id="mini", title="The Mini", tag="Double word square",
          difficulty=Difficulty.MONDAY, build=square_mini,
@@ -144,6 +158,19 @@ SPECS = [
               "it is guaranteed to satisfy. The complete search wins on speed; the field "
               "wins on texture (generate 10 10 0 63 1 --max-len 5 --gibbs).",
          make="uv run generate 10 10 0 63 1 --max-len 5 --gibbs"),
+    dict(id="midi-long", title="The Long Midi", tag="Entries past five, asymmetric",
+         difficulty=Difficulty.THURSDAY, build=midi_long_asym,
+         blurb="A 9×9 whose length cap is lifted from the mini’s five to *six*, so several "
+               "entries — RENDER, APIARY, VENEER, GRATES — run longer than any word a Mini "
+               "can hold. The layout is a freeform, asymmetric one, sampled from the field.",
+         note="Two independent levers. The *cap* is raised to 6, which lets longer entries "
+              "in — and that costs nothing but vocabulary: the word lists run to length 15 "
+              "(D36), so “how long a word can we hold” is a data axis, wholly separate from "
+              "the double-square *order* that governs a dense mini. The *layout* is drawn by "
+              "the same annealed-Gibbs field as *The Field*, but with 180° symmetry switched "
+              "off, so the black cells fall freeform while still guaranteeing no 2×2 block. "
+              "A bigger, more open grid built from slightly longer words, laid out asymmetrically.",
+         make="uv run generate 9 9 0 60 1 --max-len 6 --gibbs --nonsymmetric"),
 ]
 
 
