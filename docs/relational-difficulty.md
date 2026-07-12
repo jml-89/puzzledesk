@@ -209,6 +209,13 @@ choice, not just "the minimum floor." Two refinements fall out, both live in the
   **composition** axis: *how many* clues you withhold (the floor) is one knob; *where* you withhold
   them (the shape of the clueless set) is the other, and it carries the aesthetics.
 
+The flagship presentation is `site/latent.html` (`build_flagship.py`): a 4-given / 6-deduced,
+depth-6 mini that draws the forced solve as a **living thread** propagating through the grid, and
+ends in a **solve debrief** surfacing the otherwise-invisible structure — the floor, the cascade
+depth, the *ice-breaker* (the first clueless entry cracked, and with how few letters showing), and
+an estimated deduction difficulty from `minvis` + depth. It is the whole model turned into a single
+playable experience: the latent logic puzzle every crossword hides, made the point.
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
