@@ -199,8 +199,7 @@ h1{font-family:var(--serif);font-weight:700;font-size:clamp(32px,6.4vw,54px);lin
 .curclue.derived{border-left-color:var(--derive)}
 .curclue b{color:var(--accent);font-weight:700;margin-right:6px}
 .curclue.derived b{color:var(--derive)}
-.curclue .cand{cursor:pointer;color:var(--derive);font-weight:700}
-.curclue .cand:hover{text-decoration:underline}
+.one{color:var(--derive);font-weight:700}
 .clues{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-content:start}
 @media (max-width:560px){.clues{grid-template-columns:1fr}}
 .clues h2{font-family:var(--sans);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
@@ -218,8 +217,7 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
 .clue-list li.on .cn{color:var(--accent)}
 .clue-list li.derived .ct{color:var(--derive)}
 .clue-list li.derived .ct .hint{font-family:var(--mono);font-size:12px;color:var(--faint)}
-.clue-list li.derived .ct .forced{color:var(--derive);font-weight:700;cursor:pointer}
-.clue-list li.derived .ct .forced:hover{text-decoration:underline}
+.clue-list li.derived .ct .one{color:var(--derive);font-weight:700}
 .note{margin-top:44px;border-top:3px double var(--line-strong);padding-top:22px}
 .note .kicker{font-family:var(--sans);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
   color:var(--muted);margin-bottom:6px}
@@ -254,11 +252,11 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
         <button class="btn derive" id="cascadeBtn" type="button">Watch it cascade</button>
         <button class="btn" id="clearBtn" type="button">Clear</button>
       </div>
-      <div class="status" id="status" aria-live="polite">Solve the five given clues. Their letters force the other five — the clue line shows when only one word fits.</div>
+      <div class="status" id="status" aria-live="polite">Solve the five given clues. Their letters constrain the blank five — when a line reads ◆ one word fits, you have enough to work it out. No word is ever given away.</div>
     </div>
     <div class="clues">
-      <div><h2>Across <span class="leg">◇ = forced</span></h2><ol class="clue-list" id="acrossClues"></ol></div>
-      <div><h2>Down <span class="leg">◇ = forced</span></h2><ol class="clue-list" id="downClues"></ol></div>
+      <div><h2>Across <span class="leg">◇ no clue · ◆ deducible</span></h2><ol class="clue-list" id="acrossClues"></ol></div>
+      <div><h2>Down <span class="leg">◇ no clue · ◆ deducible</span></h2><ol class="clue-list" id="downClues"></ol></div>
     </div>
   </section>
 
@@ -266,7 +264,7 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
     <div class="kicker">What you just played</div>
     <h3>Difficulty is relational</h3>
     <p>A dense mini is <b>over-determined</b>: every letter is checked twice, so most answers are pinned by their crossings whether or not they have a clue. This grid's <b>information floor</b> is five — five well-chosen clues are enough, and the crossings <em>force</em> the other five, in a six-wave cascade the model computes before a single clue is written. The maximally hard word is the one with a useless clue; it becomes gettable only because its neighbours donate letters. That is the whole lemma: a word's difficulty is not intrinsic, it is where it sits in the crossing graph.</p>
-    <p>The five blank entries are <b>endogenous clues</b> — the answer comes from the puzzle's own logic, not outside knowledge. The “◇ N fit” hint is the browser running the same <code>n_candidates</code> check the solver model uses: fill enough crossings and exactly one word remains. No Natick, because the page proves each answer is forced. Full write-up: <code>docs/relational-difficulty.md</code>.</p>
+    <p>The five blank entries are <b>endogenous clues</b> — the answer comes from the puzzle's own logic, not outside knowledge. The “◇ N still fit” counter is the browser running the same <code>n_candidates</code> check the solver model uses; when it drops to <b>◆ one word fits</b>, the pattern is uniquely determined and it is <em>yours to deduce</em> — the page never names it. That is the fairness guarantee: you are told <em>when</em> a slot is solvable, never <em>what</em> it is, so there is no Natick and no giveaway. Full write-up: <code>docs/relational-difficulty.md</code>.</p>
   </section>
 
   <p class="colophon">
@@ -350,14 +348,13 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
   }
 
   function deriveHint(e){
-    // returns {text, forced:word|null}
-    if(e.role==="seed")return null;
-    var cs=candidates(e);
-    if(filledCount(e)===0)return {html:'<span class="hint">◇ derive from the grid</span>',forced:null};
-    if(cs.length===0)return {html:'<span class="hint">◇ no word fits — a crossing is off</span>',forced:null};
-    if(cs.length===1)return {html:'◆ forced → <span class="forced" data-w="'+cs[0]+'">'+cs[0]+'</span>',forced:cs[0]};
-    if(cs.length<=6)return {html:'<span class="hint">◇ '+cs.length+' fit: '+cs.join(", ")+'</span>',forced:null};
-    return {html:'<span class="hint">◇ '+cs.length+' words fit — get more crossings</span>',forced:null};
+    // A constraint signal only -- never the word. The player deduces it.
+    if(e.role==="seed")return "";
+    var n=candidates(e).length, fc=filledCount(e);
+    if(fc===0)return '<span class="hint">◇ no crossings yet</span>';
+    if(n===0)return '<span class="hint">◇ no word fits — a crossing is off</span>';
+    if(n===1)return '<span class="one">◆ one word fits — deduce it</span>';
+    return '<span class="hint">◇ '+n+' words still fit</span>';
   }
 
   function render(){
@@ -372,14 +369,8 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
       cur.innerHTML='<b>'+e.num+e.dir+'</b>'+esc(e.clue)+' <span style="color:var(--faint)">('+e.len+')</span>';
     }else{
       cur.className="curclue derived";
-      var h=deriveHint(e);
-      cur.innerHTML='<b>'+e.num+e.dir+'</b>'+h.html+' <span style="color:var(--faint)">('+e.len+')</span>';
-      wireForced(cur,e);
+      cur.innerHTML='<b>'+e.num+e.dir+'</b>'+deriveHint(e)+' <span style="color:var(--faint)">('+e.len+')</span>';
     }
-  }
-  function wireForced(container,e){
-    var el=container.querySelector(".forced,.cand");
-    if(el)el.addEventListener("click",function(){placeWord(e,el.getAttribute("data-w"));});
   }
 
   function buildClues(list,elId,tag){
@@ -399,8 +390,7 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
     var li=document.getElementById("clue-"+tag+e.num);if(!li)return;
     var ct=li.querySelector(".ct");
     if(e.role==="seed"){ct.innerHTML=esc(e.clue)+' <span style="color:var(--faint)">('+e.len+')</span>';}
-    else{var h=deriveHint(e);ct.innerHTML=h.html+' <span style="color:var(--faint)">('+e.len+')</span>';
-      var f=ct.querySelector(".forced");if(f)f.addEventListener("click",function(ev){ev.stopPropagation();placeWord(e,f.getAttribute("data-w"));});}
+    else{ct.innerHTML=deriveHint(e)+' <span style="color:var(--faint)">('+e.len+')</span>';}
     var full=e.cells.every(function(x){return inputs[key(x[0],x[1])].value===P.cells[x[0]][x[1]];});
     li.classList.toggle("done",full);
     li.classList.toggle("on",curEntry()===e);
