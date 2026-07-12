@@ -769,3 +769,19 @@ Today's minis are ~all trivia (depth 1); the crossing graph is a latent logic pu
 use. `depth` measures how much logic-puzzle a grid *can* carry; **endogenous clues** (redacted,
 cross-referential, or constraint clues — internal to the puzzle, not trivia) are how you cash it
 in, turning difficulty into a controllable, fair, solver-independent inference depth.
+
+**Playtest finding — a THIRD difficulty axis (retrievability from a pattern).** Playing the
+redacted mini (`site/endogenous.html`) surfaced what the model missed: the first deducible entry,
+MACYS (`··CYS`), is *lexically* forced (one word fits) but not *humanly* retrievable (a proper
+noun you can't generate from the pattern). Forcing != retrievability. This is word difficulty
+*reborn* in the no-clue regime — distinct from obscurity (D9 cliff) and clue obliqueness (D26): when
+the clue is gone, the *letters* are the clue, and lexical precision (`n_candidates`==1) and human
+precision (can you produce the survivor) come apart (`··CYS` is lexically maximal, humanly minimal).
+Two computable knobs govern it: **`minvis`** (letters showing when a word is forced — 5 read-off /
+4 gentle / 3 real deduction) and **retrievability** (dictionary + frequency filter, proper nouns
+out). A small theorem: a genuine cascade *requires* forcing with blanks, and sparse-but-forcing
+patterns select for rare survivors — so "the grid carries the solve" routes toward uncommon words;
+you bound the tension (all-common words + a `minvis` target) rather than remove it. `build_endogenous.py`
+now *selects* the grid by this filter (seed 60: APPLE/RELAX/ERASE/NICER/ALERT × ARENA/PERIL/PLACE/
+LASER/EXERT — 4 given / 6 forced, depth 6, minvis 3, every answer a household word). Full write-up
+in `docs/relational-difficulty.md` §"A third difficulty axis".

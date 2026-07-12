@@ -1,16 +1,27 @@
 """Build site/endogenous.html -- the 'half the clues' cascade mini (relational difficulty).
 
-The demonstration behind docs/relational-difficulty.md, made playable. Only the five
-information-floor entries are clued (model-written, Monday); the other five are *endogenous*
--- no trivia clue, recovered from the crossings. A browser-side candidate helper (the same
-`n_candidates` primitive, over the >=50 vocabulary) makes the forcing visible: fill enough
-crossing letters and exactly one word fits, so every derived answer is *deduced*, never known.
+The demonstration behind docs/relational-difficulty.md, made playable. Only the
+information-floor entries are clued (model-written, Monday); the rest are *endogenous* --
+no trivia clue, recovered from the crossings. A browser-side candidate helper (the same
+`n_candidates` primitive, over the >=50 vocabulary) makes the forcing visible: it reports how
+many words still fit, and when exactly one does it says so *without naming it* -- the player
+deduces the word from its letter-pattern.
+
+That deduction is a THIRD difficulty axis (docs/relational-difficulty.md): not word obscurity
+(the project's original framing -- a fairness cliff, D9/D26) and not clue obliqueness (the
+dominant fair axis when clues exist, D26), but *retrievability from a partial pattern*. A
+pattern like ``..CYS`` is lexically maximally precise (one word fits: MACYS) yet humanly
+imprecise -- you cannot enumerate the survivor, especially a proper noun. So the grid is chosen
+to keep the letter-clue *humanly* precise: every entry is a common dictionary word, and the
+difficulty knob is ``minvis`` -- the fewest letters showing when a word is forced (5 = read it
+off, 4 = a gentle one-blank recall, 3 = a real two-blank deduction).
 
     uv run --extra clue python site/build_endogenous.py     # regenerate (one live clue call)
 
-Deterministic grid (seed 9, cw fill >=88); the five seed clues are written live by the model
-each run (like the rest of the gallery). Everything else -- floor, wave order, candidate lists
--- is computed by the relational model. Self-contained: writes one HTML file, no external assets.
+The grid is chosen by a reproducible search (first seed clearing the fairness + difficulty
+filter); the seed clues are written live by the model each run (like the rest of the gallery).
+Everything else -- floor, wave order, deduction profile -- is computed by the relational model.
+Self-contained: writes one HTML file, no external assets.
 """
 
 from __future__ import annotations
@@ -21,18 +32,89 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from relational import _entries, information_floor, propagate  # noqa: E402
+from puzzledesk.app.clue import ClueStyle, Difficulty
+from puzzledesk.app.puzzle import filled_from_square
+from puzzledesk.bootstrap import build
+from puzzledesk.core.engines import backtrack
+from puzzledesk.core.square import DoubleSquare
+from relational import Entry, _entries, information_floor, propagate
 
-from puzzledesk.app.clue import ClueStyle, Difficulty  # noqa: E402
-from puzzledesk.app.puzzle import filled_from_square  # noqa: E402
-from puzzledesk.bootstrap import build  # noqa: E402
-from puzzledesk.core.engines import backtrack  # noqa: E402
-from puzzledesk.core.square import DoubleSquare  # noqa: E402
-
-SEED = 9
-FILL_BAR = 88.0  # the (fun, common) fill quality bar
+DIFFICULTY = "wednesday"  # deduction-phase target (see TARGET_MINVIS)
+TARGET_MINVIS = {"monday": 4, "wednesday": 3}[DIFFICULTY]  # min letters showing at a forcing
+FILL_BAR = 90.0  # the fill quality bar (all-common grids come from the top tier)
 VOCAB_BAR = 50.0  # the solver's assumed vocabulary -- also what the browser helper filters on
+COMMON_ZIPF = 3.2  # every entry at least this frequent -> retrievable, no obscure words
+MIN_DEPTH = 4  # a genuine multi-wave cascade, not the degenerate one-direction floor
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 OUT = Path(__file__).resolve().parent / "endogenous.html"
+
+
+def _oracles() -> tuple[set[str], dict[str, float]]:
+    """Retrievability oracles: a plain dictionary (proper nouns/slang are *out*) and a
+    word-frequency map (wordfreq Zipf), both length-5. A derived answer must be a common
+    dictionary word so it is deducible from its pattern, not just lexically forced."""
+    dictw = {w.strip().lower() for w in (DATA_DIR / "words_5.txt").read_text().splitlines()}
+    scored: dict[str, float] = {}
+    for line in (DATA_DIR / "scored_5.txt").read_text().splitlines():
+        parts = line.split()
+        if len(parts) == 2:
+            scored[parts[0]] = float(parts[1])
+    return dictw, scored
+
+
+def _deduction_profile(entries: list[Entry], fset: frozenset, nc) -> list[tuple] | None:
+    """Replay the cascade and, for each *derived* entry in solve order, record how many of
+    its letters were already showing at the moment it became forced. Fewer letters = a harder
+    retrieval (the deduction-difficulty axis). None if it deadlocks."""
+    known: set[tuple[int, int]] = set()
+    solved: set = set()
+    prof: list[tuple] = []
+    while len(solved) < len(entries):
+        newly = [
+            e
+            for e in entries
+            if e.eid not in solved
+            and (
+                e.eid in fset
+                or nc(e.answer, frozenset(i for i, cc in enumerate(e.cells) if cc in known)) == 1
+            )
+        ]
+        if not newly:
+            return None
+        for e in newly:
+            if e.eid not in fset:
+                vis = sum(1 for cc in e.cells if cc in known)
+                prof.append((e.label, e.answer.upper(), vis))
+        for e in newly:
+            solved.add(e.eid)
+            known.update(e.cells)
+    return prof
+
+
+def _select_grid(c, full, nc, dictw, scored):
+    """First seed whose top-tier grid is all common dictionary words and whose cascade's
+    hardest forcing still shows >= TARGET_MINVIS letters -- fair by construction, at the
+    chosen difficulty. Deterministic and reproducible."""
+    sq = DoubleSquare(full.filtered(FILL_BAR))
+    for seed in range(30000):
+        state = backtrack.solve(sq, rng=c.rng_factory.create(seed), distinct=True)
+        if state is None:
+            continue
+        grid = filled_from_square(sq, state)
+        entries = _entries(grid)
+        if not all(e.answer in dictw and scored.get(e.answer, 0) >= COMMON_ZIPF for e in entries):
+            continue  # a proper noun / slang / obscure word is not retrievable from a pattern
+        floor = information_floor(entries, nc)
+        if floor is None:
+            continue
+        fset, fdepth = floor
+        prof = _deduction_profile(entries, fset, nc)
+        if prof is None or fdepth < MIN_DEPTH:
+            continue
+        if min(v for *_, v in prof) != TARGET_MINVIS:  # hit the difficulty band exactly
+            continue
+        return seed, grid, entries, fset, fdepth, prof
+    raise SystemExit("no grid matched the fairness + difficulty filter")
 
 
 def build_data() -> dict:
@@ -40,23 +122,18 @@ def build_data() -> dict:
     full = c.lexicon.load("cw", 5)
     vocab = full.filtered(VOCAB_BAR)
     nc = lambda a, k: vocab.n_candidates(a, k)  # noqa: E731
+    dictw, scored = _oracles()
 
-    sq = DoubleSquare(full.filtered(FILL_BAR))
-    state = backtrack.solve(sq, rng=c.rng_factory.create(SEED), distinct=True)
-    if state is None:
-        raise SystemExit("grid UNSAT at this bar/seed")
-    grid = filled_from_square(sq, state)
-
-    entries = _entries(grid)
-    fset, fdepth = information_floor(entries, nc)
+    seed, grid, entries, fset, fdepth, prof = _select_grid(c, full, nc, dictw, scored)
     prop = propagate(entries, set(fset), nc)
+    minvis = min(v for *_, v in prof)
 
     # Model-written Monday clues for the seed entries only (the endogenous ones need none).
     seed_targets = [t for t in grid.runs() if t.id in fset]
     clued = c.clue.clue(grid, style=ClueStyle(difficulty=Difficulty.MONDAY), targets=seed_targets)
     clue_text = {tid: (cl.text if (cl := clued.clues.get(tid)) else "") for tid in fset}
 
-    def entry_json(e):
+    def entry_json(e: Entry) -> dict:
         return {
             "num": int(e.label[:-1]),
             "dir": e.label[-1],
@@ -74,7 +151,6 @@ def build_data() -> dict:
 
     numbering = {f"{r},{col}": n for (r, col), n in grid.numbering().items()}
     cells = [[grid.cells[r][col].upper() for col in range(5)] for r in range(5)]
-
     waves = [
         [{"num": e["num"], "dir": e["dir"]} for e in ents_json if e["wave"] == w]
         for w in range(1, fdepth + 1)
@@ -89,6 +165,11 @@ def build_data() -> dict:
         "down": down,
         "floorDepth": fdepth,
         "floorSize": len(fset),
+        "derivedN": len(entries) - len(fset),
+        "minvis": minvis,
+        "difficulty": DIFFICULTY,
+        "seed": seed,
+        "profile": prof,
         "waves": waves,
         "vocab": sorted(w.upper() for w in vocab.words),  # length-5 candidate universe
         "vocabBar": VOCAB_BAR,
@@ -97,11 +178,12 @@ def build_data() -> dict:
 
 def render(data: dict) -> str:
     payload = json.dumps(data, separators=(",", ":"))
-    # thumbnail: 5x5 all-white with the five seed cells marked
     return (
         _TEMPLATE.replace("/*DATA*/", payload)
         .replace("<!--SEEDN-->", str(data["floorSize"]))
+        .replace("<!--DERIVEDN-->", str(data["derivedN"]))
         .replace("<!--DEPTH-->", str(data["floorDepth"]))
+        .replace("<!--MINVIS-->", str(data["minvis"]))
         .replace("<!--VOCAB-->", str(int(data["vocabBar"])))
     )
 
@@ -236,11 +318,11 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
 <div class="wrap">
   <header class="masthead">
     <div class="eyebrow">
-      <span>5×5 · <span class="day">Endogenous</span> · <!--SEEDN--> clues given, 5 forced by the grid</span>
+      <span>5×5 · <span class="day">Endogenous</span> · <!--SEEDN--> clues given, <!--DERIVEDN--> forced by the grid</span>
       <span><a href="index.html">← all samples</a> &nbsp; <button class="theme-toggle" id="themeBtn" type="button">Theme</button></span>
     </div>
     <h1>Half the Clues</h1>
-    <p class="dek">Only <b>five</b> of the ten entries have a clue. The other five have <b>none</b> — you recover them from the crossings alone. The grid carries the solve; difficulty is inference depth, not trivia.</p>
+    <p class="dek">Only <b><!--SEEDN--></b> of the ten entries have a clue. The other <b><!--DERIVEDN--></b> have <b>none</b> — you deduce them from the crossings. When a word has no clue, its own letters are the clue: a new kind of difficulty from the one trivia measures.</p>
   </header>
 
   <section class="play">
@@ -252,7 +334,7 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
         <button class="btn derive" id="cascadeBtn" type="button">Watch it cascade</button>
         <button class="btn" id="clearBtn" type="button">Clear</button>
       </div>
-      <div class="status" id="status" aria-live="polite">Solve the five given clues. Their letters constrain the blank five — when a line reads ◆ one word fits, you have enough to work it out. No word is ever given away.</div>
+      <div class="status" id="status" aria-live="polite">Solve the given clues. Their letters constrain the blank entries — when a line reads ◆ one word fits, you have enough to work it out. No word is ever given away.</div>
     </div>
     <div class="clues">
       <div><h2>Across <span class="leg">◇ no clue · ◆ deducible</span></h2><ol class="clue-list" id="acrossClues"></ol></div>
@@ -262,14 +344,15 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
 
   <section class="note">
     <div class="kicker">What you just played</div>
-    <h3>Difficulty is relational</h3>
-    <p>A dense mini is <b>over-determined</b>: every letter is checked twice, so most answers are pinned by their crossings whether or not they have a clue. This grid's <b>information floor</b> is five — five well-chosen clues are enough, and the crossings <em>force</em> the other five, in a six-wave cascade the model computes before a single clue is written. The maximally hard word is the one with a useless clue; it becomes gettable only because its neighbours donate letters. That is the whole lemma: a word's difficulty is not intrinsic, it is where it sits in the crossing graph.</p>
-    <p>The five blank entries are <b>endogenous clues</b> — the answer comes from the puzzle's own logic, not outside knowledge. The “◇ N still fit” counter is the browser running the same <code>n_candidates</code> check the solver model uses; when it drops to <b>◆ one word fits</b>, the pattern is uniquely determined and it is <em>yours to deduce</em> — the page never names it. That is the fairness guarantee: you are told <em>when</em> a slot is solvable, never <em>what</em> it is, so there is no Natick and no giveaway. Full write-up: <code>docs/relational-difficulty.md</code>.</p>
+    <h3>Difficulty is relational — and a third kind of hard</h3>
+    <p>A dense mini is <b>over-determined</b>: every letter is checked twice, so most answers are pinned by their crossings whether or not they have a clue. This grid's <b>information floor</b> is <!--SEEDN--> — <!--SEEDN--> well-chosen clues are enough, and the crossings <em>force</em> the other <!--DERIVEDN-->, in a <!--DEPTH-->-wave cascade the model computes before a clue is written. A word's difficulty is not intrinsic: it is where it sits in the crossing graph, and what its neighbours donate.</p>
+    <p>Strip the clue and a <b>third difficulty axis</b> appears — distinct from the two this project already mapped. Not <b>word obscurity</b> (do you know the word — a fairness cliff, not a slope) and not <b>clue obliqueness</b> (how vague the definition — the dominant fair axis when clues exist), but <b>retrievability from a pattern</b>: with the clue gone, the answer's own letters are the clue, and the question is whether you can <em>produce</em> the word from them. A pattern can be <em>lexically</em> forced (one word fits) yet <em>humanly</em> hard — <code>··CYS</code> uniquely forces MACYS, but you can't enumerate that. So this grid is tuned to keep the letter-clue humanly fair: every answer is a common word, forced with at least <b><!--MINVIS--></b> of its <b>5</b> letters showing — that <code>minvis</code> is the knob.</p>
+    <p>The “◇ N still fit” counter is the browser running the same <code>n_candidates</code> check the solver model uses; when it drops to <b>◆ one word fits</b>, the pattern is uniquely determined and it is <em>yours to deduce</em> — the page never names it. You are told <em>when</em> a slot is solvable, never <em>what</em> it is: no Natick, no giveaway. Full write-up: <code>docs/relational-difficulty.md</code>.</p>
   </section>
 
   <p class="colophon">
-    puzzledesk · grid by the engines (<code>seed 9</code>, cw ≥ 88); the five seed clues written live by the model;
-    the five forced answers checked against the score ≥ <!--VOCAB--> vocabulary in your browser — nothing stored.
+    puzzledesk · grid by the engines (top-tier fill, all common words); the <!--SEEDN--> seed clues written live by the model;
+    the <!--DERIVEDN--> forced answers checked against the score ≥ <!--VOCAB--> vocabulary in your browser — nothing stored.
     <a href="index.html">back to the gallery</a>.
   </p>
 </div>
@@ -406,21 +489,21 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
   function checkWin(){
     var done=true;
     for(var r=0;r<R;r++)for(var c=0;c<C;c++){if(inputs[key(r,c)].value!==P.cells[r][c])done=false;}
-    if(done){status.textContent="Solved from five clues — the grid carried the rest.";status.className="status win";}
+    if(done){status.textContent="Solved from "+P.floorSize+" clues — the grid carried the rest.";status.className="status win";}
   }
 
   document.getElementById("checkBtn").addEventListener("click",function(){
     var filled=0,wrong=0,total=0;
     for(var r=0;r<R;r++)for(var c=0;c<C;c++){total++;var inp=inputs[key(r,c)];if(inp.value){filled++;if(inp.value!==P.cells[r][c]){inp.classList.add("wrong");wrong++;}else inp.classList.remove("wrong");}}
     if(filled===0)status.textContent="Fill the given clues first.";
-    else if(wrong===0&&filled===total){status.textContent="Solved from five clues — the grid carried the rest.";status.className="status win";return;}
+    else if(wrong===0&&filled===total){status.textContent="Solved from "+P.floorSize+" clues — the grid carried the rest.";status.className="status win";return;}
     else if(wrong===0)status.textContent="So far so good — "+(total-filled)+" to go.";
     else status.textContent=wrong+" square"+(wrong>1?"s":"")+" off.";
     status.className=(wrong?"status":"status");
   });
   document.getElementById("clearBtn").addEventListener("click",function(){
     for(var r=0;r<R;r++)for(var c=0;c<C;c++){var inp=inputs[key(r,c)];inp.value="";inp.classList.remove("wrong","revealed");}
-    status.textContent="Cleared. Solve the five given clues; the rest follow.";status.className="status";
+    status.textContent="Cleared. Solve the "+P.floorSize+" given clues; the rest follow.";status.className="status";
     setActive(0,0,true);refresh();
   });
 
@@ -433,11 +516,11 @@ ol.clue-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:colu
     var waves=P.waves,i=0;
     function fillEntry(ref){var e=entByRef[ref.dir+ref.num];placeWord(e,e.answer);}
     function nextWave(){
-      if(i>=waves.length){status.textContent="Five given clues (wave 1) forced the other five over "+waves.length+" waves.";status.className="status win";cascading=false;return;}
+      if(i>=waves.length){status.textContent=P.floorSize+" given clues (wave 1) forced the other "+P.derivedN+" over "+waves.length+" waves.";status.className="status win";cascading=false;return;}
       var w=waves[i];
       w.forEach(fillEntry);
       var names=w.map(function(x){return x.num+x.dir;}).join(", ");
-      status.textContent=(i===0?"Wave 1 — the five given clues: ":"Wave "+(i+1)+" — forced by crossings: ")+names;
+      status.textContent=(i===0?"Wave 1 — the given clues: ":"Wave "+(i+1)+" — forced by crossings: ")+names;
       status.className="status";
       i++;setTimeout(nextWave,i===1?900:1200);
     }
@@ -465,7 +548,13 @@ def main() -> None:
     OUT.write_text(render(data), encoding="utf-8")
     seeds = [f"{e['num']}{e['dir']}" for e in data["across"] + data["down"] if e["role"] == "seed"]
     print(f"wrote {OUT}  ({OUT.stat().st_size // 1024} KB)")
-    print(f"seed clues: {seeds}  floor depth {data['floorDepth']}  vocab {len(data['vocab'])} words")
+    print(
+        f"seed {data['seed']} {data['difficulty']}  floor {data['floorSize']} given / "
+        f"{data['derivedN']} forced  depth {data['floorDepth']}  minvis {data['minvis']}"
+    )
+    print(f"seed clues: {seeds}")
+    print("deduction profile (word @ letters-showing-at-forcing): "
+          + ", ".join(f"{w}@{v}" for _, w, v in data["profile"]))
     for e in data["across"] + data["down"]:
         tag = "seed " if e["role"] == "seed" else "DERIV"
         print(f"  {tag} {e['num']}{e['dir']} {e['answer']}  w{e['wave']}  {html.unescape(e['clue'])}")

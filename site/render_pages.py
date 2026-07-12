@@ -462,10 +462,10 @@ def main():
     # Endogenous featured card (relational-difficulty showcase; built by build_endogenous.py)
     cards.append(CARD.format(
         href="endogenous.html", thumb=thumb([[c for c in "XXXXX"] for _ in range(5)], 74),
-        tag="Relational difficulty", title="Half the Clues", sub="5×5 · 5 given, 5 forced",
-        blurb="Only five of the ten entries have a clue; the crossings force the other five in a "
-              "six-wave cascade. Difficulty as inference depth, not trivia — the endogenous-clue "
-              "idea, playable.",
+        tag="Relational difficulty", title="Half the Clues", sub="5×5 · 4 given, 6 forced",
+        blurb="Four of the ten entries have a clue; the crossings force the other six in a "
+              "six-wave cascade you deduce word by word. Difficulty as inference depth, not "
+              "trivia — the endogenous-clue idea, playable.",
     ))
     (OUT / "index.html").write_text(INDEX.format(css=CSS, cards="\n    ".join(cards)))
     print(f"wrote {len(puzzles)} pages + index to {OUT}")

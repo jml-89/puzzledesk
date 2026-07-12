@@ -131,6 +131,63 @@ The strategic payoff: with endogenous clues, `depth` is not a *proxy* for diffic
 difficulty, identical for every solver, and dialled precisely by the clue-power assignment. That
 is the closest this project has to a knob for "perfect the difficulty curve of a mini."
 
+## A third difficulty axis — retrievability from a pattern (playtest finding)
+
+Playing the redacted mini surfaced a difficulty the model was silent on. In the first build the
+first deducible entry was **MACYS** (`··CYS`). It is *lexically* forced — exactly one word in the
+vocabulary fits — yet a human does not *generate* it from the pattern: it is a proper noun, and
+you can't enumerate the survivor in your head even though you'd recognise it instantly if shown.
+**Forcing (candidates == 1) is not the same as retrievability.**
+
+This closes a loop back to the project's origin. Difficulty was first framed as **word obscurity**
+(D5/D9); the D21–D26 arc then showed obscurity is a *fairness cliff, not a slope* (a known word is
+inert however rare; an unknown one is a Natick), and that **clue obliqueness** is the dominant
+*fair, graded* axis — *when clues exist*. Strip the clue, as the endogenous puzzle does, and word
+difficulty returns, but as a **third, distinct thing**:
+
+| axis | question | shape | where |
+|------|----------|-------|-------|
+| word obscurity (D9) | do you *know* the word? | cliff (known / Natick) | any puzzle |
+| clue obliqueness (D26) | how vague is the *definition*? | graded, fair | when clued |
+| **retrievability** (this) | can you *produce* the word from its **letters**? | graded, fair | the no-clue regime |
+
+The reframe that unifies them: **when the clue is gone, the crossing letters *are* the clue.** So
+retrievability is clue under-determination (D26's fair axis) with the "clue" being a letter-pattern.
+But the two notions of "precise" now **come apart**: a pattern is *lexically* precise when few words
+fit it (the model's `n_candidates`), and *humanly* precise when a person can produce the survivor
+(frequency, dictionary-membership, pattern-typicality). For a definitional clue these roughly align;
+for a **letter-pattern clue they diverge** — `··CYS` is lexically maximal (1 fit) but humanly
+minimal. That divergence *is* the axis, and MACYS is its signature.
+
+Two computable quantities govern it, both trivia-independent:
+
+- **`minvis` — the visibility profile.** For each forced entry, how many of its letters are already
+  showing at the moment it becomes unique. The demo grid's original profile was `3,3,4,4,5`: the
+  cascade was *hardest first* (MACYS forced at 3 of 5) and trivial last (a fully-spelled word you
+  just read off). `minvis` = the minimum over the cascade is the deduction-difficulty knob: **5** =
+  read it off · **4** = a gentle one-blank recall · **3** = a real two-blank deduction.
+- **retrievability of the forced word** — a dictionary + frequency filter (proper nouns / slang /
+  obscure words *out*), so the survivor is always a word a person can produce.
+
+**A small theorem, and the tension it names.** A *genuine* cascade *requires* forcing some words
+with blanks still showing (else it is the degenerate "all one direction" floor with no deduction at
+all). But a pattern is forced precisely when *few* words fit it, and sparse-but-forcing patterns
+select for *rare* letter-combinations — which tend to have *rare* survivors. So "the grid carries
+the solve" structurally routes you toward the least-common words first. You cannot have both a real
+deduction chain *and* every deduced word be a fully-spelled common word — they pull against each
+other. The fix is not to eliminate the tension but to *bound* it: keep every answer a common
+dictionary word (retrievability) and hold `minvis` at the target (e.g. 3 for a fair "real
+deduction", 4 for a gentle one).
+
+This is now a **generation constraint**, not just an analysis: `site/build_endogenous.py` selects
+the demo grid by exactly this filter — first top-tier fill whose ten entries are all common
+dictionary words and whose cascade's hardest forcing still shows `minvis` letters. The playable
+result (`seed 60`: `APPLE/RELAX/ERASE/NICER/ALERT` × `ARENA/PERIL/PLACE/LASER/EXERT`) is a
+4-given / 6-forced, depth-6 mini whose openings (`·R·NA`→ARENA, `·X·RT`→EXERT) are real two-blank
+deductions of household words — and, unlike the first build, the first wave offers *two* deducible
+entries, not a single funnel. `minvis` is a genuine Mon↔Sat dial for the deduction phase, the
+complete/deterministic analogue on the *solve-from-the-grid* side of the soft clue-obliqueness axis.
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
