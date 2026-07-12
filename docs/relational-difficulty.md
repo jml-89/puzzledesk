@@ -188,6 +188,27 @@ deductions of household words — and, unlike the first build, the first wave of
 entries, not a single funnel. `minvis` is a genuine Mon↔Sat dial for the deduction phase, the
 complete/deterministic analogue on the *solve-from-the-grid* side of the soft clue-obliqueness axis.
 
+### Composing where the deduction lives — the clueless set as a design surface
+
+Once the no-clue solve is *explicit*, **which** entries you leave clueless is a compositional
+choice, not just "the minimum floor." Two refinements fall out, both live in the playable set:
+
+- **Retrievability is required only where the clue is withheld.** In the floor puzzle every entry
+  is deduced by *someone*, so every entry must be a common word. But if you *designate* a small
+  clueless set, only *those* answers must be retrievable — the clued entries can be any word a clue
+  can name. This is the general selection rule (`build_endogenous.py`'s `keystone` spec checks
+  commonness only on the clueless pair), and it vastly widens the usable grids.
+- **A crossing clueless pair leaves exactly one unclued cell — their intersection.** Blank two
+  entries that cross and clue everything else, and every square is given but the one they share.
+  Put that at the grid's centre and you get **the keystone** (`keystone.html`): 3-Down and the
+  central Across left blank, meeting at dead centre; the eight perimeter clues fill everything but
+  the middle square, which is recovered from the two crossing words alone (each shows 4 of 5
+  letters, so `minvis` 4 — neither a gimme nor a guess). It is the *smallest* instance of "the grid
+  carries the solve" — a single point of deduction, sculpted rather than cascaded. The floor
+  puzzle and the keystone are the same engine and the same fairness rule at two ends of a
+  **composition** axis: *how many* clues you withhold (the floor) is one knob; *where* you withhold
+  them (the shape of the clueless set) is the other, and it carries the aesthetics.
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
