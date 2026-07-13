@@ -7,7 +7,12 @@
 <style>
 :root{
   --bg:#0b0f14;--panel:#111820;--cell:#0f151c;--edge:#243240;--edge-hi:#3a4c5e;
+  /* text roles — bright, high-contrast on bg; these are the only colours letters use */
   --ink:#e7edf3;--muted:#8ba0b4;--faint:#54677a;--given:#f0d69b;--logic:#5fd0d6;
+  /* structural (non-text) roles — dim, well below the text luminance, so proximal/overlapping
+     letters always read in front of them. Never used for text. */
+  --struct:#357a80;--struct-dim:rgba(95,208,214,.14);--struct-gold:#8c7748;
+  --lit-wash:rgba(95,208,214,.085);
   --logic-dim:rgba(95,208,214,.22);--logic-soft:rgba(95,208,214,.10);--good:#7ee0a8;
   --wrong:#e8846f;--sel:rgba(95,208,214,.16);--sel-line:#5fd0d6;
   --serif:"Iowan Old Style",Georgia,"Times New Roman",serif;
@@ -43,16 +48,17 @@ h1{font-family:var(--serif);font-weight:700;font-size:clamp(40px,8vw,72px);line-
 .cell.inline{background:var(--sel)}
 .cell.active{box-shadow:inset 0 0 0 2px var(--sel-line)}
 .cell input.wrong{color:var(--wrong);text-decoration:line-through}
+.cell.lit{background:var(--lit-wash)}
 .cell.lit input{color:var(--logic)}
-.cell.donor{outline:2px solid rgba(240,214,155,.5);outline-offset:-2px}
+.cell.donor{outline:2px solid var(--struct-gold);outline-offset:-2px}
 .cell.pop{animation:pop .55s ease}
-@keyframes pop{0%{background:var(--logic-soft)}45%{background:var(--logic);box-shadow:inset 0 0 0 2px var(--logic)}100%{}}
+@keyframes pop{0%{background:var(--logic-soft)}40%{background:rgba(95,208,214,.30);box-shadow:inset 0 0 0 2px var(--struct)}100%{background:var(--lit-wash)}}
 .thread{position:absolute;inset:0;z-index:3;width:100%;height:100%;pointer-events:none;overflow:visible}
-.thread .edge{fill:none;stroke:var(--logic-dim);stroke-width:.022;stroke-dasharray:.09 .07;stroke-linecap:round;transition:stroke .3s,stroke-width .3s}
-.thread .edge.live{stroke:var(--logic);stroke-width:.05;stroke-dasharray:none;filter:drop-shadow(0 0 2px var(--logic))}
-.thread .edge.hot{stroke:var(--given);stroke-width:.05;stroke-dasharray:none}
-.thread .node{fill:var(--panel);stroke:var(--logic-dim);stroke-width:.028;transition:fill .3s,stroke .3s}
-.thread .node.live{fill:var(--logic);stroke:var(--logic);filter:drop-shadow(0 0 3px var(--logic))}
+.thread .edge{fill:none;stroke:var(--struct-dim);stroke-width:.02;stroke-dasharray:.09 .07;stroke-linecap:round;transition:stroke .3s,stroke-width .3s}
+.thread .edge.live{stroke:var(--struct);stroke-width:.04;stroke-dasharray:none}
+.thread .edge.hot{stroke:var(--struct-gold);stroke-width:.045;stroke-dasharray:none}
+.thread .node{fill:var(--cell);stroke:var(--struct-dim);stroke-width:.03;transition:fill .3s,stroke .3s}
+.thread .node.live{fill:var(--struct);stroke:var(--struct)}
 .side{display:flex;flex-direction:column;gap:20px;min-width:0}
 .curline{font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--panel);
   border:1px solid var(--edge);border-left:3px solid var(--given);border-radius:4px;padding:10px 13px;min-height:22px}
