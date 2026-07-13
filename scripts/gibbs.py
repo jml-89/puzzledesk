@@ -88,7 +88,10 @@ def _gibbs_layout(container, rows, cols, max_len, seed):
     frac = default_black_ceiling(rows, cols) / (rows * cols)
     return next(
         gibbs_layout.gibbs_layouts(
-            rows, cols, rng=container.rng_factory.create(seed), max_len=max_len, black_fraction=frac
+            rows,
+            cols,
+            rng=container.rng_factory.create(seed),
+            params=FieldParams.from_fraction(rows, cols, black_fraction=frac, max_len=max_len),
         ),
         None,
     )

@@ -2176,3 +2176,23 @@ on these two is the *pointer*, not a bar to satisfy by force -- `mlex`/`rng_fact
 
 Reversal: additive dataclass + mechanical call-site updates (one script, no app/test call passed
 the schedule knobs except `scripts/gibbs.py`); inline `sweeps`/`t0`/`t1` back and nothing moves.
+
+## D42. Finish the kwarg compaction: FieldParams + SampleBudget (parameter objects, by convention)
+
+Context: D40 (CapSpec/SearchBudget) and D41 (AnnealSchedule) established the convention -- cohesive
+parameter clusters become frozen value objects at the core-engine boundary, mirroring the app's
+spec algebra one layer down. D41 explicitly deferred the last piece: the Gibbs samplers still
+offered `min_len`/`max_len`/`black_fraction`/`target_black` as flat kwargs *and* via
+`params=FieldParams`, two ways to set the same thing.
+
+Decision: apply the established convention, no new argument. The field is specified *one* way -- a
+`FieldParams` (with `FieldParams.from_fraction(rows, cols, …)` as the fraction→count ergonomic
+path) -- and `fill_gibbs`'s sampler bounds become a `SampleBudget {attempts_per_layout,
+max_layouts, fill_nodes}`, the Gibbs-side twin of `SearchBudget`. `gibbs_layouts` 13→7,
+`fill_gibbs` 18→10. Callers (app `_gibbs`, `scan.py`, `gibbs.py`, the sampler contract tests) build
+a `FieldParams` at the call; the anneal/sampler logic is untouched and all 111 tests pass.
+
+This closes the "wiring story" for the search/sample engines: every engine family now takes a
+constraint object + a budget object (+ a schedule where it anneals), and each `*_budget.is_complete`
+/ sampler-budget carries the proof-vs-exhaustion epistemics with the numbers. Nothing left to say --
+it is the convention, applied.

@@ -250,7 +250,18 @@ class GenerateService:
 
     def _gibbs(self, grid: GridSpec, layout: GibbsLayout) -> _BlockedFill | None:
         target_black = layout.num_black if layout.num_black and layout.num_black > 0 else None
-        black_fraction = DEFAULT_BLACK_FRACTION if target_black is None else 0.0
+        if target_black is None:
+            params = gibbs_layout.FieldParams.from_fraction(
+                grid.rows,
+                grid.cols,
+                black_fraction=DEFAULT_BLACK_FRACTION,
+                min_len=layout.min_len,
+                max_len=layout.max_len,
+            )
+        else:
+            params = gibbs_layout.FieldParams(
+                min_len=layout.min_len, max_len=layout.max_len, target_black=target_black
+            )
         mlex = self._lexicon.load_multi(
             self._list_name, range(layout.min_len, layout.max_len + 1), min_score=grid.min_score
         )
@@ -259,14 +270,11 @@ class GenerateService:
             grid.cols,
             mlex,
             rng_factory=self._rng,
-            max_len=layout.max_len,
+            params=params,
             seed=grid.seed,
-            min_len=layout.min_len,
             symmetric=layout.symmetric,
             distinct=True,
-            black_fraction=black_fraction,
-            target_black=target_black,
-            max_layouts=layout.max_layouts,
+            budget=gibbs_layout.SampleBudget(max_layouts=layout.max_layouts),
         )
         return None if found is None else _BlockedFill(mlex, *found)
 

@@ -63,7 +63,12 @@ def _samples(rows: int, cols: int, max_len: int, *, seeds: int, frac: float = 0.
     for seed in range(seeds):
         g = next(
             gibbs.gibbs_layouts(
-                rows, cols, rng=_rng(seed), min_len=3, max_len=max_len, black_fraction=frac
+                rows,
+                cols,
+                rng=_rng(seed),
+                params=gibbs.FieldParams.from_fraction(
+                    rows, cols, black_fraction=frac, max_len=max_len
+                ),
             ),
             None,
         )
@@ -106,8 +111,9 @@ def test_gibbs_samples_are_symmetric_by_construction() -> None:
 def test_gibbs_is_reproducible_from_the_seed() -> None:
     # A given seed stream reproduces the same layout, bit-for-bit (the reproducibility
     # invariant, preserved for the sampler as for every engine).
-    a = next(gibbs.gibbs_layouts(10, 10, rng=_rng(3), min_len=3, max_len=5, black_fraction=0.18))
-    b = next(gibbs.gibbs_layouts(10, 10, rng=_rng(3), min_len=3, max_len=5, black_fraction=0.18))
+    params = gibbs.FieldParams.from_fraction(10, 10, black_fraction=0.18, max_len=5)
+    a = next(gibbs.gibbs_layouts(10, 10, rng=_rng(3), params=params))
+    b = next(gibbs.gibbs_layouts(10, 10, rng=_rng(3), params=params))
     assert _key(a) == _key(b)
 
 
@@ -121,17 +127,10 @@ def test_a_gibbs_miss_is_budget_exhaustion_not_a_proof() -> None:
         )
         is not None
     )
+    params = gibbs.FieldParams.from_fraction(5, 5, black_fraction=0.24, max_len=4)
     misses = [
         next(
-            gibbs.gibbs_layouts(
-                5,
-                5,
-                rng=_rng(seed),
-                min_len=3,
-                max_len=4,
-                black_fraction=0.24,
-                attempts_per_layout=1,
-            ),
+            gibbs.gibbs_layouts(5, 5, rng=_rng(seed), params=params, attempts_per_layout=1),
             None,
         )
         is None

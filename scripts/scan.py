@@ -65,14 +65,13 @@ def main() -> None:
                 args.cols,
                 mlex,
                 rng_factory=c.rng_factory,
-                max_len=args.max_len,
+                params=gibbs_layout.FieldParams.from_fraction(
+                    args.rows, args.cols, black_fraction=args.black_fraction, max_len=args.max_len
+                ),
                 seed=seed,
-                min_len=3,
                 symmetric=symmetric,
                 distinct=True,
-                black_fraction=args.black_fraction,
-                target_black=None,
-                max_layouts=60,
+                budget=gibbs_layout.SampleBudget(max_layouts=60),
             )
         else:
             found = patterns.fill_capped(

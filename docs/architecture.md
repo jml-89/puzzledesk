@@ -370,11 +370,14 @@ layout generator beside the complete `gen_capped` (the invariant-0 "two models c
 at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler's return — a
 *new* spike (the layout, not the retired fill sampler).
 
-- `gibbs_layouts(rows, cols, *, rng, max_len, min_len=3, black_fraction=.16, target_black=None,
-  symmetric=True, params=None, schedule=AnnealSchedule(), attempts_per_layout)` yields legal capped
-  layouts drawn by **annealed Gibbs** over the binary field. The temperature schedule
-  (`sweeps`/`t0`/`t1`) is bundled into one `AnnealSchedule` value (D41), shared by all four anneal
-  functions (`anneal_field`/`sample_layout`/`gibbs_layouts`/`fill_gibbs`). The energy (`FieldParams`) is a sum
+- `gibbs_layouts(rows, cols, *, rng, params, symmetric=True, schedule=AnnealSchedule(),
+  attempts_per_layout)` yields legal capped layouts drawn by **annealed Gibbs** over the binary
+  field. The whole field — length window, density target, weights — is the one `params`
+  `FieldParams` (D42: no flat density kwargs; `FieldParams.from_fraction(rows, cols, …)` is the
+  fraction→count convenience). The temperature schedule (`sweeps`/`t0`/`t1`) is bundled into one
+  `AnnealSchedule` value (D41), shared by all four anneal functions (`anneal_field`/`sample_layout`/
+  `gibbs_layouts`/`fill_gibbs`); `fill_gibbs` bundles its sampler bounds into a `SampleBudget`
+  (the Gibbs twin of `SearchBudget`). The energy (`FieldParams`) is a sum
   of **local factors**: run-length legality (dominant), a density spring `(n_black-target)^2`,
   an anti-cluster pair penalty, and an explicit **no-2x2-black-block** term. A single-cell Gibbs
   step evaluates only the *affected rows/columns* + the *cluster touching the flipped orbit*
