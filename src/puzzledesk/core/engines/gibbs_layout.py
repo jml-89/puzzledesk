@@ -83,6 +83,25 @@ class FieldParams:
     w_cluster: float = 0.55  # anti-cluster: penalty per 4-adjacent black-black pair
 
 
+@dataclass(frozen=True, slots=True)
+class AnnealSchedule:
+    """The geometric temperature schedule for one anneal: ``sweeps`` random-order Gibbs
+    passes cooling from ``t0`` to ``t1`` (D41). Bundled so the four anneal functions --
+    and the sampler *twin* ``gibbs_layouts``/``fill_gibbs`` -- pass one value instead of
+    re-listing the same three knobs. Defaults are the benchmarked schedule
+    (:data:`DEFAULT_SWEEPS`/:data:`DEFAULT_T0`/:data:`DEFAULT_T1`, set by scripts/gibbs.py)."""
+
+    sweeps: int = DEFAULT_SWEEPS
+    t0: float = DEFAULT_T0
+    t1: float = DEFAULT_T1
+
+
+# A shared, immutable default (a frozen instance is safe to share) -- avoids a call in an
+# argument default (flake8-bugbear B008) while keeping the benchmarked schedule the
+# zero-config path.
+_DEFAULT_SCHEDULE = AnnealSchedule()
+
+
 def _line_penalty(line: list[bool], min_len: int, max_len: int | None) -> int:
     """Count the illegal white runs in one row/column: a run of length 1..min_len-1
     (too short / unchecked) or, if capped, a run longer than max_len."""
@@ -261,15 +280,14 @@ def anneal_field(
     rng: Rng,
     params: FieldParams,
     symmetric: bool = True,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
 ) -> list[list[bool]]:
     """Run the annealed-Gibbs sweep and return the *raw* binary field (before the legality
     gate). Split out of :func:`sample_layout` so a study can classify what the anneal
     produced (:func:`reject_reason`) without re-implementing the loop. The temperature falls
-    geometrically from ``t0`` to ``t1`` over ``sweeps`` sweeps, each a random-order pass of
-    Gibbs updates over the 180°-rotation orbits (so every field is symmetric)."""
+    geometrically from ``t0`` to ``t1`` over ``schedule.sweeps`` sweeps, each a random-order
+    pass of Gibbs updates over the 180°-rotation orbits (so every field is symmetric)."""
+    sweeps, t0, t1 = schedule.sweeps, schedule.t0, schedule.t1
     reps = _reps(rows, cols, symmetric)
     frac = params.target_black / (rows * cols)
     grid = [[False] * cols for _ in range(rows)]
@@ -323,9 +341,7 @@ def sample_layout(
     rng: Rng,
     params: FieldParams,
     symmetric: bool = True,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
 ) -> BlockedGrid | None:
     """One annealed-Gibbs draw over the black-cell field.
 
@@ -334,9 +350,7 @@ def sample_layout(
     colouring); connectivity is a plain reject in :func:`_finalize` (D28 showed a repair is
     defeated by the cap).
     """
-    grid = anneal_field(
-        rows, cols, rng=rng, params=params, symmetric=symmetric, sweeps=sweeps, t0=t0, t1=t1
-    )
+    grid = anneal_field(rows, cols, rng=rng, params=params, symmetric=symmetric, schedule=schedule)
     return _finalize(grid, rows, cols, params)
 
 
@@ -351,9 +365,7 @@ def gibbs_layouts(
     target_black: int | None = None,
     symmetric: bool = True,
     params: FieldParams | None = None,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
     attempts_per_layout: int = DEFAULT_ATTEMPTS,
 ) -> Iterator[BlockedGrid]:
     """Yield legal length-capped layouts, sampled from the energy field -- the
@@ -380,7 +392,7 @@ def gibbs_layouts(
         got: BlockedGrid | None = None
         for _ in range(attempts_per_layout):
             g = sample_layout(
-                rows, cols, rng=rng, params=params, symmetric=symmetric, sweeps=sweeps, t0=t0, t1=t1
+                rows, cols, rng=rng, params=params, symmetric=symmetric, schedule=schedule
             )
             if g is not None:
                 got = g
@@ -404,9 +416,7 @@ def fill_gibbs(
     black_fraction: float = 0.16,
     target_black: int | None = None,
     params: FieldParams | None = None,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
     attempts_per_layout: int = DEFAULT_ATTEMPTS,
     max_layouts: int = 40,
     node_budget: int | None = None,
@@ -433,9 +443,7 @@ def fill_gibbs(
         target_black=target_black,
         symmetric=symmetric,
         params=params,
-        sweeps=sweeps,
-        t0=t0,
-        t1=t1,
+        schedule=schedule,
         attempts_per_layout=attempts_per_layout,
     )
     for tried, g in enumerate(layouts):

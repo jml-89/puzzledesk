@@ -41,6 +41,7 @@ from puzzledesk.bootstrap import build
 from puzzledesk.cli import present
 from puzzledesk.core.engines import gibbs_layout, patterns
 from puzzledesk.core.engines.gibbs_layout import (
+    AnnealSchedule,
     FieldParams,
     anneal_field,
     reject_reason,
@@ -169,7 +170,11 @@ def _reason_profile(container, rows, cols, max_len, target_black, *, n, sweeps):
     counts = {"ok": 0, "degenerate": 0, "short_run": 0, "over_cap": 0, "disconnected": 0}
     for seed in range(n):
         grid = anneal_field(
-            rows, cols, rng=container.rng_factory.create(seed), params=p, sweeps=sweeps
+            rows,
+            cols,
+            rng=container.rng_factory.create(seed),
+            params=p,
+            schedule=AnnealSchedule(sweeps=sweeps),
         )
         counts[reject_reason(grid, rows, cols, p)] += 1
     return counts
@@ -216,7 +221,11 @@ def weights_sweep(container, rows, cols, max_len=5, wclusters=(0.0, 0.55, 1.2), 
         got, fr, clus, b2 = 0, [], [], []
         for seed in range(n):
             g = sample_layout(
-                rows, cols, rng=container.rng_factory.create(seed), params=p, sweeps=sweeps
+                rows,
+                cols,
+                rng=container.rng_factory.create(seed),
+                params=p,
+                schedule=AnnealSchedule(sweeps=sweeps),
             )
             if g is not None:
                 got += 1

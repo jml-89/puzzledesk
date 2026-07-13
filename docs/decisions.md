@@ -2143,3 +2143,36 @@ Scope, deliberately bounded:
 Reversal: additive value objects + mechanical call-site updates (app, four scripts, three test
 modules); inline the two dataclasses back into kwargs and nothing behavioural moves. The engines'
 search logic never changed.
+
+## D41. AnnealSchedule: bundle the Gibbs temperature knobs (the sampler twin, part 1)
+
+Context: the D40 parameter-object pass fixed the *complete* cap-driven twin (gen_capped/
+fill_capped). Its sampler mirror was left flagged: `gibbs_layouts` took 13 kwargs and `fill_gibbs`
+**18** (the codebase's single worst signature), and `fill_gibbs` re-listed `gibbs_layouts`'s whole
+parameter set to thread it through. But the Gibbs bloat is a *different shape* than the patterns
+twin, so it does not take the same fix:
+
+  * the temperature schedule `sweeps`/`t0`/`t1` is a genuinely cohesive triple, duplicated across
+    **four** functions (`anneal_field`, `sample_layout`, `gibbs_layouts`, `fill_gibbs`) -- a clean
+    bundle; and
+  * separately, the public samplers offer `min_len`/`max_len`/`black_fraction`/`target_black` as
+    flat convenience kwargs *and* via `params=FieldParams(...)` -- two ways to say the same thing,
+    an ergonomic overlap, not simple duplication.
+
+Decision: **do the clean, low-risk half now** -- introduce `AnnealSchedule {sweeps, t0, t1}`
+(defaults = the benchmarked `DEFAULT_SWEEPS`/`T0`/`T1`) and thread it through all four anneal
+functions, killing the triplication. Each function destructures it to locals where the hot loop
+reads them, so the anneal is unchanged and the sampler contract tests (which drive `gibbs_layouts`/
+`sample_layout` directly) all still pass. Counts: `anneal_field`/`sample_layout` 9->6,
+`gibbs_layouts` 13->11, `fill_gibbs` 18->16.
+
+**Deferred (part 2):** collapsing the `FieldParams`-vs-flat-kwargs overlap on the two public
+samplers -- the change that would take `fill_gibbs` the rest of the way down -- is an *ergonomic
+redesign* of the sampler's public API (callers currently pass `black_fraction=`/`target_black=`
+directly), not a mechanical bundling. It carries a real "one obvious way to set density" decision
+and is left as its own follow-up rather than folded in here. As with D40, the residual `PLR0913`
+on these two is the *pointer*, not a bar to satisfy by force -- `mlex`/`rng_factory`/`seed`/
+`distinct`/`max_layouts`/`node_budget` are legitimately distinct sampler inputs.
+
+Reversal: additive dataclass + mechanical call-site updates (one script, no app/test call passed
+the schedule knobs except `scripts/gibbs.py`); inline `sweeps`/`t0`/`t1` back and nothing moves.
