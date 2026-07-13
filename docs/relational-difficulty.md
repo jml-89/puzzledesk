@@ -210,11 +210,23 @@ choice, not just "the minimum floor." Two refinements fall out, both live in the
   them (the shape of the clueless set) is the other, and it carries the aesthetics.
 
 The flagship presentation is `site/latent.html` (`build_flagship.py`): a 4-given / 6-deduced,
-depth-6 mini that draws the forced solve as a **living thread** propagating through the grid, and
+depth-6 mini that draws the forced solve as a **forcing graph** propagating through the grid, and
 ends in a **solve debrief** surfacing the otherwise-invisible structure — the floor, the cascade
 depth, the *ice-breaker* (the first clueless entry cracked, and with how few letters showing), and
 an estimated deduction difficulty from `minvis` + depth. It is the whole model turned into a single
 playable experience: the latent logic puzzle every crossword hides, made the point.
+
+An earlier build drew this as a single **thread** — a polyline through the clueless entries' centroids
+in solve order. It looked alive but misrepresented the structure: consecutive entries in the order
+often do not cross (the cascade is a *wave-DAG*, not a chain), so a segment between two centroids
+encoded nothing, and the reader's instinct to read the line *spatially* had nothing to land on. The
+forcing graph fixes this by anchoring every edge on a **real donor cell** — a cell of the blank entry
+whose crossing neighbour is solved in an *earlier* wave, i.e. a letter already known when the entry
+becomes unique (exactly the `minvis` set). Each blank's edges light when it falls; the clue list
+carries the **wave number** (the order, shown explicitly rather than inferred from a path); and
+selecting a blank rings precisely the letters that pin it. The geometry is now load-bearing: an edge
+*is* a forcing relationship, touching the letter that carries it. All of this is derived client-side
+from the entries' `wave`/`cells`/`role` — the baked puzzle data is unchanged.
 
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
