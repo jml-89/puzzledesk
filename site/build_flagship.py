@@ -333,10 +333,10 @@ h1{font-family:var(--serif);font-weight:700;font-size:clamp(40px,8vw,72px);line-
 <script>
 (function(){
   var P=DATA,R=P.rows,C=P.cols,VOCAB=P.vocab;
-  var all=P.across.concat(P.down),byRef={},mapA={},mapD={},numAt={};
+  var all=P.across.concat(P.down),mapA={},mapD={},numAt={};
   function key(r,c){return r+","+c;}
-  P.across.forEach(function(e){byRef["A"+e.num]=e;e.cells.forEach(function(x){mapA[key(x[0],x[1])]=e;});});
-  P.down.forEach(function(e){byRef["D"+e.num]=e;e.cells.forEach(function(x){mapD[key(x[0],x[1])]=e;});});
+  P.across.forEach(function(e){e.cells.forEach(function(x){mapA[key(x[0],x[1])]=e;});});
+  P.down.forEach(function(e){e.cells.forEach(function(x){mapD[key(x[0],x[1])]=e;});});
   for(var k in P.numbering)numAt[k]=P.numbering[k];
   var givenCell={};
   all.forEach(function(e){if(e.role==="given")e.cells.forEach(function(x){givenCell[key(x[0],x[1])]=true;});});
