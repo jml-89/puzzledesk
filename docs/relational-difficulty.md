@@ -210,11 +210,114 @@ choice, not just "the minimum floor." Two refinements fall out, both live in the
   them (the shape of the clueless set) is the other, and it carries the aesthetics.
 
 The flagship presentation is `site/latent.html` (`build_flagship.py`): a 4-given / 6-deduced,
-depth-6 mini that draws the forced solve as a **living thread** propagating through the grid, and
+depth-6 mini that draws the forced solve as a **forcing graph** propagating through the grid, and
 ends in a **solve debrief** surfacing the otherwise-invisible structure — the floor, the cascade
 depth, the *ice-breaker* (the first clueless entry cracked, and with how few letters showing), and
 an estimated deduction difficulty from `minvis` + depth. It is the whole model turned into a single
 playable experience: the latent logic puzzle every crossword hides, made the point.
+
+An earlier build drew this as a single **thread** — a polyline through the clueless entries' centroids
+in solve order. It looked alive but misrepresented the structure: consecutive entries in the order
+often do not cross (the cascade is a *wave-DAG*, not a chain), so a segment between two centroids
+encoded nothing, and the reader's instinct to read the line *spatially* had nothing to land on. The
+forcing graph fixes this by anchoring every edge on a **real donor cell** — a cell of the blank entry
+whose crossing neighbour is solved in an *earlier* wave, i.e. a letter already known when the entry
+becomes unique (exactly the `minvis` set). Each blank's edges light when it falls; the clue list
+carries the **wave number** (the order, shown explicitly rather than inferred from a path); and
+selecting a blank rings precisely the letters that pin it. The geometry is now load-bearing: an edge
+*is* a forcing relationship, touching the letter that carries it. All of this is derived client-side
+from the entries' `wave`/`cells`/`role` — the baked puzzle data is unchanged.
+
+### Scaling Latent — low density and a long word (`build_latent_long.py`)
+
+`site/latent-long.html` probes the far end of the space from the dense 5×5: a **low-density 9×9**
+(~55% white) built around a single 9-letter across **spine**, `ESTRANGED`, that is *deduced*
+(8 given / 10 deduced, depth 5). Building it surfaced three load-bearing facts:
+
+- **Full-checking forbids sparse grids.** The blocked engine rejects "orphans" (a white cell in a
+  run below `min_len`), so every white cell is crossed both ways — you cannot build the thin,
+  unchecked-cell grids real crosswords use. "Low density" here is a *larger grid with more black*,
+  not a thinner lattice. A lone long word is impossible for the same reason: a fully-checked
+  9-across drags a 3×9 word-square band. The escape is a **staggered spine** — crossers stepping up
+  on one side of the row and down the other — keeping it a single 9 while every cell stays checked.
+- **A long word is a keystone, not a climax.** A fully-checked long entry crosses all of its cells'
+  downs, so it accumulates letters fastest and is among the *easiest* to force — left alone it falls
+  in the first deduction wave. The information floor counteracts this: by withholding the right
+  crossers it places the spine mid-cascade (here wave 3, pinned with 6 of 9 letters — a real
+  deduction, not a collapse). But the natural pull is "crack the long word early, it unlocks the
+  rest," not "deduce it last."
+- **Depth comes from density.** A single hub short-circuits a small grid into a shallow cascade (a
+  7×7 spike bottomed out at depth 3). The larger 9×9 recovers depth 5–6 — the interlocking
+  constraints that make long inference chains are a *density* effect, so airier grids trade depth
+  for openness and you buy it back with size. Practically you get two of {low density, long word,
+  clean common fill} comfortably; all three is tight (short crossers skew crosswordese).
+
+Two engineering notes for anyone extending this: exhaustive `information_floor` explodes on
+weak-forcing low-density grids (large floors → huge combination sweeps) — greedy is the search tool,
+exhaustive only for the final ≤18-entry pick; and layout enumeration (`gen_capped`) is unusable at
+9×9, so the layout is a **hand-built template** filled by the real `fill.solve` + relational pipeline.
+The page reuses the flagship template generalised for black cells / non-square grids / parameterised
+copy; the fill is a reproducible seed search, the clues authored by hand (not the live pipeline).
+
+**One spine or two? (`build_latent_two.py`, `site/latent-two.html`).** A second 9-across spine
+(two parallel spines, rows 2 and 6 of a 9×9) makes the tradeoff sharp. Both spines deduce fine, but
+each is a hub that must be *fed*: with two competing for crossers, the greedy floor climbs to
+**15/28** (half the grid clued, vs 8/18 for one spine), the cascade flattens to **depth 3** (vs 5),
+and the between-spine gap is forced into **eighteen 3-letter crossers** — abbreviation soup. So the
+"few clues, deduce many" economy is a *single*-hub phenomenon; a second spine roughly doubles the
+long-word payoff (both can be showy/obscure — the over-determination that lets one spine be arbitrary
+applies to both) while more than doubling the clue cost. One spine is the sweet spot; two is a
+legible demonstration of *why*. (28 entries is well past the exhaustive-floor ceiling, so its floor
+is greedy — likely not minimal, which if anything understates the cost.)
+
+**The central-focus cross — topologically ideal, lexically infeasible (measured, not shipped).**
+Two *parallel* spines diffuse the puzzle; the natural fix is to make them *cross*, giving a single
+**focus**. The clean version is two 5×5 word-squares kissing at one corner cell, threaded by a
+9-across and a 9-down that span both (the layout is the intersection of the single-spine stagger
+with its own transpose). Topologically it is exactly the attractor you want: the shared cell (4,4)
+is a graph **articulation point** — it lies in the two spines and nothing else, so removing it
+splits the grid in two — and every crosser is a proper 5-letter slot (no 3-letter soup). But it does
+not fill with common words. Two word-squares *coupled* by two 9-letter-word constraints collapse the
+common-word solution space to the vocabulary's obscure tail: it fills instantly against the full cw
+list (ENTRUSTED / SAPSUCKER spines) but is **unfillable by ~cw-45**, and even ~cw-35 is
+AMOOT/RAFIK/DUENA/ENERO soup. So focus and fill-quality trade off directly — the tighter you couple
+the deduction to one point, the more the coupling forces obscurity. A *fillable* central focus would
+need looser arms (staggered 3-thick crossers instead of full squares — an untried perpendicular
+stagger), trading some of the crispness of the articulation point for vocabulary room. Not shipped:
+an obscure-word grid is unfair to *deduce* (the point of Latent), so this stays a measured tombstone.
+
+That loosening is the shipped **`site/latent-cross.html`** (`build_latent_cross.py`): two *7*-letter
+spines (ESSENCE × OBSERVE) crossing at the centre, arms pinwheeling into two sparse clusters (~35%
+white, 14 entries). Shortening the spines and staggering the arms slackens the coupling enough that
+the fill draws on **common** words again (the strict cross could not) — the prediction held. The
+cost is exactly the crispness we traded: the two spines share the centre letter, so the information
+floor must clue *one* of them to force the other (only one spine is deduced, not both), and the
+sparsity flattens the cascade to **depth 2** — the shallowest of the family. So the full spectrum,
+from densest to airiest, reads: dense 5×5 (depth 6) → one 9-spine (depth 5, the keeper) → two
+parallel 9-spines (depth 3, half-clued) → sparse 7×7-spine cross (depth 2, one-deduced). Focus,
+depth, and fill-cleanliness form a single tension surface; the one-spine grid sits at its knee.
+
+### Which words to clue — the floor *objective* (`gravity_floor`) and a three-way tension
+
+`information_floor` minimises the clue *count*; it is blind to *which* words it spends a clue on,
+and will clue a long word if that is cheaper. But the *game* wants the opposite: deducing a 3-letter
+fill is a non-event, deducing a whole long word is the payoff, so the long/interesting words should
+be the unclued **destination** and the short/boring ones the clued **means**. `gravity_floor`
+(scripts/relational.py) encodes that objective — greedily un-clue the *longest* entries first while
+the grid still solves, so the deduced set skews long and the clued set skews short.
+
+Measured on the one-spine grid it does exactly that (clues the shortest words, deduces the longest,
+and *deepens* the cascade: depth 6 vs the min-count 5, with the spine falling later, wave 4 vs 3).
+But it surfaced a **three-way tension** you cannot fully win: (1) *deduce* the long word, (2) make
+that deduction *hard* (few of its letters showing — the "watch a whole word appear" magic), and
+(3) don't *deduce* boring short words. The long word's own crossers are the battleground: cluing all
+the shorts (max #3) hands the long word its letters, so it is forced with 8 of 9 showing — trivial,
+killing #2; making the deduction hard (min #2's vis) means withholding clues from some crossers,
+i.e. deducing shorts, hurting #3. The shipped one-spine floor is *min-count*, not gravity, precisely
+because it sits at the balance — ESTRANGED deduced at vis 6 (a real six-of-nine deduction) at the
+cost of only two short deductions. And the structural coda from the hub analysis: a long word is
+over-determined, so even deduced it falls *mid*-cascade, never as the last domino — it is the
+payoff, not the temporal climax. "Longest as the destination" is true as *payoff*, false as *finale*.
 
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 

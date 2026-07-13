@@ -1991,3 +1991,74 @@ Reversal: additive and self-contained (two `scripts/` drivers + one doc); delete
 else moves. The finding survives in notes.md/this entry regardless (D19/D31 discipline). Promotion
 to `app` surface, a graded clue-power model, and generation-to-a-depth are each a later, separate
 decision gated on human solve data.
+
+## D39. Latent, made playable: the forcing-graph flagship, the scaling map, and the floor *objective*
+
+Context: D38 modelled the latent logic puzzle and measured it, but left it as numbers. The flagship
+`site/latent.html` (a 4-given / 6-deduced dense 5×5) turned it into a playable page, and playing it
+raised three questions this entry answers: is the on-grid *visualisation* honest, does the shape
+*scale* past the dense 5×5, and does the engine clue the *right* words? All of this lives in `site/`
+(a baked static player) plus one function in `scripts/relational.py`; the core/app hexagon is
+untouched. Full write-up in `docs/relational-difficulty.md` ("Scaling Latent"); page inventory in
+`site/README.md`.
+
+Decision A — **the thread is a forcing graph, not a polyline.** The first build drew the forced
+solve as one "living thread": a polyline through the clueless entries' *centroids* in solve order.
+It read as a spatial path but wasn't one — the cascade is a *wave-DAG*, not a chain, so consecutive
+entries in the order often don't cross, and a segment between two centroids encoded nothing.
+Replaced with a **forcing graph**: for each blank, an edge from every *donor* cell (a cell whose
+crossing neighbour is solved in an earlier wave — exactly the letters known when it becomes unique),
+lit wave-by-wave, with the wave number in the clue list and a selected blank ringing the letters
+that pin it. Geometry is now load-bearing. A follow-on legibility pass split the palette into
+**text vs structural colour roles** (the graph was drawn in the same cyan as the deduced letters, so
+it camouflaged them) and nudged edges off the glyph centres — an accessibility fix, not a tweak.
+
+Decision B — **map the shape's design space; ship the map as playable variants.** Beyond the dense
+5×5 (order-rarity–capped, D36/lesson-length-ceiling), four blocked geometries, each a `site/` page:
+- **one 9-spine** (`latent-long`, the keeper): a low-density 9×9 (~55% white) around a single
+  9-across spine, *deduced* from its crossings. Full-checking forbids genuinely sparse grids and
+  makes a lone long word drag a word-square band — the escape is a **staggered** spine.
+- **two parallel 9-spines** (`latent-two`): both deduce, but a second hub competes for crossers —
+  floor climbs to 15/28 (half the grid clued), depth flattens to 3, gap fills with 3-letter soup.
+- **the cross** — two spines crossing for a true central **focus** (an articulation point). The
+  strict "kissing squares" is topologically ideal but **lexically infeasible** (two coupled
+  word-squares admit only obscure fill — measured, tombstoned). Loosening it to two staggered
+  *7*-spines (`latent-cross`, ~35% white) buys common words back at the cost of depth 2 and one
+  clued spine.
+
+Findings (the through-line): **focus, cascade depth, and fill-cleanliness are one tension surface,
+and the one-spine grid sits at its knee.** A long word is a *hub* (crossers = its length), so as a
+deduced word it is over-determined — a *keystone* that falls mid-cascade, never the last domino, and
+one that tolerates near-arbitrary obscurity (its pattern is uniquely pinned regardless of
+familiarity). Density is what makes cascades deep; concentrating the deduction (crossing spines)
+trades depth and fill for topology; spreading it (parallel spines) dilutes.
+
+Decision C — **the floor has an *objective*, not just a size** (`gravity_floor`). `information_floor`
+minimises clue *count* and is blind to *which* words it clues; the game wants the opposite — clue
+the short/boring words, leave the long/interesting ones as the unclued destination. `gravity_floor`
+encodes that (un-clue longest-first while solvable). Measured, it deepens the cascade and purifies
+the deduced set toward long words — but exposes a **three-way tension**: you cannot simultaneously
+(1) deduce the long word, (2) make that deduction *hard* (few letters showing), and (3) not deduce
+boring shorts; its crossers are the battleground. The shipped one-spine floor stays *min-count*
+precisely because it balances these (spine at vis 6). Kept as a tool + finding, not forced onto a
+grid.
+
+Tooling: `scripts/spine.py` mints one-spine wonders — searches the staggered layout and ranks fills
+by weakest word (invariant 4) among the spine-deduced ones (via the fast `gravity_floor`), for
+`site/build_latent_long.py` to turn into a page. The four builders (`build_flagship` +
+`build_latent_{long,two,cross}`) share one generalised template (black cells, non-square,
+parameterised copy).
+
+Alternatives considered:
+- **A single polyline thread, fixed up** (route it through shared cells): rejected — the cascade is
+  a DAG; any single chain misrepresents it. The per-blank donor graph is the honest primitive.
+- **Ship the cross as a flagship variant** anyway: the strict one can't fill cleanly; the sparse one
+  is shallow. Shipped the sparse one *as the comparison* (labelled), not as a keeper.
+- **Adopt `gravity_floor` for the shipped grids**: rejected for latent-long (it trivialises the
+  spine's own deduction, vis 6→8). It's the right objective, wrong on this grid — hence a tool.
+
+Reversal: additive and `site/`-local plus one `relational.py` function; delete `site/latent*.html`,
+the four builders, `scripts/spine.py`, and `gravity_floor` and nothing in core/app moves. The
+findings survive in relational-difficulty.md / this entry (D19/D31 discipline). A generic
+spine-page builder with live (`clue`-extra) cluing, and generation-to-a-target-depth, are each a
+later decision.
