@@ -149,11 +149,13 @@ class GenerateService:
                     grid.rows,
                     grid.cols,
                     rng=self._rng.create(0),
-                    min_len=layout.min_len,
-                    max_len=layout.max_len,
-                    symmetric=layout.symmetric,
-                    num_black=layout.num_black,
-                    max_black=layout.max_black,
+                    cap=patterns.CapSpec(
+                        min_len=layout.min_len,
+                        max_len=layout.max_len,
+                        symmetric=layout.symmetric,
+                        num_black=layout.num_black,
+                        max_black=layout.max_black,
+                    ),
                 )
                 return next(layouts, None) is not None
             case GibbsLayout():
@@ -162,10 +164,12 @@ class GenerateService:
                     grid.rows,
                     grid.cols,
                     rng=self._rng.create(0),
-                    min_len=layout.min_len,
-                    max_len=layout.max_len,
-                    symmetric=layout.symmetric,
-                    num_black=layout.num_black,
+                    cap=patterns.CapSpec(
+                        min_len=layout.min_len,
+                        max_len=layout.max_len,
+                        symmetric=layout.symmetric,
+                        num_black=layout.num_black,
+                    ),
                 )
                 return next(layouts, None) is not None
         assert_never(layout)
@@ -229,15 +233,18 @@ class GenerateService:
             grid.cols,
             mlex,
             rng_factory=self._rng,
-            max_len=layout.max_len,
+            cap=patterns.CapSpec(
+                max_len=layout.max_len,
+                min_len=layout.min_len,
+                symmetric=layout.symmetric,
+                num_black=num_black,
+                max_black=max_black,
+            ),
             seed=grid.seed,
-            min_len=layout.min_len,
-            symmetric=layout.symmetric,
             distinct=True,
-            num_black=num_black,
-            max_black=max_black,
-            layout_node_budget=_LAYOUT_NODE_BUDGET,
-            max_patterns=layout.max_patterns,
+            budget=patterns.SearchBudget(
+                layout_nodes=_LAYOUT_NODE_BUDGET, max_patterns=layout.max_patterns
+            ),
         )
         return None if found is None else _BlockedFill(mlex, *found)
 

@@ -2097,3 +2097,49 @@ Deliberately **not** added, each with a reason:
 
 Reversal: config-only plus 4 tiny mechanical edits; revert the `select` block and the drift is
 back but nothing behavioural moves. The rules are a fence, not a feature.
+
+## D40. CapSpec / SearchBudget: parameter objects for the cap-driven engines
+
+Context: the app layer models generation input beautifully — the typed `PuzzleSpec` /
+`LayoutStrategy` algebra dispatched with `match` (D32) — but that discipline stopped dead at the
+app→core boundary. The core cap-driven engines re-expanded it into kwarg soup: `fill_capped` took
+**15** parameters, `gen_capped` **11**, and worst of all `fill_capped` re-listed *by hand* every
+one of `gen_capped`'s five layout constraints (`min_len`, `max_len`, `symmetric`, `num_black`,
+`max_black`) plus three separate budget knobs (`node_budget`, `layout_node_budget`,
+`max_patterns`). A code-quality pass flagged the kwarg soup as the codebase's top maintainability
+smell (15× `PLR0913`), and the hand-mirrored twin signature as parallel structure guaranteed to
+drift.
+
+Decision: introduce two frozen value objects in `core.engines.patterns`, mirroring the app-layer
+spec discipline one layer down:
+- **`CapSpec`** `{max_len, min_len, symmetric, num_black, max_black}` — the legal-layout
+  constraint cluster. It is the *core twin* of `app.spec.CappedLayout` (the strategy maps 1:1
+  onto it), so `gen_capped` and `fill_capped` now describe the *same* layout with *one* value
+  instead of the fill re-listing all five constraints.
+- **`SearchBudget`** `{fill_nodes, layout_nodes, max_patterns}` — the three bounds that turn a
+  completeness *proof* into mere *exhaustion*. Its `is_complete` property is now the single
+  source of the "proof vs budget" epistemic tag `fill_capped` stamps on its terminal event (the
+  completeness invariant gets a named home instead of a three-way `and` on loose kwargs).
+
+Result: `fill_capped` 15→9 params, `gen_capped` 11→7, and the twin duplication is gone — the fill
+search takes the layout search's `CapSpec` verbatim. Each function destructures the spec to locals
+at the top, so the hot backtracking recursion is byte-for-byte unchanged and the ground-truth
+completeness/distinctness contract tests (which drive these engines directly) all still pass.
+
+Scope, deliberately bounded:
+- **Not chased to `PLR0913`'s threshold of 5.** 7 and 9 meaningful, cohesively-named parameters
+  are the honest floor; `rng_factory`/`seed`/`distinct`/`probe` are execution context that does
+  *not* cohere into a domain object, and bundling them just to hit an arbitrary number would
+  *reduce* clarity. This is why D39 left `PLR0913` out of the gate: it is a smell *pointer*, not a
+  bar to satisfy. The win is de-duplication and cohesion, not a green metric.
+- **The Gibbs twin (`gibbs_layouts`/`fill_gibbs`, the 13- and 18-arg signatures) is untouched
+  here.** It is the same pattern applied to a *different* constraint shape (`target_black`/
+  `black_fraction`/anneal schedule, not `num_black`/`max_black`), so it is its own follow-up — it
+  can reuse `CapSpec`'s length/symmetry fields but needs an anneal-schedule bundle beside them.
+- **The count-driven engines (`gen_patterns`/`fill_by_count`) keep their signatures** — a
+  different, smaller constraint shape (an *exact* required count, no length cap), not the same
+  cluster.
+
+Reversal: additive value objects + mechanical call-site updates (app, four scripts, three test
+modules); inline the two dataclasses back into kwargs and nothing behavioural moves. The engines'
+search logic never changed.

@@ -37,14 +37,10 @@ def fill(
         cols,
         mlex,
         rng_factory=C.rng_factory,
-        max_len=max_len,
+        cap=patterns.CapSpec(max_len=max_len, min_len=3, symmetric=True, num_black=num_black),
         seed=seed,
-        min_len=3,
-        symmetric=True,
         distinct=True,
-        num_black=num_black,
-        node_budget=node_budget,
-        max_patterns=max_patterns,
+        budget=patterns.SearchBudget(fill_nodes=node_budget, max_patterns=max_patterns),
         probe=probe,
     )
 

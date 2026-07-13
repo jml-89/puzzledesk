@@ -40,7 +40,12 @@ def motivation(container):
         f"longest entry = {_max_run(g) if g else '-'} letters (uncapped -> a 10-letter word)"
     )
     t0 = time.perf_counter()
-    gc = next(patterns.gen_capped(10, 10, rng=container.rng_factory.create(0), max_len=5), None)
+    gc = next(
+        patterns.gen_capped(
+            10, 10, rng=container.rng_factory.create(0), cap=patterns.CapSpec(max_len=5)
+        ),
+        None,
+    )
     dt = time.perf_counter() - t0
     print(
         f"  gen_capped(10x10, max_len=5): first layout in {dt * 1e3:.0f} ms, "
@@ -78,7 +83,11 @@ def layout_stats(container, rows, cols, max_len, n=40):
         rng = container.rng_factory.create(seed)
         g = next(
             patterns.gen_capped(
-                rows, cols, rng=rng, max_len=max_len, max_black=ceiling, node_budget=300_000
+                rows,
+                cols,
+                rng=rng,
+                cap=patterns.CapSpec(max_len=max_len, max_black=ceiling),
+                node_budget=300_000,
             ),
             None,
         )

@@ -43,7 +43,10 @@ def _white(rows: int, cols: int, min_len: int) -> object:
     """The single all-white layout of this shape (num_black=0)."""
     return next(
         patterns.gen_capped(
-            rows, cols, rng=np.random.default_rng(0), min_len=min_len, max_len=min_len, num_black=0
+            rows,
+            cols,
+            rng=np.random.default_rng(0),
+            cap=patterns.CapSpec(min_len=min_len, max_len=min_len, num_black=0),
         )
     )
 
@@ -68,7 +71,12 @@ def test_fill_emits_solved_on_success() -> None:
 def test_capped_run_emits_ordered_stream() -> None:
     probe = RecordingProbe()
     patterns.fill_capped(
-        2, 2, _FILLABLE, rng_factory=_factory(), max_len=2, min_len=2, num_black=0, probe=probe
+        2,
+        2,
+        _FILLABLE,
+        rng_factory=_factory(),
+        cap=patterns.CapSpec(max_len=2, min_len=2, num_black=0),
+        probe=probe,
     )
     kinds = [type(e).__name__ for e in probe.events]
     assert kinds[0] == "PhaseStarted"
@@ -81,7 +89,12 @@ def test_capped_run_emits_ordered_stream() -> None:
 def test_terminal_reason_is_solved_when_filled() -> None:
     probe = RecordingProbe()
     patterns.fill_capped(
-        2, 2, _FILLABLE, rng_factory=_factory(), max_len=2, min_len=2, num_black=0, probe=probe
+        2,
+        2,
+        _FILLABLE,
+        rng_factory=_factory(),
+        cap=patterns.CapSpec(max_len=2, min_len=2, num_black=0),
+        probe=probe,
     )
     (done,) = [e for e in probe.events if isinstance(e, Finished)]
     assert done.ok and done.reason == "solved" and done.attempts >= 1
@@ -93,7 +106,12 @@ def test_terminal_reason_exhausted_is_a_proof() -> None:
     # theorem, not a timeout -- with zero attempts.
     probe = RecordingProbe()
     out = patterns.fill_capped(
-        6, 6, _FILLABLE, rng_factory=_factory(), max_len=5, num_black=1, symmetric=True, probe=probe
+        6,
+        6,
+        _FILLABLE,
+        rng_factory=_factory(),
+        cap=patterns.CapSpec(max_len=5, num_black=1, symmetric=True),
+        probe=probe,
     )
     assert out is None
     (done,) = [e for e in probe.events if isinstance(e, Finished)]
@@ -109,10 +127,8 @@ def test_terminal_reason_budget_is_not_a_proof() -> None:
         2,
         _UNFILLABLE,
         rng_factory=_factory(),
-        max_len=2,
-        min_len=2,
-        num_black=0,
-        node_budget=1,
+        cap=patterns.CapSpec(max_len=2, min_len=2, num_black=0),
+        budget=patterns.SearchBudget(fill_nodes=1),
         probe=probe,
     )
     (done,) = [e for e in probe.events if isinstance(e, Finished)]

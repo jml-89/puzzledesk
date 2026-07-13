@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 from puzzledesk.core.blocked import BLOCK, WHITE, BlockedGrid
 from puzzledesk.core.engines import fill
@@ -243,16 +244,60 @@ def _cell_ok(
     return not (c == cols - 1 and run < min_len)
 
 
+@dataclass(frozen=True, slots=True)
+class CapSpec:
+    """The legal-layout constraints for the cap-driven search: the length window
+    (``min_len``..``max_len``, ``max_len=None`` == no upper bound), the symmetry
+    convention, and the density bounds (``num_black`` pins the count exactly;
+    ``max_black`` bounds it above -- D25).
+
+    This is the *core* twin of :class:`puzzledesk.app.spec.CappedLayout`: the app
+    strategy maps 1:1 onto it. Bundling the five constraints into one value is what
+    lets :func:`gen_capped` and :func:`fill_capped` describe the *same* layout with one
+    argument -- the fill search used to re-list every constraint the layout search takes,
+    the twin-signature duplication this removes.
+    """
+
+    max_len: int | None = None
+    min_len: int = 3
+    symmetric: bool = True
+    num_black: int | None = None
+    max_black: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SearchBudget:
+    """The bounds that turn a *proof* into mere *exhaustion*. All-``None`` (the default)
+    is the complete search whose empty result is a genuine UNSAT theorem (the
+    completeness invariant); set any field and an empty result is only budget spent.
+
+    Named so the epistemics travel *with* the numbers instead of as three loose kwargs:
+    :attr:`is_complete` is the single source of the "proof vs budget" tag that
+    :func:`fill_capped` stamps on its terminal event.
+    """
+
+    fill_nodes: int | None = None  # per-fill search-tree cap (-> fill.solve node_budget)
+    layout_nodes: int | None = None  # per-layout-search cap (-> gen_capped node_budget)
+    max_patterns: int | None = None  # stop after this many layouts tried
+
+    @property
+    def is_complete(self) -> bool:
+        """True iff nothing bounds either stage, so an empty result is a UNSAT proof."""
+        return self.fill_nodes is None and self.layout_nodes is None and self.max_patterns is None
+
+
+# A shared, immutable default (a frozen instance, safe to share) -- avoids a call in an
+# argument default (flake8-bugbear B008) while still letting the complete search be the
+# zero-config path.
+_COMPLETE = SearchBudget()
+
+
 def gen_capped(
     rows: int,
     cols: int,
     *,
     rng: Rng,
-    min_len: int = 3,
-    max_len: int | None = None,
-    symmetric: bool = True,
-    num_black: int | None = None,
-    max_black: int | None = None,
+    cap: CapSpec,
     node_budget: int | None = None,
     randomize: bool = True,
     probe: Probe = NULL_PROBE,
@@ -290,6 +335,8 @@ def gen_capped(
     12x12 at a tight cap can otherwise run away, D25); the per-seed caller just moves to
     the next seed when a pathological one bails.
     """
+    min_len, max_len = cap.min_len, cap.max_len
+    symmetric, num_black, max_black = cap.symmetric, cap.num_black, cap.max_black
     total = rows * cols
     if num_black is not None and (num_black < 0 or num_black >= total):
         return
@@ -357,51 +404,41 @@ def fill_capped(
     mlex: MultiLexicon,
     *,
     rng_factory: RngFactory,
-    max_len: int,
+    cap: CapSpec,
     seed: int = 0,
-    min_len: int = 3,
-    symmetric: bool = True,
     distinct: bool = True,
-    num_black: int | None = None,
-    max_black: int | None = None,
-    node_budget: int | None = None,
-    layout_node_budget: int | None = None,
-    max_patterns: int | None = None,
+    budget: SearchBudget = _COMPLETE,
     probe: Probe = NULL_PROBE,
 ) -> tuple[BlockedGrid, dict[int, str]] | None:
     """Search legal length-capped layouts for one that fills -- the cap-driven
     analogue of :func:`fill_by_count`.
 
-    Returns ``(grid, assign)`` for the first :func:`gen_capped` layout (entries in
-    ``[min_len, max_len]``) that admits a distinct fill from ``mlex``, or ``None``.
+    Returns ``(grid, assign)`` for the first :func:`gen_capped` layout (entries within
+    ``cap``'s length window) that admits a distinct fill from ``mlex``, or ``None``.
     Because a cap of ``max_len <= 5`` keeps every entry within the lengths the word
     data already covers (2..5), a 10x10 fills from the existing lists with no new data.
-    ``num_black``/``max_black`` control density (an exact count or an upper bound, D25).
-    Both searches are complete, so an *exhausted* ``None`` is a real UNSAT proof;
-    but the capped layout space at 10x10 is astronomically large, so a ``None`` under a
-    ``max_patterns``/``node_budget`` bound is exhaustion of the budget, not a theorem
-    (say so when presenting it).
+    ``cap.num_black``/``cap.max_black`` control density (an exact count or an upper
+    bound, D25). Both searches are complete, so with the default (complete) ``budget`` an
+    *exhausted* ``None`` is a real UNSAT proof; but the capped layout space at 10x10 is
+    astronomically large, so a ``None`` under a bounded ``budget`` is exhaustion, not a
+    theorem (:attr:`SearchBudget.is_complete` is that tag -- say so when presenting it).
     """
-    probe.emit(PhaseStarted("capped", f"{rows}x{cols} cap<={max_len}"))
+    probe.emit(PhaseStarted("capped", f"{rows}x{cols} cap<={cap.max_len}"))
     layouts = gen_capped(
         rows,
         cols,
         rng=rng_factory.create(seed),
-        min_len=min_len,
-        max_len=max_len,
-        symmetric=symmetric,
-        num_black=num_black,
-        max_black=max_black,
-        node_budget=layout_node_budget,
+        cap=cap,
+        node_budget=budget.layout_nodes,
         probe=probe,
     )
     # A None here is a UNSAT *proof* only if nothing bounded the search (both stages
     # complete); otherwise it is budget exhaustion. That tag is exactly the reason on
     # the terminal Finished event.
-    complete = layout_node_budget is None and max_patterns is None and node_budget is None
+    complete = budget.is_complete
     tried = 0
     for i, g in enumerate(layouts):
-        if max_patterns is not None and i >= max_patterns:
+        if budget.max_patterns is not None and i >= budget.max_patterns:
             probe.emit(Finished(ok=False, reason="budget", attempts=tried))
             return None
         tried += 1
@@ -411,7 +448,7 @@ def fill_capped(
             mlex,
             rng=rng_factory.create(seed),
             distinct=distinct,
-            node_budget=node_budget,
+            node_budget=budget.fill_nodes,
             probe=probe,
         )
         if assign is not None:

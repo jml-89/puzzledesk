@@ -331,10 +331,11 @@ grid fill from short-word data alone — no length-6+ lists *required*. (Those l
 exist, lengths 2..15 per D36, so a larger `max_len` is a supported knob too; the cap
 remains the lever for *short-word* large grids, which is still usually what you want.)
 
-- `gen_capped(rows, cols, *, rng, min_len=3, max_len=None, symmetric=True, num_black=None,
-  max_black=None, node_budget=None, randomize=True)` yields every legal layout whose entries
-  all have length in `[min_len, max_len]`. The *cap* is the governing parameter; the black
-  count is derived. It searches **row-major** and prunes each partial row/column the instant a
+- `gen_capped(rows, cols, *, rng, cap, node_budget=None, randomize=True)` yields every legal
+  layout whose entries all have length in `[cap.min_len, cap.max_len]`. The five *constraints* —
+  `min_len`, `max_len`, `symmetric`, `num_black`, `max_black` — are bundled into one `CapSpec`
+  value (D40), the core twin of the app's `CappedLayout` spec. The *cap* is the governing
+  parameter; the black count is derived. It searches **row-major** and prunes each partial row/column the instant a
   run is too long or too short (`_cell_ok`) — the run-aware pruning `gen_patterns`' orbit/leaf
   model structurally cannot do, and why a 10x10 is found in ~5 ms rather than never. Same
   legality otherwise (symmetric, fully checked, connected) and same completeness: an empty
@@ -348,11 +349,14 @@ remains the lever for *short-word* large grids, which is still usually what you 
     `node_budget` (like `fill.solve`'s) bails a search that a tight cap makes backtrack away —
     a *budgeted* empty is exhaustion, not a proof. The service defaults `max_black` to ~22% of
     the cells (`DEFAULT_BLACK_FRACTION`) so a capped mini reads like a real crossword.
-- `fill_capped(rows, cols, mlex, *, max_len, ...)` is the cap-driven analogue of
-  `fill_by_count`: first `gen_capped` layout that admits a distinct fill. Both searches are
-  complete, but the capped layout space at 10x10 is astronomically large, so a `None` under
-  a `max_patterns`/`node_budget` bound is *budget exhaustion, not a UNSAT theorem* (existence
-  — e.g. the odd-count proof — is still exact). `scripts/largemini.py` is the measurement
+- `fill_capped(rows, cols, mlex, *, rng_factory, cap, seed=0, distinct=True, budget=SearchBudget())`
+  is the cap-driven analogue of `fill_by_count`: first `gen_capped` layout that admits a distinct
+  fill. It takes the same `CapSpec` as `gen_capped` (so the fill no longer re-lists the layout's
+  constraints — D40) and a `SearchBudget` bundling the three completeness-breaking bounds
+  (`fill_nodes`, `layout_nodes`, `max_patterns`). Both searches are complete, but the capped
+  layout space at 10x10 is astronomically large, so a `None` under a *bounded* `budget` is *budget
+  exhaustion, not a UNSAT theorem* — `SearchBudget.is_complete` is that tag; existence (e.g. the
+  odd-count proof) is still exact. `scripts/largemini.py` is the measurement
   driver; `GenerateService.fill(grid, CappedLayout(max_len=K))` and `generate --max-len K`
   expose it.
 

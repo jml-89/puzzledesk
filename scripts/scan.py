@@ -80,13 +80,12 @@ def main() -> None:
                 args.cols,
                 mlex,
                 rng_factory=c.rng_factory,
-                max_len=args.max_len,
+                cap=patterns.CapSpec(
+                    max_len=args.max_len, min_len=3, symmetric=symmetric, max_black=args.max_black
+                ),
                 seed=seed,
-                min_len=3,
-                symmetric=symmetric,
                 distinct=True,
-                max_black=args.max_black,
-                layout_node_budget=args.budget,
+                budget=patterns.SearchBudget(layout_nodes=args.budget),
             )
         if found is None:
             print(f"  seed {seed:>2}: (none)")

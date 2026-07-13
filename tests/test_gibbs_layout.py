@@ -49,7 +49,11 @@ def _complete_legal(rows: int, cols: int, max_len: int) -> set:
     return {
         _key(g)
         for g in patterns.gen_capped(
-            rows, cols, rng=_rng(0), min_len=3, max_len=max_len, symmetric=True, randomize=False
+            rows,
+            cols,
+            rng=_rng(0),
+            cap=patterns.CapSpec(min_len=3, max_len=max_len, symmetric=True),
+            randomize=False,
         )
     }
 
@@ -111,7 +115,12 @@ def test_a_gibbs_miss_is_budget_exhaustion_not_a_proof() -> None:
     # The load-bearing epistemic line: a legal layout provably EXISTS (the complete
     # search finds one), yet a single-attempt anneal can still come up empty. A sampler
     # miss must never be read as UNSAT -- capped_layout_exists is the theorem, not this.
-    assert next(patterns.gen_capped(5, 5, rng=_rng(0), min_len=3, max_len=4), None) is not None
+    assert (
+        next(
+            patterns.gen_capped(5, 5, rng=_rng(0), cap=patterns.CapSpec(min_len=3, max_len=4)), None
+        )
+        is not None
+    )
     misses = [
         next(
             gibbs.gibbs_layouts(
