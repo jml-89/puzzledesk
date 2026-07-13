@@ -2196,3 +2196,33 @@ This closes the "wiring story" for the search/sample engines: every engine famil
 constraint object + a budget object (+ a schedule where it anneals), and each `*_budget.is_complete`
 / sampler-budget carries the proof-vs-exhaustion epistemics with the numbers. Nothing left to say --
 it is the convention, applied.
+
+## D43. The size/complexity rules as a tightening ratchet
+
+Context: the toolchain measured *architecture* (import-linter) and *types* (mypy --strict) but
+never *size*. The kwarg-soup work (D40-D42) shrank the worst signatures; with the tree at a new
+low, the moment was right to lock the gains in and start measuring size going forward. But a blanket
+size bar does not fit this codebase: the remaining large functions are the **backtracking search
+recursions** (`fill.solve`, `patterns.gen_capped`/`rec`, `backtrack.solve`) and the **CLI argv
+glue** (`cli/generate._run*`) -- inherent complexity where the number is essential, not soup a value
+object would fix. A strict default would red the gate and invite a `# noqa` wall (against
+CLAUDE.md's no-noqa rule).
+
+Decision: enable `C901`/`PLR0911`/`PLR0912`/`PLR0913`/`PLR0915` as a **ceiling ratchet**. Each
+`max-*` is set at the current worst function, so the gate is green today and *nothing may regress
+past it*; `max-returns`/`max-statements` have zero current violations, so they sit at ruff's strict
+defaults (real bars, not ceilings). The policy, written into the `pyproject.toml` comment and
+CLAUDE.md: the numbers may only ever be **lowered** (as hotspots are refactored below them -- the
+D40-D42 work already walked `max-args` from 15 to 10), never raised except by a deliberate,
+reasoned decision. A new violation is a design signal to bundle parameters (the
+CapSpec/SearchBudget/FieldParams convention) or split the function -- not grounds to loosen the bar
+or scatter a suppression.
+
+Starting thresholds (2026-07): `max-complexity=19`, `max-args=10`, `max-branches=15`,
+`max-returns=6`, `max-statements=50`. Also compacted `fill_by_count` (`node_budget`/`max_patterns`
+-> one `SearchBudget`, 11->10 args) so the count-driven engine matches the D40 budget convention and
+the arg ceiling starts at 10 rather than 11.
+
+Reversal: config-only (plus the one `fill_by_count` signature tidy); delete the `select` entries and
+the two threshold tables and size stops being measured. The ratchet holds no code hostage -- it only
+forbids getting worse.

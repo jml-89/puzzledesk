@@ -469,8 +469,7 @@ def fill_by_count(
     min_len: int = 3,
     symmetric: bool = True,
     distinct: bool = True,
-    node_budget: int | None = None,
-    max_patterns: int | None = None,
+    budget: SearchBudget = _COMPLETE,
 ) -> tuple[BlockedGrid, dict[int, str]] | None:
     """Search legal ``num_black``-black layouts for one that fills.
 
@@ -479,20 +478,21 @@ def fill_by_count(
     :class:`~puzzledesk.core.rng.RngFactory` (not a single stream) and a ``seed``:
     the layout search and every fill attempt each get a fresh ``factory.create(seed)``
     stream -- matching the original per-attempt seeding exactly. With both the
-    layout search (`gen_patterns`) and the fill (`fill.solve`) complete and
-    ``max_patterns``/``node_budget`` left as ``None``, a ``None`` return is a
-    genuine UNSAT proof for this shape, count, and word lists. ``max_patterns``
-    caps how many layouts are tried (trading the completeness of the proof for a
-    time bound); it does not affect a SAT result.
+    layout search (`gen_patterns`) and the fill (`fill.solve`) complete and the default
+    (complete) ``budget``, a ``None`` return is a genuine UNSAT proof for this shape,
+    count, and word lists. ``budget.max_patterns`` caps how many layouts are tried (trading
+    the completeness of the proof for a time bound); ``budget.fill_nodes`` caps each fill's
+    tree. Neither affects a SAT result. (``budget.layout_nodes`` is unused here --
+    ``gen_patterns`` is orbit/leaf, not the node-budgeted row-major search.)
     """
     layouts = gen_patterns(
         rows, cols, num_black, rng=rng_factory.create(seed), min_len=min_len, symmetric=symmetric
     )
     for tried, g in enumerate(layouts):
-        if max_patterns is not None and tried >= max_patterns:
+        if budget.max_patterns is not None and tried >= budget.max_patterns:
             return None
         assign = fill.solve(
-            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=node_budget
+            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=budget.fill_nodes
         )
         if assign is not None:
             return g, assign

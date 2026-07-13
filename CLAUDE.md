@@ -189,6 +189,14 @@ and architecture.md §"Blocked grids"/"Cap-driven layouts"):
   (`ban-relative-imports = "all"`) means **imports are absolute (`puzzledesk.*`),
   never relative** — Ruff enforces the *spelling* of an import, import-linter the
   *architecture*; both are structural, not review conventions. It is auto-fixable.
+- **The size/complexity rules are a tightening ratchet** (`C901`/`PLR0911`/`PLR0912`/
+  `PLR0913`/`PLR0915`, D43). Their `max-*` thresholds in `pyproject.toml` sit at the
+  *current worst* function, so the gate is green now but nothing may grow past it. The
+  numbers **only ever go down** — lower one when you refactor a hotspot below it; raising
+  one needs a written reason (a D-entry if it reshapes anything). A new violation is a
+  design signal, not a strict rule: bundle the parameters into a value object (the
+  `CapSpec`/`SearchBudget`/`FieldParams` convention, D40–D42) or split the function — do
+  **not** `# noqa` it (the no-noqa rule above holds here too).
 - **import-linter is authoritative for the architecture.** Two contracts in
   `pyproject.toml` (`[tool.importlinter]`) *are* the boundary spec: the `layers`
   contract (D14) and a `forbidden` contract keeping the OS (`os`/`io`/`sys`/
