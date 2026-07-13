@@ -259,6 +259,17 @@ exhaustive only for the final ≤18-entry pick; and layout enumeration (`gen_cap
 The page reuses the flagship template generalised for black cells / non-square grids / parameterised
 copy; the fill is a reproducible seed search, the clues authored by hand (not the live pipeline).
 
+**One spine or two? (`build_latent_two.py`, `site/latent-two.html`).** A second 9-across spine
+(two parallel spines, rows 2 and 6 of a 9×9) makes the tradeoff sharp. Both spines deduce fine, but
+each is a hub that must be *fed*: with two competing for crossers, the greedy floor climbs to
+**15/28** (half the grid clued, vs 8/18 for one spine), the cascade flattens to **depth 3** (vs 5),
+and the between-spine gap is forced into **eighteen 3-letter crossers** — abbreviation soup. So the
+"few clues, deduce many" economy is a *single*-hub phenomenon; a second spine roughly doubles the
+long-word payoff (both can be showy/obscure — the over-determination that lets one spine be arbitrary
+applies to both) while more than doubling the clue cost. One spine is the sweet spot; two is a
+legible demonstration of *why*. (28 entries is well past the exhaustive-floor ceiling, so its floor
+is greedy — likely not minimal, which if anything understates the cost.)
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
