@@ -225,15 +225,17 @@ h1{font-family:var(--serif);font-weight:700;font-size:clamp(40px,8vw,72px);line-
     if(e.role==="given")return [];
     return e.cells.filter(function(x){var o=crossing(e,x);return o&&o.wave<e.wave;});
   }
+  var OFF=0.30; // nudge each run off the letter centres (a blank's donors lie in its own line) so glyphs stay legible
   var deduced=all.filter(function(e){return e.role!=="given";});
   var edgesG=document.getElementById("edges"),nodesG=document.getElementById("nodes"),nodeOf={};
   deduced.forEach(function(e){
-    var cn=centroid(e);e._donors=donors(e);
+    var vert=(e.dir==="D"),cn=centroid(e);e._donors=donors(e);
+    var nx=cn[0]+(vert?OFF:0),ny=cn[1]+(vert?0:OFF); // node, sitting to the side of the run
     e._donors.forEach(function(x){var ln=svg("line");
-      ln.setAttribute("x1",x[1]+0.5);ln.setAttribute("y1",x[0]+0.5);
-      ln.setAttribute("x2",cn[0]);ln.setAttribute("y2",cn[1]);
+      ln.setAttribute("x1",x[1]+0.5+(vert?OFF:0));ln.setAttribute("y1",x[0]+0.5+(vert?0:OFF));
+      ln.setAttribute("x2",nx);ln.setAttribute("y2",ny);
       ln.setAttribute("class","edge");ln.setAttribute("data-e",e.label);edgesG.appendChild(ln);});
-    var nd=svg("circle");nd.setAttribute("cx",cn[0]);nd.setAttribute("cy",cn[1]);nd.setAttribute("r",".11");
+    var nd=svg("circle");nd.setAttribute("cx",nx);nd.setAttribute("cy",ny);nd.setAttribute("r",".066");
     nd.setAttribute("class","node");nd.id="node-"+e.label;nodesG.appendChild(nd);nodeOf[e.label]=nd;
   });
   function edgesFor(lab){return edgesG.querySelectorAll('[data-e="'+lab+'"]');}
