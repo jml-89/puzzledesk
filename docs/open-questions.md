@@ -110,6 +110,18 @@ The one thing that would unblock B and C, and grow A′ into the trajectory mode
 **human solve-time signal** (playtesting or logged solves) to calibrate IRT `θ`/`b`
 against. Until then difficulty is what we can compute and prove, and no more.
 
+**Relational difficulty — SPIKED (D38).** The network generalisation of A′'s `solve_order`:
+difficulty is a property of the crossing *graph* under a per-entry **clue-power** (gimme/useless),
+computed as a forced-solve DAG — **depth** (waves to solve), **information floor** (fewest useful
+clues that still solve; ~5/10 for a 5x5 mini — dense minis are ~50% logically redundant),
+**difficulty curve**, **keystones**. `scripts/relational.py` + `scripts/endogenous.py`; write-up
+`docs/relational-difficulty.md`. Live-confirmed the deadlock theorem (below-floor ⇒ the solver
+fails). Opens the **endogenous-clue** direction (clues internal to the puzzle's logic — redacted /
+cross-referential / constraint — not trivia), which makes `depth` an exact, fair, solver-independent
+difficulty knob. Still open (same blocker as B/C): a *graded* clue-power vector, promotion to `app`
+surface, and generation-to-a-target-depth all wait on human solve data to show `depth` tracks
+*human* effort; and fusing structure with the vocabulary cliff into one calibrated Natick score.
+
 **Empirical probe — SPIKED (D26).** `app/solve_service.SolveService` puts a *soft* solver (a
 Claude agent, `adapters/claude_solver.py`) in a feedback loop against a generated puzzle
 (`uv run solve`) and records whether it finished and, the richer read, its reasoning — with

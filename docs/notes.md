@@ -717,3 +717,71 @@ adapter at D14. Read the current shape from `docs/architecture.md`, not from her
 - Deliverable: `scripts/mini.py` generates distinct minis above a quality bar.
 - Not started *at that point*: clue generation, cross-batch variety, JAX, black-cell
   grids (all but cross-batch variety and JAX have since shipped).
+
+## Relational difficulty — the crossing graph as a latent logic puzzle (spike, 2026-07)
+
+Formalised the "difficulty is relational" lemma as *information propagation on the crossing
+graph* and measured it (`scripts/relational.py`; full write-up `docs/relational-difficulty.md`;
+D38). Each entry's clue is a binary gimme/useless; an entry solves once it is a gimme or its
+crossings force it (`Lexicon.n_candidates == 1`); propagation runs in parallel waves to solved
+or **deadlock** (a Natick cluster). The network generalisation of `solve_order`'s single greedy
+order (D22).
+
+Deterministic measurements, 30+ distinct grids per config (cw list):
+
+    config                     entries   info-floor min/med/max   floor/entries   max depth med/max
+    5x5 fully-checked >=90        10          4 / 5 / 5               ~0.5             4 / 6
+    5x5 fully-checked >=75        10          4 / 5 / 5               ~0.5             5 / 6
+    5x5 blocked, 4 black        ~10          4 / 5 / 5                0.50             4 / 6
+    5x5 blocked, 2 black        ~10          4 / 5 / 5                0.50             4 / 6
+
+- **Information floor ≈ half.** A 5x5 mini needs a median of only **5 of 10** clues to be useful;
+  the crossings force the other five. A dense mini is ~50% logically redundant — a design budget.
+- **Cascade-ability is a per-grid property, computable before cluing** (max achievable depth
+  2..6). The D26 "ten-trivia-clues" grid (SIP/ARENA/HOLDS/…) is a shallow depth-3; HEW/MIXIN/…
+  reaches depth 6. A new grid-selection signal orthogonal to word-score.
+- **No single-clue keystones in fully-checked grids** (structural: every cell shared, so nine
+  known clues pin the tenth). Unfairness is a *cluster* or *vocabulary* effect, never one clue.
+- **The difficulty curve is non-monotonic** near the floor: the hardest *fair* config is usually
+  at floor+1, not the floor (below that you must keep the ice-breaker clues to stay solvable).
+
+Live probe (`scripts/endogenous.py`, Opus, `--policy none`), two grids bracketing the prediction:
+
+- **Below the floor deadlocks the solver.** Shallow SIP grid (model depth 3): all-clues solved
+  1 turn / 4509 tok; floor-only (5 real + 5 blank) solved / 1175 tok; **below-floor (4 clues)
+  FAILED** (unsolved, 6 turns, 6646 tok). The deadlock theorem, reproduced empirically on the
+  clue-power axis — even Opus could not recover the sub-floor cluster. (floor-only was *cheap*
+  here only because this grid's minimal floor is the degenerate one-direction set = all five
+  acrosses -> every cell known -> depth 2.)
+- **A deep floor saturates reasoning (effort tracks depth).** HEW/MIXIN grid (seed 0, a
+  non-degenerate depth-6 floor: 5 gimmes force MIXIN->ETUDE->HITUP->EXURB->WIDER over six waves).
+  all-clues solved 1 turn / 6007 tok; **floor-only (5 blank clues) exhausted the entire
+  20000-token reasoning budget in one turn** (>=3.3x the same grid's all-clues spend, >=17x the
+  shallow floor). The model's depth cleanly separates a real cascade (saturates reasoning) from a
+  degenerate one (cheap). Method ceiling (as D26): the adapter is non-streaming to keep
+  `thinking_tokens`, so 20k is a hard cap — raising it trips the SDK's ">10 min needs streaming"
+  limit (which loses the count), so the depth-6 solve is *more* reasoning than the harness captures
+  in a turn (its `solved` is undefined — a 20k-cap truncation, not a genuine miss).
+
+**The reframe (dream-big):** a crossword is two puzzles superimposed — a *trivia* puzzle
+(clue->answer, breadth of recall) and a *logic* puzzle (crossings->answer, depth of inference).
+Today's minis are ~all trivia (depth 1); the crossing graph is a latent logic puzzle we do not
+use. `depth` measures how much logic-puzzle a grid *can* carry; **endogenous clues** (redacted,
+cross-referential, or constraint clues — internal to the puzzle, not trivia) are how you cash it
+in, turning difficulty into a controllable, fair, solver-independent inference depth.
+
+**Playtest finding — a THIRD difficulty axis (retrievability from a pattern).** Playing the
+redacted mini (`site/endogenous.html`) surfaced what the model missed: the first deducible entry,
+MACYS (`··CYS`), is *lexically* forced (one word fits) but not *humanly* retrievable (a proper
+noun you can't generate from the pattern). Forcing != retrievability. This is word difficulty
+*reborn* in the no-clue regime — distinct from obscurity (D9 cliff) and clue obliqueness (D26): when
+the clue is gone, the *letters* are the clue, and lexical precision (`n_candidates`==1) and human
+precision (can you produce the survivor) come apart (`··CYS` is lexically maximal, humanly minimal).
+Two computable knobs govern it: **`minvis`** (letters showing when a word is forced — 5 read-off /
+4 gentle / 3 real deduction) and **retrievability** (dictionary + frequency filter, proper nouns
+out). A small theorem: a genuine cascade *requires* forcing with blanks, and sparse-but-forcing
+patterns select for rare survivors — so "the grid carries the solve" routes toward uncommon words;
+you bound the tension (all-common words + a `minvis` target) rather than remove it. `build_endogenous.py`
+now *selects* the grid by this filter (seed 60: APPLE/RELAX/ERASE/NICER/ALERT × ARENA/PERIL/PLACE/
+LASER/EXERT — 4 given / 6 forced, depth 6, minvis 3, every answer a household word). Full write-up
+in `docs/relational-difficulty.md` §"A third difficulty axis".
