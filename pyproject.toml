@@ -99,7 +99,7 @@ select = [
     "G",     # flake8-logging-format: no f-strings/%-in-logging pitfalls
     "PERF",  # Perflint: loops that should be comprehensions, etc.
     "PLC", "PLE", "PLW",  # Pylint convention/error/warning
-    # -- the size/complexity RATCHET (D43). See the mccabe/pylint tables below for the
+    # -- the size/complexity RATCHET (D44). See the mccabe/pylint tables below for the
     # thresholds and the ratchet policy; these catch a function *growing* past today's
     # worst. --
     "C901",     # mccabe cyclomatic complexity
@@ -112,7 +112,7 @@ ignore = [
     "ANN401",  # allow explicit typing.Any where genuinely needed
 ]
 
-# The size/complexity thresholds are a TIGHTENING RATCHET (D43), not a fixed bar.
+# The size/complexity thresholds are a TIGHTENING RATCHET (D44), not a fixed bar.
 #
 #   * Each `max-*` below is set at (or, where the tree is already clean, below) the
 #     *current worst* function in `src/`, so the gate is green today but nothing may
@@ -122,12 +122,12 @@ ignore = [
 #     essential, not soup). `max-returns`/`max-statements` have *zero* current violations,
 #     so they sit at ruff's strict defaults -- real bars, not ceilings.
 #   * The numbers may only ever be LOWERED, never raised. Lower one whenever a hotspot is
-#     refactored below it (the D40-D42 parameter-object work is what moved `max-args` from
+#     refactored below it (the D41-D43 parameter-object work is what moved `max-args` from
 #     15 down to 10). Raising a threshold is a deliberate decision with a reason (a D-entry
 #     if it reshapes anything), never a drive-by to make a new offender pass.
 #   * A NEW violation is a design signal, not "the rule is too strict": bundle the
 #     parameters into a value object (the CapSpec/SearchBudget/FieldParams convention,
-#     D40-D42), or split the function. Do not `# noqa` it -- CLAUDE.md's no-noqa rule holds
+#     D41-D43), or split the function. Do not `# noqa` it -- CLAUDE.md's no-noqa rule holds
 #     here too; if a genuinely-inherent function must exceed a bar, that is a config change
 #     with a written reason, visible to everyone, not a scattered suppression.
 [tool.ruff.lint.mccabe]

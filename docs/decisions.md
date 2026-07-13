@@ -2098,7 +2098,7 @@ Deliberately **not** added, each with a reason:
 Reversal: config-only plus 4 tiny mechanical edits; revert the `select` block and the drift is
 back but nothing behavioural moves. The rules are a fence, not a feature.
 
-## D40. CapSpec / SearchBudget: parameter objects for the cap-driven engines
+## D41. CapSpec / SearchBudget: parameter objects for the cap-driven engines
 
 Context: the app layer models generation input beautifully — the typed `PuzzleSpec` /
 `LayoutStrategy` algebra dispatched with `match` (D32) — but that discipline stopped dead at the
@@ -2130,7 +2130,7 @@ Scope, deliberately bounded:
 - **Not chased to `PLR0913`'s threshold of 5.** 7 and 9 meaningful, cohesively-named parameters
   are the honest floor; `rng_factory`/`seed`/`distinct`/`probe` are execution context that does
   *not* cohere into a domain object, and bundling them just to hit an arbitrary number would
-  *reduce* clarity. This is why D39 left `PLR0913` out of the gate: it is a smell *pointer*, not a
+  *reduce* clarity. This is why D40 left `PLR0913` out of the gate: it is a smell *pointer*, not a
   bar to satisfy. The win is de-duplication and cohesion, not a green metric.
 - **The Gibbs twin (`gibbs_layouts`/`fill_gibbs`, the 13- and 18-arg signatures) is untouched
   here.** It is the same pattern applied to a *different* constraint shape (`target_black`/
@@ -2144,9 +2144,9 @@ Reversal: additive value objects + mechanical call-site updates (app, four scrip
 modules); inline the two dataclasses back into kwargs and nothing behavioural moves. The engines'
 search logic never changed.
 
-## D41. AnnealSchedule: bundle the Gibbs temperature knobs (the sampler twin, part 1)
+## D42. AnnealSchedule: bundle the Gibbs temperature knobs (the sampler twin, part 1)
 
-Context: the D40 parameter-object pass fixed the *complete* cap-driven twin (gen_capped/
+Context: the D41 parameter-object pass fixed the *complete* cap-driven twin (gen_capped/
 fill_capped). Its sampler mirror was left flagged: `gibbs_layouts` took 13 kwargs and `fill_gibbs`
 **18** (the codebase's single worst signature), and `fill_gibbs` re-listed `gibbs_layouts`'s whole
 parameter set to thread it through. But the Gibbs bloat is a *different shape* than the patterns
@@ -2170,18 +2170,18 @@ reads them, so the anneal is unchanged and the sampler contract tests (which dri
 samplers -- the change that would take `fill_gibbs` the rest of the way down -- is an *ergonomic
 redesign* of the sampler's public API (callers currently pass `black_fraction=`/`target_black=`
 directly), not a mechanical bundling. It carries a real "one obvious way to set density" decision
-and is left as its own follow-up rather than folded in here. As with D40, the residual `PLR0913`
+and is left as its own follow-up rather than folded in here. As with D41, the residual `PLR0913`
 on these two is the *pointer*, not a bar to satisfy by force -- `mlex`/`rng_factory`/`seed`/
 `distinct`/`max_layouts`/`node_budget` are legitimately distinct sampler inputs.
 
 Reversal: additive dataclass + mechanical call-site updates (one script, no app/test call passed
 the schedule knobs except `scripts/gibbs.py`); inline `sweeps`/`t0`/`t1` back and nothing moves.
 
-## D42. Finish the kwarg compaction: FieldParams + SampleBudget (parameter objects, by convention)
+## D43. Finish the kwarg compaction: FieldParams + SampleBudget (parameter objects, by convention)
 
-Context: D40 (CapSpec/SearchBudget) and D41 (AnnealSchedule) established the convention -- cohesive
+Context: D41 (CapSpec/SearchBudget) and D42 (AnnealSchedule) established the convention -- cohesive
 parameter clusters become frozen value objects at the core-engine boundary, mirroring the app's
-spec algebra one layer down. D41 explicitly deferred the last piece: the Gibbs samplers still
+spec algebra one layer down. D42 explicitly deferred the last piece: the Gibbs samplers still
 offered `min_len`/`max_len`/`black_fraction`/`target_black` as flat kwargs *and* via
 `params=FieldParams`, two ways to set the same thing.
 
@@ -2197,10 +2197,10 @@ constraint object + a budget object (+ a schedule where it anneals), and each `*
 / sampler-budget carries the proof-vs-exhaustion epistemics with the numbers. Nothing left to say --
 it is the convention, applied.
 
-## D43. The size/complexity rules as a tightening ratchet
+## D44. The size/complexity rules as a tightening ratchet
 
 Context: the toolchain measured *architecture* (import-linter) and *types* (mypy --strict) but
-never *size*. The kwarg-soup work (D40-D42) shrank the worst signatures; with the tree at a new
+never *size*. The kwarg-soup work (D41-D43) shrank the worst signatures; with the tree at a new
 low, the moment was right to lock the gains in and start measuring size going forward. But a blanket
 size bar does not fit this codebase: the remaining large functions are the **backtracking search
 recursions** (`fill.solve`, `patterns.gen_capped`/`rec`, `backtrack.solve`) and the **CLI argv
@@ -2213,14 +2213,14 @@ Decision: enable `C901`/`PLR0911`/`PLR0912`/`PLR0913`/`PLR0915` as a **ceiling r
 past it*; `max-returns`/`max-statements` have zero current violations, so they sit at ruff's strict
 defaults (real bars, not ceilings). The policy, written into the `pyproject.toml` comment and
 CLAUDE.md: the numbers may only ever be **lowered** (as hotspots are refactored below them -- the
-D40-D42 work already walked `max-args` from 15 to 10), never raised except by a deliberate,
+D41-D43 work already walked `max-args` from 15 to 10), never raised except by a deliberate,
 reasoned decision. A new violation is a design signal to bundle parameters (the
 CapSpec/SearchBudget/FieldParams convention) or split the function -- not grounds to loosen the bar
 or scatter a suppression.
 
 Starting thresholds (2026-07): `max-complexity=19`, `max-args=10`, `max-branches=15`,
 `max-returns=6`, `max-statements=50`. Also compacted `fill_by_count` (`node_budget`/`max_patterns`
--> one `SearchBudget`, 11->10 args) so the count-driven engine matches the D40 budget convention and
+-> one `SearchBudget`, 11->10 args) so the count-driven engine matches the D41 budget convention and
 the arg ceiling starts at 10 rather than 11.
 
 Reversal: config-only (plus the one `fill_by_count` signature tidy); delete the `select` entries and

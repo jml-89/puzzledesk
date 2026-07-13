@@ -95,7 +95,7 @@ class FieldParams:
         """Build the field with its density *target* derived from a black-cell fraction of
         the grid -- the ergonomic path for "make ~16% of the cells black" when the caller
         has a fraction rather than an exact count. The one place the field is specified is
-        still this value; the samplers take a ``FieldParams``, not loose density kwargs (D42)."""
+        still this value; the samplers take a ``FieldParams``, not loose density kwargs (D43)."""
         return cls(
             min_len=min_len, max_len=max_len, target_black=round(black_fraction * rows * cols)
         )
@@ -104,7 +104,7 @@ class FieldParams:
 @dataclass(frozen=True, slots=True)
 class AnnealSchedule:
     """The geometric temperature schedule for one anneal: ``sweeps`` random-order Gibbs
-    passes cooling from ``t0`` to ``t1`` (D41). Bundled so the four anneal functions --
+    passes cooling from ``t0`` to ``t1`` (D42). Bundled so the four anneal functions --
     and the sampler *twin* ``gibbs_layouts``/``fill_gibbs`` -- pass one value instead of
     re-listing the same three knobs. Defaults are the benchmarked schedule
     (:data:`DEFAULT_SWEEPS`/:data:`DEFAULT_T0`/:data:`DEFAULT_T1`, set by scripts/gibbs.py)."""
@@ -123,7 +123,7 @@ _DEFAULT_SCHEDULE = AnnealSchedule()
 @dataclass(frozen=True, slots=True)
 class SampleBudget:
     """The bounds that make :func:`fill_gibbs` a *sampler*, not a proof -- the Gibbs-side
-    analogue of :class:`patterns.SearchBudget` (D42). ``attempts_per_layout`` retries one
+    analogue of :class:`patterns.SearchBudget` (D43). ``attempts_per_layout`` retries one
     yield past illegal/disconnected anneals; ``max_layouts`` caps how many sampled layouts
     are tried; ``fill_nodes`` bounds each fill's search tree. Every field is a budget, so a
     ``None`` from ``fill_gibbs`` is *always* exhaustion, never a UNSAT theorem (that is what
