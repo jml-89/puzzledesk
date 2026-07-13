@@ -151,6 +151,8 @@ uv run scripts/ceiling.py 5 cw         # a benchmark: the 5x5 quality ceiling
 uv run scripts/largemini.py            # a benchmark: the large capped-mini spike (D24)
 uv run scripts/gibbs.py                # a benchmark: Gibbs layout field vs the complete search (D27)
 uv run scripts/scan.py 9 9 6 60 --gibbs --nonsym   # sweep seeds, rank fills by weakest word (D27)
+uv run scripts/spine.py 62 400 8       # a benchmark: mint "one-spine wonder" Latent grids (D39)
+uv run python site/build_latent_long.py   # rebuild a Latent variant page (site/, D39)
 ```
 
 ### Generation cheatsheet — which lever for which grid

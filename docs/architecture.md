@@ -645,6 +645,10 @@ and uses the injected `lexicon`/`rng_factory` adapters):
   of entries past length 5, and black count, then echoes the cleanest grid. A reusable form
   of the throwaway seed-sweep you'd otherwise write to pick a sample. `scan.py R C max_len
   min_score [--gibbs] [--nonsym] [--seeds N]`.
+- spine.py: mint **one-spine wonders** (D39) — the keeper Latent shape (a low-density 9x9 around a
+  single deduced 9-across spine). Searches the fixed staggered-spine layout and ranks fills by
+  weakest word among the *spine-deduced* ones (using the fast `relational.gravity_floor` to confirm
+  deducibility), for `site/build_latent_long.py` to turn into a page. `spine.py [bar] [seeds] [show]`.
 - ceiling.py: sweep thresholds with the complete solver to find where it goes
   UNSAT. Generalised: `ceiling.py N listname thresholds...` (listname "scored"
   or "cw"; default thresholds chosen per list).
