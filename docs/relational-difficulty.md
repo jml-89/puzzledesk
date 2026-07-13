@@ -297,6 +297,28 @@ from densest to airiest, reads: dense 5×5 (depth 6) → one 9-spine (depth 5, t
 parallel 9-spines (depth 3, half-clued) → sparse 7×7-spine cross (depth 2, one-deduced). Focus,
 depth, and fill-cleanliness form a single tension surface; the one-spine grid sits at its knee.
 
+### Which words to clue — the floor *objective* (`gravity_floor`) and a three-way tension
+
+`information_floor` minimises the clue *count*; it is blind to *which* words it spends a clue on,
+and will clue a long word if that is cheaper. But the *game* wants the opposite: deducing a 3-letter
+fill is a non-event, deducing a whole long word is the payoff, so the long/interesting words should
+be the unclued **destination** and the short/boring ones the clued **means**. `gravity_floor`
+(scripts/relational.py) encodes that objective — greedily un-clue the *longest* entries first while
+the grid still solves, so the deduced set skews long and the clued set skews short.
+
+Measured on the one-spine grid it does exactly that (clues the shortest words, deduces the longest,
+and *deepens* the cascade: depth 6 vs the min-count 5, with the spine falling later, wave 4 vs 3).
+But it surfaced a **three-way tension** you cannot fully win: (1) *deduce* the long word, (2) make
+that deduction *hard* (few of its letters showing — the "watch a whole word appear" magic), and
+(3) don't *deduce* boring short words. The long word's own crossers are the battleground: cluing all
+the shorts (max #3) hands the long word its letters, so it is forced with 8 of 9 showing — trivial,
+killing #2; making the deduction hard (min #2's vis) means withholding clues from some crossers,
+i.e. deducing shorts, hurting #3. The shipped one-spine floor is *min-count*, not gravity, precisely
+because it sits at the balance — ESTRANGED deduced at vis 6 (a real six-of-nine deduction) at the
+cost of only two short deductions. And the structural coda from the hub analysis: a long word is
+over-determined, so even deduced it falls *mid*-cascade, never as the last domino — it is the
+payoff, not the temporal climax. "Longest as the destination" is true as *payoff*, false as *finale*.
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted

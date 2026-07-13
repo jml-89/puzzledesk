@@ -171,6 +171,27 @@ def _greedy_floor(entries: list[Entry], n_candidates) -> tuple[frozenset[EntryId
     return frozenset(g), propagate(entries, g, n_candidates).depth
 
 
+def gravity_floor(entries: list[Entry], n_candidates) -> tuple[frozenset[EntryId], int]:
+    """A *game*-shaped floor: clue the SHORT words, deduce the LONG ones.
+
+    ``information_floor`` minimises the clue *count* but is blind to *which* words it spends a
+    clue on -- it will happily clue a long word if that is cheaper. But deducing a 3-letter fill
+    is a non-event, while deducing a whole long word is the payoff, so the game wants the opposite
+    objective: leave the long/interesting words *unclued* (the destination) and clue the
+    short/boring ones (the means). This greedily un-clues (deduces) the **longest** entries first
+    while the grid still solves, so the deduced set skews long and the clued set skews short.
+
+    Note the structural limit this cannot beat: a long word is a *hub* (crossers = its length), so
+    it is uniquely pinned once most of its crossers are known and tends to fall mid-cascade, never
+    as the very *last* domino -- that is always a low-crossing short word. The long word is the
+    payoff, not the temporal climax. Returns ``(clued, depth)``; assumes all-gimme solves."""
+    g = {e.eid for e in entries}
+    for e in sorted(entries, key=lambda e: -len(e.cells)):
+        if e.eid in g and propagate(entries, g - {e.eid}, n_candidates).solved:
+            g.discard(e.eid)
+    return frozenset(g), propagate(entries, g, n_candidates).depth
+
+
 def keystones(entries: list[Entry], n_candidates) -> list[EntryId]:
     """Entries that are load-bearing under the all-gimme clue set: redact this one clue
     (make it non-gimme) and the grid deadlocks. The words a setter *must* clue gently."""
