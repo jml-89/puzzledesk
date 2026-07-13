@@ -77,6 +77,29 @@ class RecordingProbe:
         self.events.append(event)
 
 
+class RecordingWriter:
+    """A fake ``write`` sink (``str -> None``) that records every string written, so a
+    test can assert exactly what a probe adapter rendered with no real stream. The
+    output-side analogue of ``RecordingProbe``."""
+
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+
+    def __call__(self, s: str) -> None:
+        self.lines.append(s)
+
+
+class FakeClock:
+    """A settable monotonic clock (``() -> float``) for an adapter's injected ``now``, so
+    elapsed/rate are deterministic without the wall clock. Set ``.t`` between events."""
+
+    def __init__(self, t: float = 0.0) -> None:
+        self.t = t
+
+    def __call__(self) -> float:
+        return self.t
+
+
 class FakeClueProvider:
     """Implements ``app.clue.ClueProvider`` deterministically -- no LLM, no network.
 

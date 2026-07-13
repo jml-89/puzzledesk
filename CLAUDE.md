@@ -253,7 +253,11 @@ no files and no global RNG:
 - distinctness (`test_invariants.py`, `test_services.py`): output has
   `n_distinct == 2N`;
 - ports/DI (`test_rng_port.py`, `test_services.py`): numpy satisfies `Rng`; the
-  services are reproducible and use the injected factory.
+  services are reproducible and use the injected factory;
+- adapter rendering (`test_probe_adapters.py`, `test_writer.py`): the `Probe`/`Writer`
+  adapters are unit-tested through an injected `write` sink (`RecordingWriter`) and clock
+  (`FakeClock`) — no engine, no stream, no wall clock; an event/record in, the rendered
+  string asserted (the effect side the kernel is forbidden).
 
 Two standing rules:
 
