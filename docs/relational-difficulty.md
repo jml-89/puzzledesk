@@ -228,6 +228,37 @@ selecting a blank rings precisely the letters that pin it. The geometry is now l
 *is* a forcing relationship, touching the letter that carries it. All of this is derived client-side
 from the entries' `wave`/`cells`/`role` — the baked puzzle data is unchanged.
 
+### Scaling Latent — low density and a long word (`build_latent_long.py`)
+
+`site/latent-long.html` probes the far end of the space from the dense 5×5: a **low-density 9×9**
+(~55% white) built around a single 9-letter across **spine**, `ESTRANGED`, that is *deduced*
+(8 given / 10 deduced, depth 5). Building it surfaced three load-bearing facts:
+
+- **Full-checking forbids sparse grids.** The blocked engine rejects "orphans" (a white cell in a
+  run below `min_len`), so every white cell is crossed both ways — you cannot build the thin,
+  unchecked-cell grids real crosswords use. "Low density" here is a *larger grid with more black*,
+  not a thinner lattice. A lone long word is impossible for the same reason: a fully-checked
+  9-across drags a 3×9 word-square band. The escape is a **staggered spine** — crossers stepping up
+  on one side of the row and down the other — keeping it a single 9 while every cell stays checked.
+- **A long word is a keystone, not a climax.** A fully-checked long entry crosses all of its cells'
+  downs, so it accumulates letters fastest and is among the *easiest* to force — left alone it falls
+  in the first deduction wave. The information floor counteracts this: by withholding the right
+  crossers it places the spine mid-cascade (here wave 3, pinned with 6 of 9 letters — a real
+  deduction, not a collapse). But the natural pull is "crack the long word early, it unlocks the
+  rest," not "deduce it last."
+- **Depth comes from density.** A single hub short-circuits a small grid into a shallow cascade (a
+  7×7 spike bottomed out at depth 3). The larger 9×9 recovers depth 5–6 — the interlocking
+  constraints that make long inference chains are a *density* effect, so airier grids trade depth
+  for openness and you buy it back with size. Practically you get two of {low density, long word,
+  clean common fill} comfortably; all three is tight (short crossers skew crosswordese).
+
+Two engineering notes for anyone extending this: exhaustive `information_floor` explodes on
+weak-forcing low-density grids (large floors → huge combination sweeps) — greedy is the search tool,
+exhaustive only for the final ≤18-entry pick; and layout enumeration (`gen_capped`) is unusable at
+9×9, so the layout is a **hand-built template** filled by the real `fill.solve` + relational pipeline.
+The page reuses the flagship template generalised for black cells / non-square grids / parameterised
+copy; the fill is a reproducible seed search, the clues authored by hand (not the live pipeline).
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
