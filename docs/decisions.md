@@ -2062,3 +2062,167 @@ the four builders, `scripts/spine.py`, and `gravity_floor` and nothing in core/a
 findings survive in relational-difficulty.md / this entry (D19/D31 discipline). A generic
 spine-page builder with live (`clue`-extra) cluing, and generation-to-a-target-depth, are each a
 later decision.
+
+## D40. Modern-Python ruff pass: ratchet the idiom rules that already hold
+
+Context: the toolchain was strict on *architecture* (import-linter layers/forbidden) and *types*
+(`mypy --strict`), but the ruff `select` set had not moved since it was first drawn
+(`E W F I UP B C4 SIM ANN TID RUF`). A code-quality review asked the plain question: which
+*modern-Python-informed* rules would fire on this tree? Measured (per group, on `src/`): the
+idiom detectors that matter — **FURB** (refurb), **FA** (future-annotations), **RET**, **PIE**,
+**PTH**, **SLOT**, **ISC**, **LOG**/**G**, **PLW**/**PLE** — each flagged **zero** existing
+violations. The house style *already* satisfies them; they simply were not being enforced. Two
+had a tiny, genuine backlog: **PERF** (2 loops that should be dict-comprehensions, in
+`app/solve.py`) and **PLC** (2 `import-outside-top-level`, which are the *intended* lazy
+`anthropic` imports behind the `clue` extra). Separately, with no CI in the repo (the gate is the
+manual `CONTRIBUTING` checklist), `ruff format` had quietly drifted on 7 committed files under the
+locked 0.15.21 formatter — never enforced, so never noticed.
+
+Decision: **add the zero-violation modern groups to `select` as a ratchet** — they lock the
+current style in against regression rather than clearing a backlog — fix the two `PERF403` spots
+by hand, and exempt the two lazy-import files with a reasoned `PLC0415` per-file-ignore (the
+deferred import *is* the optional-extra design, per CLAUDE.md). Run `ruff format` to bring the
+tree to the locked formatter's fixpoint.
+
+Deliberately **not** added, each with a reason:
+- **TC** (flake8-type-checking, 104 hits): pure churn here. `from __future__ import annotations`
+  is already universal, so every annotation is a string at runtime — hoisting typing-only imports
+  into `TYPE_CHECKING` blocks buys ~nothing and costs 104 diffs.
+- **TRY003 / FBT** (opinionated): vanilla-exception-args and the boolean-type-hint trap. The
+  codebase's keyword-only bool convention is already the recommended boolean-trap mitigation;
+  FBT001 flags the hint regardless. Not worth the noise.
+- **PLR0913 / PLR0912** (the *size* half of Pylint): these are the real signal — the core
+  engines' kwarg-soup signatures — but a blanket ban is the wrong tool. Tracked as the
+  parameter-object refactor (its own decision), not a lint suppression.
+
+Reversal: config-only plus 4 tiny mechanical edits; revert the `select` block and the drift is
+back but nothing behavioural moves. The rules are a fence, not a feature.
+
+## D41. CapSpec / SearchBudget: parameter objects for the cap-driven engines
+
+Context: the app layer models generation input beautifully — the typed `PuzzleSpec` /
+`LayoutStrategy` algebra dispatched with `match` (D32) — but that discipline stopped dead at the
+app→core boundary. The core cap-driven engines re-expanded it into kwarg soup: `fill_capped` took
+**15** parameters, `gen_capped` **11**, and worst of all `fill_capped` re-listed *by hand* every
+one of `gen_capped`'s five layout constraints (`min_len`, `max_len`, `symmetric`, `num_black`,
+`max_black`) plus three separate budget knobs (`node_budget`, `layout_node_budget`,
+`max_patterns`). A code-quality pass flagged the kwarg soup as the codebase's top maintainability
+smell (15× `PLR0913`), and the hand-mirrored twin signature as parallel structure guaranteed to
+drift.
+
+Decision: introduce two frozen value objects in `core.engines.patterns`, mirroring the app-layer
+spec discipline one layer down:
+- **`CapSpec`** `{max_len, min_len, symmetric, num_black, max_black}` — the legal-layout
+  constraint cluster. It is the *core twin* of `app.spec.CappedLayout` (the strategy maps 1:1
+  onto it), so `gen_capped` and `fill_capped` now describe the *same* layout with *one* value
+  instead of the fill re-listing all five constraints.
+- **`SearchBudget`** `{fill_nodes, layout_nodes, max_patterns}` — the three bounds that turn a
+  completeness *proof* into mere *exhaustion*. Its `is_complete` property is now the single
+  source of the "proof vs budget" epistemic tag `fill_capped` stamps on its terminal event (the
+  completeness invariant gets a named home instead of a three-way `and` on loose kwargs).
+
+Result: `fill_capped` 15→9 params, `gen_capped` 11→7, and the twin duplication is gone — the fill
+search takes the layout search's `CapSpec` verbatim. Each function destructures the spec to locals
+at the top, so the hot backtracking recursion is byte-for-byte unchanged and the ground-truth
+completeness/distinctness contract tests (which drive these engines directly) all still pass.
+
+Scope, deliberately bounded:
+- **Not chased to `PLR0913`'s threshold of 5.** 7 and 9 meaningful, cohesively-named parameters
+  are the honest floor; `rng_factory`/`seed`/`distinct`/`probe` are execution context that does
+  *not* cohere into a domain object, and bundling them just to hit an arbitrary number would
+  *reduce* clarity. This is why D40 left `PLR0913` out of the gate: it is a smell *pointer*, not a
+  bar to satisfy. The win is de-duplication and cohesion, not a green metric.
+- **The Gibbs twin (`gibbs_layouts`/`fill_gibbs`, the 13- and 18-arg signatures) is untouched
+  here.** It is the same pattern applied to a *different* constraint shape (`target_black`/
+  `black_fraction`/anneal schedule, not `num_black`/`max_black`), so it is its own follow-up — it
+  can reuse `CapSpec`'s length/symmetry fields but needs an anneal-schedule bundle beside them.
+- **The count-driven engines (`gen_patterns`/`fill_by_count`) keep their signatures** — a
+  different, smaller constraint shape (an *exact* required count, no length cap), not the same
+  cluster.
+
+Reversal: additive value objects + mechanical call-site updates (app, four scripts, three test
+modules); inline the two dataclasses back into kwargs and nothing behavioural moves. The engines'
+search logic never changed.
+
+## D42. AnnealSchedule: bundle the Gibbs temperature knobs (the sampler twin, part 1)
+
+Context: the D41 parameter-object pass fixed the *complete* cap-driven twin (gen_capped/
+fill_capped). Its sampler mirror was left flagged: `gibbs_layouts` took 13 kwargs and `fill_gibbs`
+**18** (the codebase's single worst signature), and `fill_gibbs` re-listed `gibbs_layouts`'s whole
+parameter set to thread it through. But the Gibbs bloat is a *different shape* than the patterns
+twin, so it does not take the same fix:
+
+  * the temperature schedule `sweeps`/`t0`/`t1` is a genuinely cohesive triple, duplicated across
+    **four** functions (`anneal_field`, `sample_layout`, `gibbs_layouts`, `fill_gibbs`) -- a clean
+    bundle; and
+  * separately, the public samplers offer `min_len`/`max_len`/`black_fraction`/`target_black` as
+    flat convenience kwargs *and* via `params=FieldParams(...)` -- two ways to say the same thing,
+    an ergonomic overlap, not simple duplication.
+
+Decision: **do the clean, low-risk half now** -- introduce `AnnealSchedule {sweeps, t0, t1}`
+(defaults = the benchmarked `DEFAULT_SWEEPS`/`T0`/`T1`) and thread it through all four anneal
+functions, killing the triplication. Each function destructures it to locals where the hot loop
+reads them, so the anneal is unchanged and the sampler contract tests (which drive `gibbs_layouts`/
+`sample_layout` directly) all still pass. Counts: `anneal_field`/`sample_layout` 9->6,
+`gibbs_layouts` 13->11, `fill_gibbs` 18->16.
+
+**Deferred (part 2):** collapsing the `FieldParams`-vs-flat-kwargs overlap on the two public
+samplers -- the change that would take `fill_gibbs` the rest of the way down -- is an *ergonomic
+redesign* of the sampler's public API (callers currently pass `black_fraction=`/`target_black=`
+directly), not a mechanical bundling. It carries a real "one obvious way to set density" decision
+and is left as its own follow-up rather than folded in here. As with D41, the residual `PLR0913`
+on these two is the *pointer*, not a bar to satisfy by force -- `mlex`/`rng_factory`/`seed`/
+`distinct`/`max_layouts`/`node_budget` are legitimately distinct sampler inputs.
+
+Reversal: additive dataclass + mechanical call-site updates (one script, no app/test call passed
+the schedule knobs except `scripts/gibbs.py`); inline `sweeps`/`t0`/`t1` back and nothing moves.
+
+## D43. Finish the kwarg compaction: FieldParams + SampleBudget (parameter objects, by convention)
+
+Context: D41 (CapSpec/SearchBudget) and D42 (AnnealSchedule) established the convention -- cohesive
+parameter clusters become frozen value objects at the core-engine boundary, mirroring the app's
+spec algebra one layer down. D42 explicitly deferred the last piece: the Gibbs samplers still
+offered `min_len`/`max_len`/`black_fraction`/`target_black` as flat kwargs *and* via
+`params=FieldParams`, two ways to set the same thing.
+
+Decision: apply the established convention, no new argument. The field is specified *one* way -- a
+`FieldParams` (with `FieldParams.from_fraction(rows, cols, …)` as the fraction→count ergonomic
+path) -- and `fill_gibbs`'s sampler bounds become a `SampleBudget {attempts_per_layout,
+max_layouts, fill_nodes}`, the Gibbs-side twin of `SearchBudget`. `gibbs_layouts` 13→7,
+`fill_gibbs` 18→10. Callers (app `_gibbs`, `scan.py`, `gibbs.py`, the sampler contract tests) build
+a `FieldParams` at the call; the anneal/sampler logic is untouched and all 111 tests pass.
+
+This closes the "wiring story" for the search/sample engines: every engine family now takes a
+constraint object + a budget object (+ a schedule where it anneals), and each `*_budget.is_complete`
+/ sampler-budget carries the proof-vs-exhaustion epistemics with the numbers. Nothing left to say --
+it is the convention, applied.
+
+## D44. The size/complexity rules as a tightening ratchet
+
+Context: the toolchain measured *architecture* (import-linter) and *types* (mypy --strict) but
+never *size*. The kwarg-soup work (D41-D43) shrank the worst signatures; with the tree at a new
+low, the moment was right to lock the gains in and start measuring size going forward. But a blanket
+size bar does not fit this codebase: the remaining large functions are the **backtracking search
+recursions** (`fill.solve`, `patterns.gen_capped`/`rec`, `backtrack.solve`) and the **CLI argv
+glue** (`cli/generate._run*`) -- inherent complexity where the number is essential, not soup a value
+object would fix. A strict default would red the gate and invite a `# noqa` wall (against
+CLAUDE.md's no-noqa rule).
+
+Decision: enable `C901`/`PLR0911`/`PLR0912`/`PLR0913`/`PLR0915` as a **ceiling ratchet**. Each
+`max-*` is set at the current worst function, so the gate is green today and *nothing may regress
+past it*; `max-returns`/`max-statements` have zero current violations, so they sit at ruff's strict
+defaults (real bars, not ceilings). The policy, written into the `pyproject.toml` comment and
+CLAUDE.md: the numbers may only ever be **lowered** (as hotspots are refactored below them -- the
+D41-D43 work already walked `max-args` from 15 to 10), never raised except by a deliberate,
+reasoned decision. A new violation is a design signal to bundle parameters (the
+CapSpec/SearchBudget/FieldParams convention) or split the function -- not grounds to loosen the bar
+or scatter a suppression.
+
+Starting thresholds (2026-07): `max-complexity=19`, `max-args=10`, `max-branches=15`,
+`max-returns=6`, `max-statements=50`. Also compacted `fill_by_count` (`node_budget`/`max_patterns`
+-> one `SearchBudget`, 11->10 args) so the count-driven engine matches the D41 budget convention and
+the arg ceiling starts at 10 rather than 11.
+
+Reversal: config-only (plus the one `fill_by_count` signature tidy); delete the `select` entries and
+the two threshold tables and size stops being measured. The ratchet holds no code hostage -- it only
+forbids getting worse.

@@ -82,10 +82,62 @@ select = [
     "ANN",  # flake8-annotations (drive type-hint coverage)
     "TID",  # flake8-tidy-imports (ban relative imports -- absolute only)
     "RUF",  # ruff-specific
+    # Modern-Python idiom detectors (D-entry pending). Each of these flagged *zero*
+    # existing violations when added -- they are a ratchet that locks the current
+    # style in, not a backlog. Deliberately NOT added: TC (104 hits, pure churn --
+    # `from __future__ import annotations` already makes every annotation a string,
+    # so hoisting typing-only imports into `TYPE_CHECKING` buys ~nothing here) and
+    # TRY003/FBT (opinionated).
+    "FURB",  # refurb: modern-idiom rewrites (the headline "modern Python" set)
+    "FA",    # flake8-future-annotations: keep `from __future__ import annotations`
+    "RET",   # flake8-return: unnecessary else/assign-before-return
+    "PIE",   # flake8-pie: misc modern simplifications
+    "PTH",   # flake8-use-pathlib: os.path -> pathlib (reinforces the no-os fence)
+    "SLOT",  # require __slots__ on the right base classes
+    "ISC",   # flake8-implicit-str-concat: catch accidental string concatenation
+    "LOG",   # flake8-logging: logging-call correctness
+    "G",     # flake8-logging-format: no f-strings/%-in-logging pitfalls
+    "PERF",  # Perflint: loops that should be comprehensions, etc.
+    "PLC", "PLE", "PLW",  # Pylint convention/error/warning
+    # -- the size/complexity RATCHET (D44). See the mccabe/pylint tables below for the
+    # thresholds and the ratchet policy; these catch a function *growing* past today's
+    # worst. --
+    "C901",     # mccabe cyclomatic complexity
+    "PLR0911",  # too many return statements
+    "PLR0912",  # too many branches
+    "PLR0913",  # too many arguments
+    "PLR0915",  # too many statements
 ]
 ignore = [
     "ANN401",  # allow explicit typing.Any where genuinely needed
 ]
+
+# The size/complexity thresholds are a TIGHTENING RATCHET (D44), not a fixed bar.
+#
+#   * Each `max-*` below is set at (or, where the tree is already clean, below) the
+#     *current worst* function in `src/`, so the gate is green today but nothing may
+#     regress past it. `max-args`/`max-branches`/`max-complexity` sit at the ceiling set
+#     by a few known-inherent hotspots (the backtracking search recursions in
+#     core/engines, and the CLI argv-glue in cli/generate.py -- code where the number is
+#     essential, not soup). `max-returns`/`max-statements` have *zero* current violations,
+#     so they sit at ruff's strict defaults -- real bars, not ceilings.
+#   * The numbers may only ever be LOWERED, never raised. Lower one whenever a hotspot is
+#     refactored below it (the D41-D43 parameter-object work is what moved `max-args` from
+#     15 down to 10). Raising a threshold is a deliberate decision with a reason (a D-entry
+#     if it reshapes anything), never a drive-by to make a new offender pass.
+#   * A NEW violation is a design signal, not "the rule is too strict": bundle the
+#     parameters into a value object (the CapSpec/SearchBudget/FieldParams convention,
+#     D41-D43), or split the function. Do not `# noqa` it -- CLAUDE.md's no-noqa rule holds
+#     here too; if a genuinely-inherent function must exceed a bar, that is a config change
+#     with a written reason, visible to everyone, not a scattered suppression.
+[tool.ruff.lint.mccabe]
+max-complexity = 19  # ceiling: patterns.gen_capped's cap-driven backtracking recursion
+
+[tool.ruff.lint.pylint]
+max-args = 10  # ceiling: cli/generate._run_capped, patterns.fill_by_count, gibbs.fill_gibbs
+max-branches = 15  # ceiling: the fill/layout backtracking `rec` inner loops
+max-returns = 6  # ruff default -- no current violation, a real bar
+max-statements = 50  # ruff default -- no current violation, a real bar
 
 # Imports are absolute (`puzzledesk.*`), never relative -- enforced, not a
 # convention. Ruff enforces the *spelling* of an import (this rule); import-linter
@@ -100,6 +152,12 @@ ban-relative-imports = "all"
 "scripts/*.py" = ["ANN"]
 # Tests: don't force annotations on every fixture/helper; they are not the API.
 "tests/*.py" = ["ANN"]
+# The `anthropic` SDK is an optional extra (the `clue` extra); these adapters import
+# it *lazily inside the method* so the package imports without it (see CLAUDE.md
+# "`anthropic` is optional"). That deferred import is the intended design, not a
+# smell -- exempt just these two files from the top-level-import rule.
+"src/puzzledesk/adapters/claude_clue.py" = ["PLC0415"]
+"src/puzzledesk/adapters/claude_solver.py" = ["PLC0415"]
 
 [tool.mypy]
 files = ["src/puzzledesk"]

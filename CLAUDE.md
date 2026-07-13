@@ -183,10 +183,20 @@ and architecture.md §"Blocked grids"/"Cap-driven layouts"):
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the
   code or change the shared config in `pyproject.toml` with a reason. The `select`
-  set is broad on purpose (`E W F I UP B C4 SIM ANN TID RUF`). `TID`
+  set is broad on purpose (`E W F I UP B C4 SIM ANN TID RUF` plus the D40 modern-idiom
+  ratchet — `FURB FA RET PIE PTH SLOT ISC LOG G PERF PLC PLE PLW`; the `pyproject.toml`
+  comment records what was deliberately left out and why). `TID`
   (`ban-relative-imports = "all"`) means **imports are absolute (`puzzledesk.*`),
   never relative** — Ruff enforces the *spelling* of an import, import-linter the
   *architecture*; both are structural, not review conventions. It is auto-fixable.
+- **The size/complexity rules are a tightening ratchet** (`C901`/`PLR0911`/`PLR0912`/
+  `PLR0913`/`PLR0915`, D44). Their `max-*` thresholds in `pyproject.toml` sit at the
+  *current worst* function, so the gate is green now but nothing may grow past it. The
+  numbers **only ever go down** — lower one when you refactor a hotspot below it; raising
+  one needs a written reason (a D-entry if it reshapes anything). A new violation is a
+  design signal, not a strict rule: bundle the parameters into a value object (the
+  `CapSpec`/`SearchBudget`/`FieldParams` convention, D41–D43) or split the function — do
+  **not** `# noqa` it (the no-noqa rule above holds here too).
 - **import-linter is authoritative for the architecture.** Two contracts in
   `pyproject.toml` (`[tool.importlinter]`) *are* the boundary spec: the `layers`
   contract (D14) and a `forbidden` contract keeping the OS (`os`/`io`/`sys`/
@@ -243,7 +253,11 @@ no files and no global RNG:
 - distinctness (`test_invariants.py`, `test_services.py`): output has
   `n_distinct == 2N`;
 - ports/DI (`test_rng_port.py`, `test_services.py`): numpy satisfies `Rng`; the
-  services are reproducible and use the injected factory.
+  services are reproducible and use the injected factory;
+- adapter rendering (`test_probe_adapters.py`, `test_writer.py`): the `Probe`/`Writer`
+  adapters are unit-tested through an injected `write` sink (`RecordingWriter`) and clock
+  (`FakeClock`) — no engine, no stream, no wall clock; an event/record in, the rendered
+  string asserted (the effect side the kernel is forbidden).
 
 Two standing rules:
 

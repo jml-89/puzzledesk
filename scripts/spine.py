@@ -35,8 +35,15 @@ from relational import _entries, gravity_floor
 
 # The keeper layout: one 9-across spine (row 4), staggered 5-letter crossers, 180-symmetric.
 SPINE_9 = [
-    "....#####", "....#####", ".....####", ".....####", ".........",
-    "####.....", "####.....", "#####....", "#####....",
+    "....#####",
+    "....#####",
+    ".....####",
+    ".....####",
+    ".........",
+    "####.....",
+    "####.....",
+    "#####....",
+    "#####....",
 ]
 SPINE_LEN = 9
 
@@ -57,9 +64,9 @@ def cascade(entries, clued, n_candidates):
         newly = [e for e in entries if e.eid not in solved and forced(e)]
         if not newly:
             return None
-        for e in newly:
-            if e.eid not in clued:
-                order.append((e, wave, sum(1 for c in e.cells if c in known)))
+        order.extend(
+            (e, wave, sum(1 for c in e.cells if c in known)) for e in newly if e.eid not in clued
+        )
         for e in newly:
             solved.add(e.eid)
             known.update(e.cells)
@@ -76,8 +83,10 @@ def rank(container, bar=62.0, seeds=400, show=8):
     score = lambda w: smap[len(w)].get(w.lower(), 0.0)  # noqa: E731
     nc = lambda a, k: full.get(len(a)).n_candidates(a, k)  # noqa: E731
 
-    print(f"=== one-spine wonders: {g.rows}x{g.cols}, {SPINE_LEN}-spine, "
-          f"cw >= {bar:g}, {seeds} seeds ===")
+    print(
+        f"=== one-spine wonders: {g.rows}x{g.cols}, {SPINE_LEN}-spine, "
+        f"cw >= {bar:g}, {seeds} seeds ==="
+    )
     cands, seen = [], set()
     for seed in range(seeds):
         rng = container.rng_factory.create(seed)
@@ -107,20 +116,26 @@ def rank(container, bar=62.0, seeds=400, show=8):
 
     for weakest, depth, seed, grid, entries, clued, spine, spine_score, minvis in cands[:show]:
         lab = {e.eid: e.label for e in entries}
-        rows = ["".join((grid.cells[r][col] or "#").upper() for col in range(grid.cols))
-                for r in range(grid.rows)]
-        print(f"\n  seed {seed}  weakest-word {weakest:.0f}  "
-              f"spine {spine.label}={spine.answer.upper()} (cw {spine_score:.0f}, deduced)  "
-              f"floor {len(clued)}/{len(entries)}  depth {depth}  minvis {minvis}")
+        rows = [
+            "".join((grid.cells[r][col] or "#").upper() for col in range(grid.cols))
+            for r in range(grid.rows)
+        ]
+        print(
+            f"\n  seed {seed}  weakest-word {weakest:.0f}  "
+            f"spine {spine.label}={spine.answer.upper()} (cw {spine_score:.0f}, deduced)  "
+            f"floor {len(clued)}/{len(entries)}  depth {depth}  minvis {minvis}"
+        )
         print("   " + "\n   ".join(rows))
         print("   clue (given, gravity floor): " + ", ".join(sorted(lab[i] for i in clued)))
         print("   words: " + " ".join(e.answer.upper() for e in entries))
     if not cands:
         print("  (no spine-deduced fill at this bar -- lower it or raise the seed count)")
     else:
-        print(f"\n  {len(cands)} spine-deduced candidates; showing {min(show, len(cands))}, "
-              f"cleanest first.\n  Pick a seed -> site/build_latent_long.py (set SEED + clues; it "
-              f"re-derives the harder min-count floor).")
+        print(
+            f"\n  {len(cands)} spine-deduced candidates; showing {min(show, len(cands))}, "
+            f"cleanest first.\n  Pick a seed -> site/build_latent_long.py (set SEED + clues; it "
+            f"re-derives the harder min-count floor)."
+        )
 
 
 def main() -> None:

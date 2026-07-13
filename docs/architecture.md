@@ -331,10 +331,11 @@ grid fill from short-word data alone — no length-6+ lists *required*. (Those l
 exist, lengths 2..15 per D36, so a larger `max_len` is a supported knob too; the cap
 remains the lever for *short-word* large grids, which is still usually what you want.)
 
-- `gen_capped(rows, cols, *, rng, min_len=3, max_len=None, symmetric=True, num_black=None,
-  max_black=None, node_budget=None, randomize=True)` yields every legal layout whose entries
-  all have length in `[min_len, max_len]`. The *cap* is the governing parameter; the black
-  count is derived. It searches **row-major** and prunes each partial row/column the instant a
+- `gen_capped(rows, cols, *, rng, cap, node_budget=None, randomize=True)` yields every legal
+  layout whose entries all have length in `[cap.min_len, cap.max_len]`. The five *constraints* —
+  `min_len`, `max_len`, `symmetric`, `num_black`, `max_black` — are bundled into one `CapSpec`
+  value (D41), the core twin of the app's `CappedLayout` spec. The *cap* is the governing
+  parameter; the black count is derived. It searches **row-major** and prunes each partial row/column the instant a
   run is too long or too short (`_cell_ok`) — the run-aware pruning `gen_patterns`' orbit/leaf
   model structurally cannot do, and why a 10x10 is found in ~5 ms rather than never. Same
   legality otherwise (symmetric, fully checked, connected) and same completeness: an empty
@@ -348,11 +349,14 @@ remains the lever for *short-word* large grids, which is still usually what you 
     `node_budget` (like `fill.solve`'s) bails a search that a tight cap makes backtrack away —
     a *budgeted* empty is exhaustion, not a proof. The service defaults `max_black` to ~22% of
     the cells (`DEFAULT_BLACK_FRACTION`) so a capped mini reads like a real crossword.
-- `fill_capped(rows, cols, mlex, *, max_len, ...)` is the cap-driven analogue of
-  `fill_by_count`: first `gen_capped` layout that admits a distinct fill. Both searches are
-  complete, but the capped layout space at 10x10 is astronomically large, so a `None` under
-  a `max_patterns`/`node_budget` bound is *budget exhaustion, not a UNSAT theorem* (existence
-  — e.g. the odd-count proof — is still exact). `scripts/largemini.py` is the measurement
+- `fill_capped(rows, cols, mlex, *, rng_factory, cap, seed=0, distinct=True, budget=SearchBudget())`
+  is the cap-driven analogue of `fill_by_count`: first `gen_capped` layout that admits a distinct
+  fill. It takes the same `CapSpec` as `gen_capped` (so the fill no longer re-lists the layout's
+  constraints — D41) and a `SearchBudget` bundling the three completeness-breaking bounds
+  (`fill_nodes`, `layout_nodes`, `max_patterns`). Both searches are complete, but the capped
+  layout space at 10x10 is astronomically large, so a `None` under a *bounded* `budget` is *budget
+  exhaustion, not a UNSAT theorem* — `SearchBudget.is_complete` is that tag; existence (e.g. the
+  odd-count proof) is still exact. `scripts/largemini.py` is the measurement
   driver; `GenerateService.fill(grid, CappedLayout(max_len=K))` and `generate --max-len K`
   expose it.
 
@@ -366,9 +370,14 @@ layout generator beside the complete `gen_capped` (the invariant-0 "two models c
 at the layout layer). It is the "big-and-soft" regime D19 reserved for a sampler's return — a
 *new* spike (the layout, not the retired fill sampler).
 
-- `gibbs_layouts(rows, cols, *, rng, max_len, min_len=3, black_fraction=.16, target_black=None,
-  symmetric=True, params=None, sweeps, t0, t1, attempts_per_layout)` yields legal capped
-  layouts drawn by **annealed Gibbs** over the binary field. The energy (`FieldParams`) is a sum
+- `gibbs_layouts(rows, cols, *, rng, params, symmetric=True, schedule=AnnealSchedule(),
+  attempts_per_layout)` yields legal capped layouts drawn by **annealed Gibbs** over the binary
+  field. The whole field — length window, density target, weights — is the one `params`
+  `FieldParams` (D43: no flat density kwargs; `FieldParams.from_fraction(rows, cols, …)` is the
+  fraction→count convenience). The temperature schedule (`sweeps`/`t0`/`t1`) is bundled into one
+  `AnnealSchedule` value (D42), shared by all four anneal functions (`anneal_field`/`sample_layout`/
+  `gibbs_layouts`/`fill_gibbs`); `fill_gibbs` bundles its sampler bounds into a `SampleBudget`
+  (the Gibbs twin of `SearchBudget`). The energy (`FieldParams`) is a sum
   of **local factors**: run-length legality (dominant), a density spring `(n_black-target)^2`,
   an anti-cluster pair penalty, and an explicit **no-2x2-black-block** term. A single-cell Gibbs
   step evaluates only the *affected rows/columns* + the *cluster touching the flipped orbit*

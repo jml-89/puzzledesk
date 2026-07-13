@@ -82,6 +82,60 @@ class FieldParams:
     w_density: float = 0.20  # (n_black - target)^2 spring toward the target count
     w_cluster: float = 0.55  # anti-cluster: penalty per 4-adjacent black-black pair
 
+    @classmethod
+    def from_fraction(
+        cls,
+        rows: int,
+        cols: int,
+        *,
+        black_fraction: float = 0.16,
+        min_len: int = 3,
+        max_len: int | None = None,
+    ) -> FieldParams:
+        """Build the field with its density *target* derived from a black-cell fraction of
+        the grid -- the ergonomic path for "make ~16% of the cells black" when the caller
+        has a fraction rather than an exact count. The one place the field is specified is
+        still this value; the samplers take a ``FieldParams``, not loose density kwargs (D43)."""
+        return cls(
+            min_len=min_len, max_len=max_len, target_black=round(black_fraction * rows * cols)
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AnnealSchedule:
+    """The geometric temperature schedule for one anneal: ``sweeps`` random-order Gibbs
+    passes cooling from ``t0`` to ``t1`` (D42). Bundled so the four anneal functions --
+    and the sampler *twin* ``gibbs_layouts``/``fill_gibbs`` -- pass one value instead of
+    re-listing the same three knobs. Defaults are the benchmarked schedule
+    (:data:`DEFAULT_SWEEPS`/:data:`DEFAULT_T0`/:data:`DEFAULT_T1`, set by scripts/gibbs.py)."""
+
+    sweeps: int = DEFAULT_SWEEPS
+    t0: float = DEFAULT_T0
+    t1: float = DEFAULT_T1
+
+
+# A shared, immutable default (a frozen instance is safe to share) -- avoids a call in an
+# argument default (flake8-bugbear B008) while keeping the benchmarked schedule the
+# zero-config path.
+_DEFAULT_SCHEDULE = AnnealSchedule()
+
+
+@dataclass(frozen=True, slots=True)
+class SampleBudget:
+    """The bounds that make :func:`fill_gibbs` a *sampler*, not a proof -- the Gibbs-side
+    analogue of :class:`patterns.SearchBudget` (D43). ``attempts_per_layout`` retries one
+    yield past illegal/disconnected anneals; ``max_layouts`` caps how many sampled layouts
+    are tried; ``fill_nodes`` bounds each fill's search tree. Every field is a budget, so a
+    ``None`` from ``fill_gibbs`` is *always* exhaustion, never a UNSAT theorem (that is what
+    ``patterns.fill_capped`` is for)."""
+
+    attempts_per_layout: int = DEFAULT_ATTEMPTS
+    max_layouts: int = 40
+    fill_nodes: int | None = None
+
+
+_DEFAULT_SAMPLE_BUDGET = SampleBudget()
+
 
 def _line_penalty(line: list[bool], min_len: int, max_len: int | None) -> int:
     """Count the illegal white runs in one row/column: a run of length 1..min_len-1
@@ -261,15 +315,14 @@ def anneal_field(
     rng: Rng,
     params: FieldParams,
     symmetric: bool = True,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
 ) -> list[list[bool]]:
     """Run the annealed-Gibbs sweep and return the *raw* binary field (before the legality
     gate). Split out of :func:`sample_layout` so a study can classify what the anneal
     produced (:func:`reject_reason`) without re-implementing the loop. The temperature falls
-    geometrically from ``t0`` to ``t1`` over ``sweeps`` sweeps, each a random-order pass of
-    Gibbs updates over the 180°-rotation orbits (so every field is symmetric)."""
+    geometrically from ``t0`` to ``t1`` over ``schedule.sweeps`` sweeps, each a random-order
+    pass of Gibbs updates over the 180°-rotation orbits (so every field is symmetric)."""
+    sweeps, t0, t1 = schedule.sweeps, schedule.t0, schedule.t1
     reps = _reps(rows, cols, symmetric)
     frac = params.target_black / (rows * cols)
     grid = [[False] * cols for _ in range(rows)]
@@ -323,9 +376,7 @@ def sample_layout(
     rng: Rng,
     params: FieldParams,
     symmetric: bool = True,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
 ) -> BlockedGrid | None:
     """One annealed-Gibbs draw over the black-cell field.
 
@@ -334,9 +385,7 @@ def sample_layout(
     colouring); connectivity is a plain reject in :func:`_finalize` (D28 showed a repair is
     defeated by the cap).
     """
-    grid = anneal_field(
-        rows, cols, rng=rng, params=params, symmetric=symmetric, sweeps=sweeps, t0=t0, t1=t1
-    )
+    grid = anneal_field(rows, cols, rng=rng, params=params, symmetric=symmetric, schedule=schedule)
     return _finalize(grid, rows, cols, params)
 
 
@@ -345,25 +394,18 @@ def gibbs_layouts(
     cols: int,
     *,
     rng: Rng,
-    max_len: int | None = None,
-    min_len: int = 3,
-    black_fraction: float = 0.16,
-    target_black: int | None = None,
+    params: FieldParams,
     symmetric: bool = True,
-    params: FieldParams | None = None,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
     attempts_per_layout: int = DEFAULT_ATTEMPTS,
 ) -> Iterator[BlockedGrid]:
     """Yield legal length-capped layouts, sampled from the energy field -- the
     sampler-side analogue of :func:`patterns.gen_capped`.
 
-    The density is set by ``target_black`` (an exact count spring) or, if unset, by
-    ``black_fraction`` of the cells. ``params`` overrides the full weight set; otherwise
-    a :class:`FieldParams` is built from ``min_len``/``max_len``/target and the default
-    weights. Each yielded grid is one *successful* anneal; up to ``attempts_per_layout``
-    draws are tried per yield to absorb the reject rate (illegal or disconnected anneals).
+    The whole field -- length window, density target, weights -- is the ``params``
+    :class:`FieldParams` (build one from a fraction with :meth:`FieldParams.from_fraction`).
+    Each yielded grid is one *successful* anneal; up to ``attempts_per_layout`` draws are
+    tried per yield to absorb the reject rate (illegal or disconnected anneals).
 
     **Not a proof.** Unlike ``gen_capped``, exhausting this generator (it stops after a
     yield fails ``attempts_per_layout`` times) is **budget exhaustion, never UNSAT** --
@@ -371,16 +413,11 @@ def gibbs_layouts(
     ``rng`` is consumed deterministically, so a given ``(seed)`` stream reproduces the
     same sequence of layouts.
     """
-    if target_black is None:
-        target_black = round(black_fraction * rows * cols)
-    if params is None:
-        params = FieldParams(min_len=min_len, max_len=max_len, target_black=target_black)
-
     while True:
         got: BlockedGrid | None = None
         for _ in range(attempts_per_layout):
             g = sample_layout(
-                rows, cols, rng=rng, params=params, symmetric=symmetric, sweeps=sweeps, t0=t0, t1=t1
+                rows, cols, rng=rng, params=params, symmetric=symmetric, schedule=schedule
             )
             if g is not None:
                 got = g
@@ -396,20 +433,12 @@ def fill_gibbs(
     mlex: MultiLexicon,
     *,
     rng_factory: RngFactory,
-    max_len: int,
+    params: FieldParams,
     seed: int = 0,
-    min_len: int = 3,
     symmetric: bool = True,
     distinct: bool = True,
-    black_fraction: float = 0.16,
-    target_black: int | None = None,
-    params: FieldParams | None = None,
-    sweeps: int = DEFAULT_SWEEPS,
-    t0: float = DEFAULT_T0,
-    t1: float = DEFAULT_T1,
-    attempts_per_layout: int = DEFAULT_ATTEMPTS,
-    max_layouts: int = 40,
-    node_budget: int | None = None,
+    schedule: AnnealSchedule = _DEFAULT_SCHEDULE,
+    budget: SampleBudget = _DEFAULT_SAMPLE_BUDGET,
 ) -> tuple[BlockedGrid, dict[int, str]] | None:
     """Sample energy-field layouts and fill the first that admits a distinct fill --
     the *sampler* analogue of :func:`patterns.fill_capped`.
@@ -417,32 +446,27 @@ def fill_gibbs(
     Same shape and return as ``fill_capped``: ``(grid, assign)`` or ``None``. The
     difference is only the layout source -- :func:`gibbs_layouts` (annealed Gibbs over
     the black-cell field, aesthetic-controlled: density, spread, no 2x2 block) instead
-    of the complete cap-driven search. ``max_layouts`` bounds how many sampled layouts
-    are tried (the generator is otherwise unbounded); a ``None`` here is **budget
-    exhaustion, never a proof** -- both the layout source *and* this bound are samplers /
-    budgets (use ``patterns.fill_capped`` when you want the completeness of the layout
+    of the complete cap-driven search. The field is the ``params`` :class:`FieldParams`;
+    the sampler bounds are one :class:`SampleBudget`. ``budget.max_layouts`` caps how many
+    sampled layouts are tried (the generator is otherwise unbounded); a ``None`` here is
+    **budget exhaustion, never a proof** -- both the layout source *and* every ``budget``
+    field are samplers (use ``patterns.fill_capped`` for the completeness of the layout
     search). The layout stream and every fill re-seed from ``rng_factory.create(seed)``.
     """
     layouts = gibbs_layouts(
         rows,
         cols,
         rng=rng_factory.create(seed),
-        max_len=max_len,
-        min_len=min_len,
-        black_fraction=black_fraction,
-        target_black=target_black,
-        symmetric=symmetric,
         params=params,
-        sweeps=sweeps,
-        t0=t0,
-        t1=t1,
-        attempts_per_layout=attempts_per_layout,
+        symmetric=symmetric,
+        schedule=schedule,
+        attempts_per_layout=budget.attempts_per_layout,
     )
     for tried, g in enumerate(layouts):
-        if tried >= max_layouts:
+        if tried >= budget.max_layouts:
             return None
         assign = fill.solve(
-            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=node_budget
+            g, mlex, rng=rng_factory.create(seed), distinct=distinct, node_budget=budget.fill_nodes
         )
         if assign is not None:
             return g, assign

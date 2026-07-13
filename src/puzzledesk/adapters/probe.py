@@ -106,9 +106,7 @@ class HeartbeatProbe:
                 elapsed = self._now() - self._start
                 self._write(
                     f"\r  done: {verdict} after {attempts} attempt(s), "
-                    f"{self._nodes:,} nodes, {elapsed:.1f}s"
-                    + " " * 20
-                    + "\n"
+                    f"{self._nodes:,} nodes, {elapsed:.1f}s" + " " * 20 + "\n"
                 )
             case _ as unreachable:
                 assert_never(unreachable)
