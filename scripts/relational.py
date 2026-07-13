@@ -144,7 +144,7 @@ def information_floor(entries: list[Entry], n_candidates) -> tuple[frozenset[Ent
     n = len(ids)
     if n > 18:  # exhaustive gets expensive; fall back to greedy removal
         return _greedy_floor(entries, n_candidates)
-    for size in range(0, n + 1):
+    for size in range(n + 1):
         best: tuple[frozenset[EntryId], int] | None = None
         for combo in combinations(ids, size):
             g = frozenset(combo)
@@ -196,11 +196,7 @@ def keystones(entries: list[Entry], n_candidates) -> list[EntryId]:
     """Entries that are load-bearing under the all-gimme clue set: redact this one clue
     (make it non-gimme) and the grid deadlocks. The words a setter *must* clue gently."""
     allg = {e.eid for e in entries}
-    out = []
-    for e in entries:
-        if not propagate(entries, allg - {e.eid}, n_candidates).solved:
-            out.append(e.eid)
-    return out
+    return [e.eid for e in entries if not propagate(entries, allg - {e.eid}, n_candidates).solved]
 
 
 def difficulty_curve(entries: list[Entry], n_candidates) -> list[tuple[int, int | None]]:

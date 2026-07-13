@@ -407,8 +407,12 @@ def fill_capped(
         tried += 1
         probe.emit(Attempt(i, sum(sum(row) for row in g.block), len(g.slots)))
         assign = fill.solve(
-            g, mlex, rng=rng_factory.create(seed), distinct=distinct,
-            node_budget=node_budget, probe=probe,
+            g,
+            mlex,
+            rng=rng_factory.create(seed),
+            distinct=distinct,
+            node_budget=node_budget,
+            probe=probe,
         )
         if assign is not None:
             probe.emit(Finished(ok=True, reason="solved", attempts=tried))

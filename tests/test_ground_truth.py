@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from puzzledesk.core.blocked import BlockedGrid
 from puzzledesk.core.engines import backtrack, fill
 from puzzledesk.core.engines.bruteforce import enumerate_squares
 from puzzledesk.core.lexicon import Lexicon, MultiLexicon
@@ -41,8 +42,6 @@ def test_backtrack_output_is_a_valid_square_in_ground_truth() -> None:
 def test_blocked_fill_is_a_subset_of_enumeration() -> None:
     # A 2x2 fully-open grid (four length-2 slots) with a list that admits a
     # genuinely distinct fill: ab/cd across, ac/bd down -- all four distinct.
-    from puzzledesk.core.blocked import BlockedGrid
-
     g = BlockedGrid.parse(["..", ".."], min_len=2)
     mlex = MultiLexicon({2: Lexicon(["ab", "cd", "ac", "bd"])})
     truth = {tuple(sorted(a.items())) for a in fill.enumerate_fills(g, mlex)}

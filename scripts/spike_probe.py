@@ -15,6 +15,7 @@ for exactly that, tests/test_probe.py::test_probe_does_not_change_result).
     uv run scripts/spike_probe.py            # the tuned demo
     uv run scripts/spike_probe.py 12 12 5 66 1 10000   # rows cols max_len floor seed fill-budget
 """
+
 from __future__ import annotations
 
 import sys
@@ -27,13 +28,24 @@ from puzzledesk.core.engines import patterns
 C = build()
 
 
-def fill(rows, cols, max_len, floor, seed, *, probe, node_budget=None, max_patterns=None,
-         num_black=None):
+def fill(
+    rows, cols, max_len, floor, seed, *, probe, node_budget=None, max_patterns=None, num_black=None
+):
     mlex = C.lexicon.load_multi("cw", range(3, max_len + 1), min_score=floor)
     return patterns.fill_capped(
-        rows, cols, mlex, rng_factory=C.rng_factory, max_len=max_len, seed=seed,
-        min_len=3, symmetric=True, distinct=True, num_black=num_black,
-        node_budget=node_budget, max_patterns=max_patterns, probe=probe,
+        rows,
+        cols,
+        mlex,
+        rng_factory=C.rng_factory,
+        max_len=max_len,
+        seed=seed,
+        min_len=3,
+        symmetric=True,
+        distinct=True,
+        num_black=num_black,
+        node_budget=node_budget,
+        max_patterns=max_patterns,
+        probe=probe,
     )
 
 
@@ -48,23 +60,42 @@ def main() -> None:
     # search moves on -- which is what makes the *outer* loop (attempt after attempt) visible.
     budget = int(a[5]) if len(a) > 5 else 10_000
 
-    print(f"=== {rows}x{cols} capped <= {max_len}, floor {floor}, seed {seed}, "
-          f"fill-budget {budget:,} ===\n")
+    print(
+        f"=== {rows}x{cols} capped <= {max_len}, floor {floor}, seed {seed}, "
+        f"fill-budget {budget:,} ===\n"
+    )
 
     print("--- (1) LoggingProbe: the event stream, one line each ---")
-    found = fill(rows, cols, max_len, floor, seed, probe=LoggingProbe(),
-                 node_budget=budget, max_patterns=40)
+    found = fill(
+        rows, cols, max_len, floor, seed, probe=LoggingProbe(), node_budget=budget, max_patterns=40
+    )
 
     print("\n--- (2) HeartbeatProbe: same search, one live line ---")
-    fill(rows, cols, max_len, floor, seed, probe=HeartbeatProbe(sys.stdout.write),
-         node_budget=budget, max_patterns=40)
+    fill(
+        rows,
+        cols,
+        max_len,
+        floor,
+        seed,
+        probe=HeartbeatProbe(sys.stdout.write),
+        node_budget=budget,
+        max_patterns=40,
+    )
 
     print("\n--- (3) the proof-vs-budget tag ---")
     print("  a complete search of a provably-empty layout space (odd black count, no centre):")
     fill(6, 6, 5, floor, seed, probe=LoggingProbe(lambda s: print("   " + s)), num_black=1)
     print("  the same shape under a node/pattern budget (a miss is not a proof):")
-    fill(rows, cols, max_len, floor, seed, probe=LoggingProbe(lambda s: print("   " + s)),
-         node_budget=1500, max_patterns=5)
+    fill(
+        rows,
+        cols,
+        max_len,
+        floor,
+        seed,
+        probe=LoggingProbe(lambda s: print("   " + s)),
+        node_budget=1500,
+        max_patterns=5,
+    )
 
     if found is not None:
         grid, assign = found

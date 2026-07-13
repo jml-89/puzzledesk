@@ -183,7 +183,9 @@ and architecture.md §"Blocked grids"/"Cap-driven layouts"):
 
 - **Ruff is authoritative.** Do not argue with it or scatter `# noqa`; fix the
   code or change the shared config in `pyproject.toml` with a reason. The `select`
-  set is broad on purpose (`E W F I UP B C4 SIM ANN TID RUF`). `TID`
+  set is broad on purpose (`E W F I UP B C4 SIM ANN TID RUF` plus the D39 modern-idiom
+  ratchet — `FURB FA RET PIE PTH SLOT ISC LOG G PERF PLC PLE PLW`; the `pyproject.toml`
+  comment records what was deliberately left out and why). `TID`
   (`ban-relative-imports = "all"`) means **imports are absolute (`puzzledesk.*`),
   never relative** — Ruff enforces the *spelling* of an import, import-linter the
   *architecture*; both are structural, not review conventions. It is auto-fixable.

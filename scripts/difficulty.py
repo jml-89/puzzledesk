@@ -132,7 +132,7 @@ def report_square(
         stats.append(
             _emit(
                 filled_from_square(sq, state),
-                lambda w, p: full.n_letters_at(w, p),
+                full.n_letters_at,
                 lambda w, kn: int(full.matching(_pattern(w, kn)).size),
                 lambda w: full.score_map.get(w, 0.0),
                 obscure_below,

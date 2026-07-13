@@ -176,11 +176,12 @@ class SolveView:
         else the solver's current letter. Pure geometry + the solver's own fill -- no
         answer key."""
         black = set(self.black)
-        letters: dict[Cell, str] = {}
-        for e in (*self.across, *self.down):
-            for cell, ch in zip(e.cells, e.letters, strict=True):
-                if ch is not None:
-                    letters[cell] = ch
+        letters: dict[Cell, str] = {
+            cell: ch
+            for e in (*self.across, *self.down)
+            for cell, ch in zip(e.cells, e.letters, strict=True)
+            if ch is not None
+        }
         return tuple(
             tuple(None if (r, c) in black else letters.get((r, c), "") for c in range(self.cols))
             for r in range(self.rows)
@@ -269,11 +270,9 @@ class SolveState:
         return Feedback(policy, solved)  # NONE
 
     def _oracle_cells(self) -> dict[Cell, str]:
-        out: dict[Cell, str] = {}
-        for e in self.board.entries:
-            for cell, ch in zip(e.cells, e.answer, strict=True):
-                out[cell] = ch
-        return out
+        return {
+            cell: ch for e in self.board.entries for cell, ch in zip(e.cells, e.answer, strict=True)
+        }
 
     def view(self, policy: FeedbackPolicy) -> SolveView:
         """Project the answer-free :class:`SolveView` the agent acts on."""

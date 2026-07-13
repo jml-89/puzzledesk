@@ -2062,3 +2062,38 @@ the four builders, `scripts/spine.py`, and `gravity_floor` and nothing in core/a
 findings survive in relational-difficulty.md / this entry (D19/D31 discipline). A generic
 spine-page builder with live (`clue`-extra) cluing, and generation-to-a-target-depth, are each a
 later decision.
+
+## D40. Modern-Python ruff pass: ratchet the idiom rules that already hold
+
+Context: the toolchain was strict on *architecture* (import-linter layers/forbidden) and *types*
+(`mypy --strict`), but the ruff `select` set had not moved since it was first drawn
+(`E W F I UP B C4 SIM ANN TID RUF`). A code-quality review asked the plain question: which
+*modern-Python-informed* rules would fire on this tree? Measured (per group, on `src/`): the
+idiom detectors that matter — **FURB** (refurb), **FA** (future-annotations), **RET**, **PIE**,
+**PTH**, **SLOT**, **ISC**, **LOG**/**G**, **PLW**/**PLE** — each flagged **zero** existing
+violations. The house style *already* satisfies them; they simply were not being enforced. Two
+had a tiny, genuine backlog: **PERF** (2 loops that should be dict-comprehensions, in
+`app/solve.py`) and **PLC** (2 `import-outside-top-level`, which are the *intended* lazy
+`anthropic` imports behind the `clue` extra). Separately, with no CI in the repo (the gate is the
+manual `CONTRIBUTING` checklist), `ruff format` had quietly drifted on 7 committed files under the
+locked 0.15.21 formatter — never enforced, so never noticed.
+
+Decision: **add the zero-violation modern groups to `select` as a ratchet** — they lock the
+current style in against regression rather than clearing a backlog — fix the two `PERF403` spots
+by hand, and exempt the two lazy-import files with a reasoned `PLC0415` per-file-ignore (the
+deferred import *is* the optional-extra design, per CLAUDE.md). Run `ruff format` to bring the
+tree to the locked formatter's fixpoint.
+
+Deliberately **not** added, each with a reason:
+- **TC** (flake8-type-checking, 104 hits): pure churn here. `from __future__ import annotations`
+  is already universal, so every annotation is a string at runtime — hoisting typing-only imports
+  into `TYPE_CHECKING` blocks buys ~nothing and costs 104 diffs.
+- **TRY003 / FBT** (opinionated): vanilla-exception-args and the boolean-type-hint trap. The
+  codebase's keyword-only bool convention is already the recommended boolean-trap mitigation;
+  FBT001 flags the hint regardless. Not worth the noise.
+- **PLR0913 / PLR0912** (the *size* half of Pylint): these are the real signal — the core
+  engines' kwarg-soup signatures — but a blanket ban is the wrong tool. Tracked as the
+  parameter-object refactor (its own decision), not a lint suppression.
+
+Reversal: config-only plus 4 tiny mechanical edits; revert the `select` block and the drift is
+back but nothing behavioural moves. The rules are a fence, not a feature.

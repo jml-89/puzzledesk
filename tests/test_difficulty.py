@@ -106,7 +106,7 @@ def test_analyze_wired_to_a_real_lexicon() -> None:
     # from both directions: a genuine open crossing computed via n_letters_at.
     lex = Lexicon(["ab", "cd", "ac", "bd", "cb", "bc"])
     grid = FilledGrid((("a", "b"), ("c", "d")))
-    diff = analyze(grid, lambda w, p: lex.n_letters_at(w, p))
+    diff = analyze(grid, lex.n_letters_at)
 
     c00 = next(c for c in diff.crossings if c.cell == (0, 0))
     assert c00.across_options == 2  # ab / cb

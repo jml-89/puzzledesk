@@ -82,6 +82,24 @@ select = [
     "ANN",  # flake8-annotations (drive type-hint coverage)
     "TID",  # flake8-tidy-imports (ban relative imports -- absolute only)
     "RUF",  # ruff-specific
+    # Modern-Python idiom detectors (D-entry pending). Each of these flagged *zero*
+    # existing violations when added -- they are a ratchet that locks the current
+    # style in, not a backlog. Deliberately NOT added: TC (104 hits, pure churn --
+    # `from __future__ import annotations` already makes every annotation a string,
+    # so hoisting typing-only imports into `TYPE_CHECKING` buys ~nothing here),
+    # TRY003/FBT (opinionated), and the size half of PL (PLR0913/0912 -- tracked via
+    # the kwarg-soup refactor, not a blanket ban).
+    "FURB",  # refurb: modern-idiom rewrites (the headline "modern Python" set)
+    "FA",    # flake8-future-annotations: keep `from __future__ import annotations`
+    "RET",   # flake8-return: unnecessary else/assign-before-return
+    "PIE",   # flake8-pie: misc modern simplifications
+    "PTH",   # flake8-use-pathlib: os.path -> pathlib (reinforces the no-os fence)
+    "SLOT",  # require __slots__ on the right base classes
+    "ISC",   # flake8-implicit-str-concat: catch accidental string concatenation
+    "LOG",   # flake8-logging: logging-call correctness
+    "G",     # flake8-logging-format: no f-strings/%-in-logging pitfalls
+    "PERF",  # Perflint: loops that should be comprehensions, etc.
+    "PLC", "PLE", "PLW",  # Pylint convention/error/warning (NOT PLR -- see above)
 ]
 ignore = [
     "ANN401",  # allow explicit typing.Any where genuinely needed
@@ -100,6 +118,12 @@ ban-relative-imports = "all"
 "scripts/*.py" = ["ANN"]
 # Tests: don't force annotations on every fixture/helper; they are not the API.
 "tests/*.py" = ["ANN"]
+# The `anthropic` SDK is an optional extra (the `clue` extra); these adapters import
+# it *lazily inside the method* so the package imports without it (see CLAUDE.md
+# "`anthropic` is optional"). That deferred import is the intended design, not a
+# smell -- exempt just these two files from the top-level-import rule.
+"src/puzzledesk/adapters/claude_clue.py" = ["PLC0415"]
+"src/puzzledesk/adapters/claude_solver.py" = ["PLC0415"]
 
 [tool.mypy]
 files = ["src/puzzledesk"]

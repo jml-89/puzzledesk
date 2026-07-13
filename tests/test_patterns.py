@@ -168,7 +168,7 @@ def test_capped_symmetric_even_grid_rejects_odd_count() -> None:
 
 def test_max_black_bounds_the_count_and_is_complete() -> None:
     # A ceiling yields exactly the layouts at or below it: the union up to K.
-    for K in range(0, 12):
+    for K in range(12):
         bounded: set = set()
         for g in patterns.gen_capped(
             5, 5, rng=_rng(0), min_len=3, max_len=4, max_black=K, randomize=False

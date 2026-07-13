@@ -41,8 +41,11 @@ def test_null_probe_satisfies_the_port() -> None:
 
 def _white(rows: int, cols: int, min_len: int) -> object:
     """The single all-white layout of this shape (num_black=0)."""
-    return next(patterns.gen_capped(rows, cols, rng=np.random.default_rng(0),
-                                    min_len=min_len, max_len=min_len, num_black=0))
+    return next(
+        patterns.gen_capped(
+            rows, cols, rng=np.random.default_rng(0), min_len=min_len, max_len=min_len, num_black=0
+        )
+    )
 
 
 def test_probe_does_not_change_result() -> None:
@@ -55,15 +58,18 @@ def test_probe_does_not_change_result() -> None:
 
 def test_fill_emits_solved_on_success() -> None:
     probe = RecordingProbe()
-    assert fill.solve(_white(2, 2, 2), _FILLABLE, rng=np.random.default_rng(3),
-                      probe=probe) is not None
+    assert (
+        fill.solve(_white(2, 2, 2), _FILLABLE, rng=np.random.default_rng(3), probe=probe)
+        is not None
+    )
     assert any(isinstance(e, Solved) for e in probe.events)
 
 
 def test_capped_run_emits_ordered_stream() -> None:
     probe = RecordingProbe()
-    patterns.fill_capped(2, 2, _FILLABLE, rng_factory=_factory(), max_len=2, min_len=2,
-                         num_black=0, probe=probe)
+    patterns.fill_capped(
+        2, 2, _FILLABLE, rng_factory=_factory(), max_len=2, min_len=2, num_black=0, probe=probe
+    )
     kinds = [type(e).__name__ for e in probe.events]
     assert kinds[0] == "PhaseStarted"
     assert "Attempt" in kinds
@@ -74,8 +80,9 @@ def test_capped_run_emits_ordered_stream() -> None:
 
 def test_terminal_reason_is_solved_when_filled() -> None:
     probe = RecordingProbe()
-    patterns.fill_capped(2, 2, _FILLABLE, rng_factory=_factory(), max_len=2, min_len=2,
-                         num_black=0, probe=probe)
+    patterns.fill_capped(
+        2, 2, _FILLABLE, rng_factory=_factory(), max_len=2, min_len=2, num_black=0, probe=probe
+    )
     (done,) = [e for e in probe.events if isinstance(e, Finished)]
     assert done.ok and done.reason == "solved" and done.attempts >= 1
 
@@ -85,8 +92,9 @@ def test_terminal_reason_exhausted_is_a_proof() -> None:
     # even-celled symmetric grid has no centre cell) reports ``exhausted`` -- the UNSAT
     # theorem, not a timeout -- with zero attempts.
     probe = RecordingProbe()
-    out = patterns.fill_capped(6, 6, _FILLABLE, rng_factory=_factory(), max_len=5,
-                               num_black=1, symmetric=True, probe=probe)
+    out = patterns.fill_capped(
+        6, 6, _FILLABLE, rng_factory=_factory(), max_len=5, num_black=1, symmetric=True, probe=probe
+    )
     assert out is None
     (done,) = [e for e in probe.events if isinstance(e, Finished)]
     assert not done.ok and done.reason == "exhausted" and done.attempts == 0
@@ -96,8 +104,17 @@ def test_terminal_reason_budget_is_not_a_proof() -> None:
     # A layout that cannot fill distinctly, under a fill node budget: the miss is budget
     # exhaustion, so the reason is ``budget`` (a bounded search, not a theorem).
     probe = RecordingProbe()
-    patterns.fill_capped(2, 2, _UNFILLABLE, rng_factory=_factory(), max_len=2, min_len=2,
-                         num_black=0, node_budget=1, probe=probe)
+    patterns.fill_capped(
+        2,
+        2,
+        _UNFILLABLE,
+        rng_factory=_factory(),
+        max_len=2,
+        min_len=2,
+        num_black=0,
+        node_budget=1,
+        probe=probe,
+    )
     (done,) = [e for e in probe.events if isinstance(e, Finished)]
     assert not done.ok and done.reason == "budget"
 
@@ -108,8 +125,7 @@ def test_progress_counters_are_monotonic() -> None:
     words = ["".join(p) for p in product("abcde", repeat=5)][:150]
     mlex = MultiLexicon({5: Lexicon(words)})
     probe = RecordingProbe()
-    fill.solve(_white(5, 5, 5), mlex, rng=np.random.default_rng(1),
-               node_budget=20_000, probe=probe)
+    fill.solve(_white(5, 5, 5), mlex, rng=np.random.default_rng(1), node_budget=20_000, probe=probe)
     fill_nodes = [e.nodes for e in probe.events if isinstance(e, Progress)]
     assert len(fill_nodes) >= 2, "expected sampled Progress events"
     assert fill_nodes == sorted(fill_nodes) and len(set(fill_nodes)) == len(fill_nodes)
