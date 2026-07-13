@@ -270,6 +270,22 @@ applies to both) while more than doubling the clue cost. One spine is the sweet 
 legible demonstration of *why*. (28 entries is well past the exhaustive-floor ceiling, so its floor
 is greedy — likely not minimal, which if anything understates the cost.)
 
+**The central-focus cross — topologically ideal, lexically infeasible (measured, not shipped).**
+Two *parallel* spines diffuse the puzzle; the natural fix is to make them *cross*, giving a single
+**focus**. The clean version is two 5×5 word-squares kissing at one corner cell, threaded by a
+9-across and a 9-down that span both (the layout is the intersection of the single-spine stagger
+with its own transpose). Topologically it is exactly the attractor you want: the shared cell (4,4)
+is a graph **articulation point** — it lies in the two spines and nothing else, so removing it
+splits the grid in two — and every crosser is a proper 5-letter slot (no 3-letter soup). But it does
+not fill with common words. Two word-squares *coupled* by two 9-letter-word constraints collapse the
+common-word solution space to the vocabulary's obscure tail: it fills instantly against the full cw
+list (ENTRUSTED / SAPSUCKER spines) but is **unfillable by ~cw-45**, and even ~cw-35 is
+AMOOT/RAFIK/DUENA/ENERO soup. So focus and fill-quality trade off directly — the tighter you couple
+the deduction to one point, the more the coupling forces obscurity. A *fillable* central focus would
+need looser arms (staggered 3-thick crossers instead of full squares — an untried perpendicular
+stagger), trading some of the crispness of the articulation point for vocabulary room. Not shipped:
+an obscure-word grid is unfair to *deduce* (the point of Latent), so this stays a measured tombstone.
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
