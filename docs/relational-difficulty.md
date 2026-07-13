@@ -286,6 +286,17 @@ need looser arms (staggered 3-thick crossers instead of full squares — an untr
 stagger), trading some of the crispness of the articulation point for vocabulary room. Not shipped:
 an obscure-word grid is unfair to *deduce* (the point of Latent), so this stays a measured tombstone.
 
+That loosening is the shipped **`site/latent-cross.html`** (`build_latent_cross.py`): two *7*-letter
+spines (ESSENCE × OBSERVE) crossing at the centre, arms pinwheeling into two sparse clusters (~35%
+white, 14 entries). Shortening the spines and staggering the arms slackens the coupling enough that
+the fill draws on **common** words again (the strict cross could not) — the prediction held. The
+cost is exactly the crispness we traded: the two spines share the centre letter, so the information
+floor must clue *one* of them to force the other (only one spine is deduced, not both), and the
+sparsity flattens the cascade to **depth 2** — the shallowest of the family. So the full spectrum,
+from densest to airiest, reads: dense 5×5 (depth 6) → one 9-spine (depth 5, the keeper) → two
+parallel 9-spines (depth 3, half-clued) → sparse 7×7-spine cross (depth 2, one-deduced). Focus,
+depth, and fill-cleanliness form a single tension surface; the one-spine grid sits at its knee.
+
 ## The live probe (`scripts/endogenous.py`) — does a real solver track the model?
 
 The probe takes one generated grid, clues it with *precise* (Monday) clues so an un-redacted
